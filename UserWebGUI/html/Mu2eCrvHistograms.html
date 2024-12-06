@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mu2e</title>
+    
+    <script type="text/JavaScript" src="/WebPath/js/Globals.js"></script>   
+    <script type="text/JavaScript" src="/WebPath/js/Debug.js"></script>     
+    <script type="text/JavaScript" src="/WebPath/UserWebPath/js/mu2e.js"></script>
+    <script src='https://cdn.plot.ly/plotly-2.32.0.min.js'></script>
+    <!--<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">-->
+    <link rel="stylesheet" href="/WebPath/UserWebPath/css/mu2e.css"> 
+</head>
+<body class="mu2e" onload="mu2e_init('CrvHistogram')">
+    <script>
+        
+        async function updatePlot() {
+            const nbins    = document.querySelector('[id="hist_nbins"]').value;
+            const interval = document.querySelector('[id="hist_interval"]').value;
+            const fpga     = document.querySelector('[id="hist_fpga"]').value;
+            const channel  = document.querySelector('[id="hist_ch"]').value;
+            const port     = document.querySelector('[id="hist_port"]').value;
+
+            document.querySelector('[id="single_plot"]').style.display = "block";
+            document.querySelector('[id="multi_plot"]').style.display = "none";
+
+            const msg = document.querySelector('[id="hist_msg"]')
+            msg.innerHTML = "Get histogram for port "+port+", fpga "+fpga+", channel "+channel+" for "+(Number(interval)/1000.).toFixed(1)+"s, with "+nbins+" bins.";
+
+            try {
+                const res = await getHistograms(port, fpga, channel, interval, nbins);
+
+                const res_data = decodeURIComponent(res["feMacroExec"]["ROC FEMacro - Histogram"]["outputArgs_value"][1]).substring(8)
+                //console.log(res_data);
+                const data = res_data.split(',').map(Number);
+                //console.log(data.length)
+
+                msg.innerHTML += "<br>got data, updating plot"
+
+                Plotly.restyle('hist_plot', {'x': Array.from({ length: nbins }, (_, index) => index-0.5),
+                                            'y' : [data.slice(0,nbins)]}
+                                            );
+                Plotly.relayout('hist_plot', {title: "port "+port+", fpga "+fpga+", channel "+channel});
+            } catch(error) {
+                msg.innerHTML += error;
+            }
+
+        }
+
+        async function updateAllPlot() {
+            const nbins    = document.querySelector('[id="hist_nbins"]').value;
+            const interval = document.querySelector('[id="hist_interval"]').value;
+            const fpga     = document.querySelector('[id="hist_fpga"]').value;
+            const port     = document.querySelector('[id="hist_port"]').value;
+
+            const dtcName = "daq08DTC"; //new URLSearchParams(window.location.search).get('dtc')
+            const dtcLink = 0; //new URLSearchParams(window.location.search).get('link')
+
+            document.querySelector('[id="single_plot"]').style.display = "none";
+            document.querySelector('[id="multi_plot"]').style.display = "grid";
+
+            const msg = document.querySelector('[id="hist_msg"]')
+            setPoolEna(dtcName, dtcLink, 0, msg);
+            await new Promise(resolve => setTimeout(resolve, 500)); // 0.5ms delay test
+
+
+            try {
+                for(let channel = 0; channel < 16; channel++) {
+                    msg.innerHTML = "Get histogram for port "+port+", fpga "+fpga+", channel "+channel+" for "+(Number(interval)/1000.).toFixed(1)+"s, with "+nbins+" bins.";
+                    const res = await getHistograms(port, fpga, channel, interval, nbins);
+
+                    const res_data = decodeURIComponent(res["feMacroExec"]["ROC FEMacro - Histogram"]["outputArgs_value"][1]).substring(8)
+                    //console.log(res_data);
+                    const data = res_data.split(',').map(Number);
+                    //console.log(data.length)
+
+                    Plotly.restyle("hist_plot_ch"+channel.toString().padStart(2, '0'), 
+                                   {'x': Array.from({ length: nbins }, (_, index) => index-0.5),
+                                    'y' : [data.slice(0,nbins)]}
+                                    );
+                    Plotly.relayout("hist_plot_ch"+channel.toString().padStart(2, '0'), 
+                                    {title: "port "+port+", fpga "+fpga+", channel "+channel});
+
+                    //msg.innerHTML += "<br>got data, updating plot"
+                    //Plotly.newPlot("hist_plot_ch"+channel.toString().padStart(2, '0'), 
+                    //               {x: Array.from({ length: nbins }, (_, index) => index-0.5),
+                    //                y: [data.slice(0,nbins)],
+                    //                type: 'bar'}, 
+                    //               {title: "port "+port+", fpga "+fpga+", channel "+channel,
+                    //                bargap: 0.0,
+                    //                yaxis: {type: 'log', autorange: true, title: "count"},
+                    //                xaxis: { title : "ADC" }
+                    //               });
+                    //await new Promise(resolve => setTimeout(resolve, 500)); // 0.5ms delay test
+                }
+                setPoolEna(dtcName, dtcLink, 1, msg);
+            } catch(error) {
+                msg.innerHTML += error;
+            }
+        }
+
+        async function getPedestalValues() {
+            const fpga     = document.querySelector('[id="hist_fpga"]').value;
+            const port     = document.querySelector('[id="hist_port"]').value;
+            
+            const dtcName = "daq08DTC"; //new URLSearchParams(window.location.search).get('dtc')
+            const dtcLink = 0; //new URLSearchParams(window.location.search).get('link')
+
+            const msg = document.querySelector('[id="hist_msg"]')
+
+            const table = document.querySelector('[id="mu2e_table"]')
+            table.style.display = "grid"
+            try {
+                let cidx = 2;
+                for(let channel = 0; channel < 16; channel++) { 
+                    const reg = 0x1080+channel + 0x400*fpga;
+                    const res = await rocRead(reg, dtcName, link=dtcLink);
+                    const val_str = res["feMacroExec"]["ROC Read"]["outputArgs_value"];
+                    const val_hexstr = val_str.split(" ")[1]
+                    const val = val_hexstr.substring(1, val_hexstr.length-1)
+                    console.log(val)
+                    let cell_ch = getTableDiv(cidx, 2);
+                    cell_ch.innerHTML = channel.toString();
+                    let cell_value = getTableDiv(cidx++, 3);
+                    cell_value.innerHTML = val.toString();
+                    table.appendChild(cell_ch);
+                    table.appendChild(cell_value);
+                }
+            } catch(error) {
+                msg.innerHTML += error;
+            }
+            
+        }
+
+        async function pedestals() {
+            console.log("take pedestals")
+            let msg_div = document.querySelector("[id='hist_msg']");
+            const dtcName = "daq08DTC";//new URLSearchParams(window.location.search).get('dtc')
+            const dtcLink = 0;//new URLSearchParams(window.location.search).get('link')
+            getPedestals(dtcName, dtcLink, msg_div);
+        }
+
+    </script>
+    <div id="mu2e_header">mu2e</div>
+    <div id="mu2e_nav"></div>
+    <div id="mu2e_main">
+        <div class="mu2e_container mu2e_grid">
+            <div style="grid-column: 1/7; grid-row: 1" class="mu2e_title">CRV Histograms</div>
+            <div style="grid-column: 1;   grid-row: 2;" class="mu2e_list">
+                <button onClick="updatePlot()">Get Histogram</button>
+            </div>
+            <div style="grid-column: 2;   grid-row: 2;" class="mu2e_list">
+                port <input type="text" size="5" id="hist_port" value="-1"></input>
+            </div>
+            <div style="grid-column: 3;   grid-row: 2;" class="mu2e_list">
+                FPGA 
+                <select id="hist_fpga">
+                    <option value="0">0</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                </select>
+            </div>
+            <div style="grid-column: 4;   grid-row: 2;" class="mu2e_list">
+                channel 
+                <select id="hist_ch">
+                    <option value="0">0</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                    <option value="6">6</option>
+                    <option value="7">7</option>
+                    <option value="8">8</option>
+                    <option value="9">9</option>
+                    <option value="10">10</option>
+                    <option value="11">11</option>
+                    <option value="12">12</option>
+                    <option value="13">13</option>
+                    <option value="14">14</option>
+                    <option value="15">15</option>
+                </select>
+            </div>
+            <div style="grid-column: 5;   grid-row: 2;" class="mu2e_list">
+                interval <input type="text" size="7" id="hist_interval" value=2000></input> ms
+            </div>
+            <div style="grid-column: 6;   grid-row: 2;" class="mu2e_list">
+                n bins <input type="text" size="7" id="hist_nbins" value=100></input>
+            </div>
+            <div style="grid-column: 1;   grid-row: 3;" class="mu2e_list">
+                <button onClick="updateAllPlot()">Get All Histograms</button> of sel. FPGA
+            </div>
+            <div style="grid-column: 1;   grid-row: 4;" class="mu2e_list">
+                <button onClick="getPedestalValues()">Get Pedestal Values</button>
+                <button onClick="pedestals()">Take Pedestals</button>
+            </div>
+            <div style="grid-column: 2/7;   grid-row: 3/5;" class="mu2e_list" id="hist_msg">&nbsp;</div>
+        </div> 
+        
+         <div id="single_plot" class="mu2e_container">
+            <div class="mu2e_title">Plot</div>
+            <div id="hist_plot"></div>
+        </div> 
+
+        <div id="multi_plot" id="mu2e_messages" class="mu2e_container" style="display:grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4);">
+            <div style="grid-column: 1/5;  grid-row: 1;"  class="mu2e_title">Plots</div>
+
+            <div style="grid-column: 1;   grid-row: 2;" id="hist_plot_ch00"></div>
+            <div style="grid-column: 2;   grid-row: 2;" id="hist_plot_ch01"></div>
+            <div style="grid-column: 3;   grid-row: 2;" id="hist_plot_ch02"></div>
+            <div style="grid-column: 4;   grid-row: 2;" id="hist_plot_ch03"></div>
+
+            <div style="grid-column: 1;   grid-row: 3;" id="hist_plot_ch04"></div>
+            <div style="grid-column: 2;   grid-row: 3;" id="hist_plot_ch05"></div>
+            <div style="grid-column: 3;   grid-row: 3;" id="hist_plot_ch06"></div>
+            <div style="grid-column: 4;   grid-row: 3;" id="hist_plot_ch07"></div>
+
+            <div style="grid-column: 1;   grid-row: 4;" id="hist_plot_ch08"></div>
+            <div style="grid-column: 2;   grid-row: 4;" id="hist_plot_ch09"></div>
+            <div style="grid-column: 3;   grid-row: 4;" id="hist_plot_ch10"></div>
+            <div style="grid-column: 4;   grid-row: 4;" id="hist_plot_ch11"></div>
+
+            <div style="grid-column: 1;   grid-row: 5;" id="hist_plot_ch12"></div>
+            <div style="grid-column: 2;   grid-row: 5;" id="hist_plot_ch13"></div>
+            <div style="grid-column: 3;   grid-row: 5;" id="hist_plot_ch14"></div>
+            <div style="grid-column: 4;   grid-row: 5;" id="hist_plot_ch15"></div>
+        </div> 
+        
+        <div id="mu2e_table" class="mu2e_container mu2e_grid" style="display:none;">
+            <div style="grid-column: 1/18;  grid-row: 1;"  class="mu2e_title">Pedestals</div>
+            <div class="mu2e_list" style="grid-column: 1;   grid-row: 2;">ch</div>
+            <div class="mu2e_list" style="grid-column: 1;   grid-row: 3;">pedestal</div>
+        </div>
+        
+    </div>
+
+    <script>
+
+        var trace1 = {
+            x: [],
+            y: [],
+            type: 'bar'
+        };
+    
+        var layout = {
+            title: 'Histogram',
+            bargap: 0.0,
+            yaxis: {
+                type: 'log',
+                autorange: true,
+                title: "count"
+            },
+            xaxis: {
+                title : "ADC"
+            }
+        };
+
+        var layout2 = {
+            //title: 'Histogram',
+            bargap: 0.0,
+            yaxis: {
+                type: 'log',
+                autorange: true,
+                title: "count"
+            },
+            xaxis: {
+                title : "ADC"
+            },
+            margin: {
+                t: 100, //top margin
+                l: 50, //left margin
+                r: 10, //right margin
+                b: 80 //bottom margin
+            }
+        };
+
+        
+    
+        Plotly.newPlot('hist_plot', [trace1], layout);
+
+        for(let ch=0; ch<16; ch++) {
+            Plotly.newPlot('hist_plot_ch'+ch.toString().padStart(2, '0'), [trace1], layout2);
+        }
+
+        document.querySelector('[id="multi_plot"]').style.display = "none";
+    
+        </script>
+
+</body>
+</html>

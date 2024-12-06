@@ -54,6 +54,7 @@ enum Register : uint16_t
     Reset        = 0x8001,
     PWRRST       = 0x800A,
     TRIG         = 0x800B,
+    POOLENA      = 0x8107,
 }; // end ROC_Register enum
 
 uint16_t Data[] = {0x400, 0x800, 0xC00}; 

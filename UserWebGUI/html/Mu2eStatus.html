@@ -47,9 +47,25 @@
     <li><a href="#" onclick="log(getRunInfo());">getRunInfo()</a></li>
     <li><a href="#" onclick="log(getRunInfo(105504));">getRunInfo(105504)</a></li>
     <li><a href="#" onclick="log(getRunInfo(-10));">getRunInfo(-10)</a></li>
-
-
-    </ul>
+    <li><a href="#" onclick="log(setTreeNodeFieldValues('SubsystemCRVChannelTable','CH000','BiasTrim','0x798'));">setTreeNodeFieldValues('SubsystemCRVChannelTable','CH000','BiasTrim','0x798')</a></li>
+    <li><a href="#" onclick="log(saveSpecificTable('SubsystemCRVChannelTable',-3));">saveSpecificTable('SubsystemCRVChannelTable',-5)</a></li>
+    <li><a href="#" onclick="log(saveNewTableGroup('CrvVSTConfig'));">saveNewTableGroup('CrvVSTConfig')</a></li>
+    <li><a href="#" onclick="log(saveNewTableGroup('CrvVSTConfig','comment',1));">saveNewTableGroup('CrvVSTConfig','comment',1)</a></li>
+    <li><a href="#" onclick="log(activateTableGroup('CrvVSTConfig',337));">activateTableGroup('CrvVSTConfig',337)</a></li>
+    <li><a href="#" onclick="log(setGroupAliasInActiveBackbone('CrvVSTConfig',337,'crv_vst_config'));">setGroupAliasInActiveBackbone('CrvVSTConfig',337,'crv_vst_config')</a></li>
+    <li><a href="#" onclick="log(getActiveTableGroups());">getActiveTableGroups()</a></li>
+    <li><a href="#" onclick="log(getTableStructureStatus());">getTableStructureStatus()</a></li>
+    <li><a href="#" onclick="log(getActiveTables());">getActiveTables()</a></li>
+    <li><a href="#" onclick="log(getSpecificTableGroup('CrvVSTConfig',337));">getSpecificTableGroup('CrvVSTConfig',337)</a></li>
+    <li><a href="#" onclick="log(saveConfig(function(e) {console.log(e);}));">saveConfig()</a></li>
+    <li><a href="#" onclick="log(getSpecificTable('SubsystemCRVChannelTable'));">getSpecificTable('SubsystemCRVChannelTable')</a></li>
+    <li><a href="#" onclick="log(getTreeNodeFieldValues('/XDAQApplicationPropertyTable','PropertyValue','SupervisorTFMConfig'));">getTreeNodeFieldValues('XDAQApplicationPropertyTable','PropertyValue','SupervisorTFMConfig')</a></li>
+    
+    <li><a href="#" onclick="log(getTreeView('/FEBInterfaceTable/FEB0'));">getTreeView('/FEB0')</a></li>
+    <li><a href="#" onclick="log(getDAQReport());">getDAQReport</a></li>
+    <li><a href="#" onclick="log(getDAQState());">getDAQState</a></li>
+    
+</ul>
 
     <pre id="output"></pre>
     <script>

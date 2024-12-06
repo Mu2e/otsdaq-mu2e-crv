@@ -565,8 +565,10 @@
             //console.log(crvConfigUpdatedTables)
             var modifiedTables_ = []
             var numberOfModifiedTables_ = 0
+            console.log(crvConfigUpdatedTables)
             for(const table_ in crvConfigUpdatedTables) {
                 var updates_ = crvConfigUpdatedTables[table_]
+                console.log(updates_)
                 ConfigurationAPI.setFieldValuesForRecords(
                     table_,
                     updates_.uids,

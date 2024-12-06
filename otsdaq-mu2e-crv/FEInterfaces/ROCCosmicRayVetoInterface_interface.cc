@@ -163,9 +163,12 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
         registerFEMacroFunction("Histogram",
 	    static_cast<FEVInterface::frontEndMacroFunction_t>(
 					&ROCCosmicRayVetoInterface::GetHistograms),
-					std::vector<std::string>{"interval (Default 2s) [ms]",
-                                             "channel",
-                                             "filename (Default: histogram.csv)"},
+					std::vector<std::string>{"port (Default: -1, current active)",
+                                                                 "fpga [0,1,2,3]",
+                                                                 "channel [0-15]",
+                                                                 "interval (Default 2s) [ms]",
+                                                                 "filename (Default: histogram.csv)",
+                                                                 "number of bins (Default all: 0x400)"},
 					std::vector<std::string>{"buffer"},
 					1);  // requiredUserPermissions
 
@@ -629,14 +632,90 @@ void ROCCosmicRayVetoInterface::PWRRST(__ARGS__) {
 }
 
 void ROCCosmicRayVetoInterface::GetHistograms(__ARGS__) {
-	int16_t interval = __GET_ARG_IN__("interval (Default 2s) [ms]", int16_t, 2000);
-    int16_t channel = __GET_ARG_IN__("channel", int16_t);
-    std::string filename = __GET_ARG_IN__("filename (Default: histogram.csv)", std::string, "histogram.csv");
+	int port = __GET_ARG_IN__("port (Default: -1, current active)", int, -1);
+        int16_t interval = __GET_ARG_IN__("interval (Default 2s) [ms]", int16_t, 2000);
+        uint16_t fpga = __GET_ARG_IN__("fpga [0,1,2,3]", uint16_t);
+        uint16_t channel = __GET_ARG_IN__("channel [0-15]", uint16_t);
+        std::string filename = __GET_ARG_IN__("filename (Default: histogram.csv)", std::string, "histogram.csv");
+        uint16_t nbins = __GET_ARG_IN__("number of bins (Default all: 0x400)", uint16_t, 0x400);
 
+        uint16_t histRunParam = channel&0x7;
+        if(channel&0x8) histRunParam+=0x40; else histRunParam+=0x20;
 
-    std::stringstream o;
-	o << "DEBUG: interval: " << interval << ", channel: " << channel << ", filename: " << filename << std::endl;
-    __SET_ARG_OUT__("buffer", o.str());
+        if(port>0) SetActivePort(port);
+	    this->writeRegister(FEB::FPGA[fpga]|FEB::HistInterval, interval);
+	    this->writeRegister(FEB::FPGA[fpga]|FEB::HistRun, histRunParam);
+	    this->writeRegister(FEB::FPGA[fpga]|(FEB::HistPointer + (channel&0x8 ? 0x1 : 0x0)), 0);
+
+        std::stringstream o;
+	    //o << "DEBUG: interval: " << interval << ", port: " << port << ", fpga: " << fpga << ", channel: " << channel << ", filename: " << filename << std::endl;
+        //__SET_ARG_OUT__("buffer", o.str());
+
+//        __SET_ARG_OUT__("buffer", "Waiting for histogram to be filled ...");  //is there a way to add additional text to the output window while the macro is running?
+        //this->writeRegister(ROC::POOLENA, 0x0); // disaple the pooling
+        TLOG(TLVL_DEBUG) << "Sleep for " << interval/1000 << "s to fill the histogram" << __E__;
+        sleep(interval/1000);
+        while(1) {
+	    uint16_t histStatus = this->readRegister(FEB::FPGA[fpga]|FEB::HistRun);
+        TLOG(TLVL_DEBUG) << "Test if the histogram is done: status = 0x" << std::hex << histStatus << __E__;
+        if(histStatus&0x20 || histStatus&0x40) sleep(1);
+        else break;
+        }
+//        __SET_ARG_OUT__("buffer", "Done!");
+
+/*
+//ReadBlock results in errors here and in the existing MacroMaker function
+        std::vector<uint16_t> histMemory;
+        this->readBlock(histMemory, FEB::FPGA[fpga]|(FEB::HistMemory + (channel&0x8 ? 0x1 : 0x0)), 0x800, false);
+
+        std::ofstream histFile;
+        histFile.open(filename);
+        for(size_t i=0; i<histMemory.size(); i+=2)
+        {
+          uint32_t binContent = (((uint32_t)histMemory.at(i))<<16) + histMemory.at(i+1);
+          histFile << binContent << std::endl;
+        }
+        histFile.close();
+*/
+//ReadRegister results in errors here unless increasing the timeout in ROCCoreVInterface::readROCRegister to 1000ms
+        std::ofstream histFile;
+        histFile.open(filename);
+        TLOG(TLVL_DEBUG) << "Open '" << filename << "' for histogram. Start read out." << __E__;
+        for(size_t i=0; i<nbins*2; i+=2)
+        {
+            TLOG(TLVL_DEBUG) << "Read histogram bin " << i << __E__;
+            //auto read0 = chrono::high_resolution_clock::now();
+            //auto read1 = chrono::high_resolution_clock::now();
+            //auto read2 = chrono::high_resolution_clock::now();
+            //auto read3 = chrono::high_resolution_clock::now();
+            uint32_t binContent = 0;
+            try{
+                auto read0 = chrono::high_resolution_clock::now();
+                binContent = this->readRegister(FEB::FPGA[fpga]|(FEB::HistMemory + (channel&0x8 ? 0x1 : 0x0))) << 16;
+                auto read1 = chrono::high_resolution_clock::now();
+                // read2 = chrono::high_resolution_clock::now();
+                binContent += this->readRegister(FEB::FPGA[fpga]|(FEB::HistMemory + (channel&0x8 ? 0x1 : 0x0)));
+                auto read3 = chrono::high_resolution_clock::now();
+                TLOG(TLVL_DEBUG) << "Read times " << chrono::duration_cast<chrono::milliseconds>(read1 - read0).count() << "ms, " 
+                                                << chrono::duration_cast<chrono::milliseconds>(read3 - read1).count() << "ms" <<  __E__;
+                histFile << binContent << std::endl;
+                o << binContent << ",";
+            } catch(...) {
+                // assume one missed DCS from the FEB
+                TLOG(TLVL_ERROR) << "Did we miss one DCS read from the FEB?" << __E__;
+                //auto read4 = chrono::high_resolution_clock::now();
+                //TLOG(TLVL_DEBUG) << "Read times " << chrono::duration_cast<chrono::milliseconds>(read1 - read0).count() << "ms, " 
+                //                                  << chrono::duration_cast<chrono::milliseconds>(read3 - read2).count() << "ms, " 
+                //                                  << chrono::duration_cast<chrono::milliseconds>(read4 - read0).count() << "ms (since start of iteration)" <<  __E__;
+                //sleep(1.); // 20ms is a typical 
+                //TLOG(TLVL_DEBUG) << "Waited 1s, try to read again" << __E__;
+                //this->readRegister(FEB::FPGA[fpga]|(FEB::HistMemory + (channel&0x8 ? 0x1 : 0x0))); // to clean out
+                //histFile << -1 << std::endl;
+            }
+        }
+        histFile.close();
+        __SET_ARG_OUT__("buffer", o.str());
+        
 }
 // FEB related functions
 

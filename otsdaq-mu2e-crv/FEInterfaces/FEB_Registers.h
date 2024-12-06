@@ -20,6 +20,11 @@ enum Register : uint16_t {
     Threshold          = 0x1090, // to 0x9f
     Bias               = 0x1044, // to 0x45
 
+    HistInterval       = 0x1011,
+    HistRun            = 0x1010,
+    HistPointer        = 0x1014, // to 0x15
+    HistMemory         = 0x1016, // to 0x17
+
     // prefix for all 4 fpga
     AllFPGA            = 0x1300,
     CSRBroadCast       = 0x1316,

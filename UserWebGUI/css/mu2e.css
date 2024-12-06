@@ -17,6 +17,12 @@
     z-index: 2;
     margin: 0px;
     font-size: 12pt;
+    color: gray;
+}
+
+#mu2e_header div {
+    display: inline;
+    //color: gray;
 }
 
 #mu2e_nav {
@@ -82,6 +88,17 @@
 }
 
 #mu2e_hardware {
+    display: grid;
+    grid-gap: 3px;
+    color: #444;
+}
+#mu2e_artdaq {
+    display: grid;
+    grid-gap: 3px;
+    color: #444;
+}
+
+.mu2e_grid {
     display: grid;
     grid-gap: 3px;
     color: #444;
@@ -209,3 +226,13 @@ div:hover>.tooltiptext {
 .mu2e_transition {
     background-color:#9c27b0;
 }
+
+.mu2e_editable {
+    cursor: pointer;
+    border: 1px solid transparent;
+    padding: 0px;
+    padding-right: 10px;
+  }
+  .mu2e_editable:hover {
+    border-color: #1343ab5c;
+  }

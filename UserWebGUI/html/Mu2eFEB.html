@@ -37,6 +37,13 @@
                 if(div) addTime(div, write_time);
             }
         }
+        async function pedestals() {
+            console.log("take pedestals")
+            const dtcName = new URLSearchParams(window.location.search).get('dtc')
+            const dtcLink = new URLSearchParams(window.location.search).get('link')
+            let msg_div = document.querySelector("[id='msg']");
+            getPedestals(dtcName, dtcLink, msg_div);
+        }
     </script>
     <div id="mu2e_header">mu2e</div>
     <div id="mu2e_nav"></div>
@@ -62,8 +69,15 @@
                 <div style="grid-column: 3/5; grid-row: 4;" class="mu2e_list">10V pos:</div>
                 <div style="grid-column: 4;   grid-row: 4;" class="mu2e_list" name="mu2e_dcs"  data="10Vpos" format="2" units="C">Value</div>               
             </div>
-            <div id="mu2e_dtc_links" class="mu2e_container mu2e_grid">
-                <div style="grid-column: 1/6; grid-row: 1" class="mu2e_title">Channel Groups</div>
+            <div class="mu2e_container mu2e_grid">
+                <div style="grid-column: 1/6; grid-row: 1" class="mu2e_title">Global Settings</div>
+                <div style="grid-column: 1; grid-row: 2;" class="mu2e_list">On-pill Gate Length:<span class="mu2e_config" path="SubsystemCRVGroupedParametersTable" uid="OnSpillGateLength" field="Value"></span></div>
+                <div style="grid-column: 2; grid-row: 2;" class="mu2e_list">Off-pill Gate Length:<span class="mu2e_config" path="SubsystemCRVGroupedParametersTable" uid="OffSpillGateLength" field="Value"></span></div>
+                <div style="grid-column: 3; grid-row: 2;" class="mu2e_list">Hit Pipeline Delay:<span class="mu2e_config" path="SubsystemCRVGroupedParametersTable" uid="HitPipelineDelay" field="Value"></span></div>
+                <!--<div style="grid-column: 4; grid-row: 2;" class="mu2e_list">Hit Pipeline Delay:<span class="mu2e_config" path="SubsystemCRVGroupedParametersTable" uid="HitPipelineDelay" field="Name"></span></div>-->
+            </div>
+            <div id="mu2e_feb_groups" class="mu2e_container mu2e_grid">
+                <div style="grid-column: 1/7; grid-row: 1" class="mu2e_title">Channel Groups</div>
                 <!--<div style="grid-column: 2; grid-row: 2;" class="mu2e_list">FPGA 0:</div>
                 <div style="grid-column: 3; grid-row: 2;" class="mu2e_list">FPGA 1:</div>
                 <div style="grid-column: 4; grid-row: 2;" class="mu2e_list">FPGA 2:</div>
@@ -112,6 +126,8 @@
                 <div style="grid-column: 2; grid-row: 18;" class="mu2e_list" name="mu2e_dcs"  data="CMB14_temperature" format="2" units="C">Value</div>
                 <div style="grid-column: 2; grid-row: 19;" class="mu2e_list" name="mu2e_dcs"  data="CMB15_temperature" format="2" units="C">Value</div>
 
+                <div style="grid-column: 6; grid-row: 3;" class="mu2e_list">Bias Setting</div>
+
                 <div style="grid-column: 5; grid-row: 4/6;" class="mu2e_list" id="bias_0_0_c">
                     <input type="text" id="bias_0_0" size="8" value="0x000"></input>&nbsp;
                     <button onclick="setBiasCmd(0,0);">set &#10095;</button>
@@ -159,12 +175,26 @@
                 <div style="grid-column: 5; grid-row: 5;" class="mu2e_list" name="mu2e_dcs"  data="BiasDac_6" format="hex">Value</div> -->
 
             </div>
+            <div id="mu2e_feb_channels" class="mu2e_container mu2e_grid">
+                <div style="grid-column: 1/5; grid-row: 1" class="mu2e_title">Channels
+                    <span class="mu2e_right_float">
+                        <a href="#" style="text-decoration:none; padding:3px; color:white;" onclick="toggleView(this,'mu2e_collapsable')">+</a>
+                    </span>
+                </div>
+
+                <div style="grid-column: 2; grid-row: 2; display:none;" class="mu2e_list mu2e_collapsable">Channel</div>
+                <div style="grid-column: 3; grid-row: 2; display:none;" class="mu2e_list mu2e_collapsable">Bias Trim</div>
+                <div style="grid-column: 4; grid-row: 2; display:none;" class="mu2e_list mu2e_collapsable">Threshold</div>
+            </div>
+
             <div id="mu2e_dtc_action" class="mu2e_container mu2e_grid">
-                <div style="grid-column: 1/1; grid-row: 1" class="mu2e_title">Functions</div>
+                <div style="grid-column: 1/8; grid-row: 1" class="mu2e_title">Functions</div>
                 <div style="grid-column: 1;   grid-row: 2;"    class="mu2e_list">
                     <button onClick="alert('NOT IMPLEMENTED YET');">Select</button>
                     <button onClick="cmbendaCmd();">CMBENA</button>
+                    <button onClick="pedestals();">take pedestals</button>
                 </div>
+                <div style="grid-column: 2/8;   grid-row: 2;"  class="mu2e_list" id="msg"></div>
             </div>
         <!--
 
