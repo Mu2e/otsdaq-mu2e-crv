@@ -36,6 +36,10 @@ public:
 	virtual void 							writeEmulatorRegister	(uint16_t address, uint16_t data_to_write) override;
 	virtual uint16_t						readEmulatorRegister	(uint16_t address) override;
 
+	// FEB realted functions
+	uint32_t GetActivePorts();
+	void SetActivePort(uint16_t port, bool check = true); // starts at 1, max 24                     
+
 	//virtual void 							readROCBlock			(std::vector<uint16_t>& data, uint16_t address, uint16_t numberOfReads, bool incrementAddress) override { }
 	//virtual void 							readEmulatorBlock		(std::vector<uint16_t>& data, uint16_t address, uint16_t numberOfReads, bool incrementAddress) override { }
 
@@ -51,6 +55,7 @@ public:
     // CRV ROC specific functions
     void Reset();
 	void RocConfigure(bool gr=false);
+	void FebConfigure();
 	void ResetTxBuffers();
 
 public:
@@ -65,6 +70,14 @@ public:
 	void                                    FiberRx                 (__ARGS__);
 	void                                    FiberTx                 (__ARGS__);
 	void                                    SetLoopbackMode         (__ARGS__);
+	//void                                    FebGetStatus            (__ARGS__);
+	void                                    FebSetBias              (__ARGS__);
+	void                                    FebSetBiasTrim          (__ARGS__);
+	void                                    FebSetThreshold         (__ARGS__);
+	void                                    FebSetPipeline          (__ARGS__);
+    void                                    FebCMBENA               (__ARGS__);
+    void                                    PWRRST                  (__ARGS__);
+    void                                    GetHistograms           (__ARGS__);
 	// clang-format on
 };
 

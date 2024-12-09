@@ -3,14 +3,15 @@
 
 // #include <functional>  // std::bind, std::function (if needed)
 
-namespace ROCLib {
-enum ROC_Register : uint16_t 
+namespace ROC {
+enum Register : uint16_t 
 {
     // FPGA1 registers
     CR                 = 0x00,
     GTP_CRC            = 0x02,
     ActivePortsHigh    = 0x08,
     ActivePortsLow     = 0x09,
+    ID                 = 0x0a,
     PLLMuxHigh         = 0x17,
     PLLMuxHLow         = 0x18,
     PLLStat            = 0x19, // bit 0 is pwr dwn, bit 4 is lock
@@ -44,14 +45,21 @@ enum ROC_Register : uint16_t
     Data_DDR_ReadHigh  = 0x04,
     Data_DDR_ReadLow   = 0x05,
 
+    // FEB registers
+    FEB                = 0x1000,
+    FEB_Broadcast      = 0x3000, // superseeds FEB
+
     // uC functions
+    LP           = 0x8000,
     Reset        = 0x8001,
+    PWRRST       = 0x800A,
     TRIG         = 0x800B,
+    POOLENA      = 0x8107,
 }; // end ROC_Register enum
 
-uint16_t ROC_Register_Data[] = {0x400, 0x800, 0xC00}; 
+uint16_t Data[] = {0x400, 0x800, 0xC00}; 
 
 
-}  // namespace ROCLib
+}  // namespace ROC
 
 #endif  // ROC_REGISTERS_H
