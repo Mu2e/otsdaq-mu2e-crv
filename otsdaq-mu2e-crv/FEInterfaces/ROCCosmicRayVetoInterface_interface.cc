@@ -1,3 +1,4 @@
+#include <bitset>
 #include "otsdaq-mu2e-crv/FEInterfaces/ROCCosmicRayVetoInterface.h"
 #include "otsdaq-mu2e-crv/FEInterfaces/ROC_Registers.h"
 #include "otsdaq-mu2e-crv/FEInterfaces/FEB_Registers.h"
@@ -66,11 +67,12 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
     	registerFEMacroFunction("Configure ROC",
 	    static_cast<FEVInterface::frontEndMacroFunction_t>(
 					&ROCCosmicRayVetoInterface::RocConfigure),
-					std::vector<std::string>{"send GR packages (Default: true)"},
+					std::vector<std::string>{"send GR packages (Default: true)",
+                                             "# of counter packages (Default: 0)"},
 					std::vector<std::string>{},
 					1);  // requiredUserPermissions
 
-		registerFEMacroFunction("Reset TX and Counters",
+		registerFEMacroFunction("SoftReset",
 	    static_cast<FEVInterface::frontEndMacroFunction_t>(
 					&ROCCosmicRayVetoInterface::SoftReset),
 					std::vector<std::string>{},
@@ -87,6 +89,13 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 					"Test Cnt", "Marker Decoded Cnt", "Marker Delayed Cnt", "Heartbeat Rx Cnt", "Heartbeat Tx Cnt", "DR Cnt", "Injection Cnt", "Loopback Markers (fiber) Cnt",
 					"Last Event Length (12.5ns)", "Injection Length (12.5ns)", "Injection Timestamp"
 					},
+					1);  // requiredUserPermissions
+
+        registerFEMacroFunction("Get Pretty Status",
+	    static_cast<FEVInterface::frontEndMacroFunction_t>(
+					&ROCCosmicRayVetoInterface::GetPrettyStatus),
+					std::vector<std::string>{},
+					std::vector<std::string>{"response"},
 					1);  // requiredUserPermissions
 
         registerFEMacroFunction("Read Fiber Rx",
@@ -170,6 +179,13 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
                                                                  "filename (Default: histogram.csv)",
                                                                  "number of bins (Default all: 0x400)"},
 					std::vector<std::string>{"buffer"},
+					1);  // requiredUserPermissions
+
+        registerFEMacroFunction("Register Dump",
+	    static_cast<FEVInterface::frontEndMacroFunction_t>(
+					&ROCCosmicRayVetoInterface::RegDump),
+					std::vector<std::string>{},
+					std::vector<std::string>{"response"},
 					1);  // requiredUserPermissions
 
 }
@@ -346,13 +362,14 @@ void ROCCosmicRayVetoInterface::Reset() {
 }
 void ROCCosmicRayVetoInterface::HardReset(__ARGS__) { Reset(); }
 
-void  ROCCosmicRayVetoInterface::ResetTxBuffers() {
+void  ROCCosmicRayVetoInterface::ResetRxBuffers() {
    this->writeRegister(ROC::GTP_CRC, 0x1);
    this->writeRegister(ROC::CRS, 0x300);
+   this->writeRegister(ROC::GTP_CRC, 0x1);
 }
 void ROCCosmicRayVetoInterface::SoftReset(__ARGS__)
 {
-    ResetTxBuffers();
+    ResetRxBuffers();
 }
 
 void ROCCosmicRayVetoInterface::FebConfigure() {
@@ -464,23 +481,32 @@ void ROCCosmicRayVetoInterface::FebConfigure() {
 }
 
 
-void ROCCosmicRayVetoInterface::RocConfigure(bool gr) {
+void ROCCosmicRayVetoInterface::RocConfigure(bool gr, uint16_t grn) {
 	TLOG(TLVL_ROCConfig) << "RocConfigure Start " << __E__;
 
-	// Enable the onboard PLL
+    // set the ROC address
+	this->writeRegister(ROC::ID, (uint16_t)linkID_);
+
+	// Enable the onboard PLL (1 is power down)
 	this->writeRegister(ROC::PLLStat,     0x0);
 	// and configure PLL mux to read digital lock
 	this->writeRegister(ROC::PLLMuxHigh, 0x12);
 	this->writeRegister(ROC::PLLMuxHLow, 0x12);
 
 	// enable package forwarding based on markers
-	this->writeRegister(ROC::CR, 0x20);
+	//this->writeRegister(ROC::CR, 0x20);
+    SetMarkerSync(true);
+
+    this->writeRegister(ROC::Clk80MHz, 0x1); // enable the 80MHz clock alignment
 
 	// Set CSR of data-FPGAs
-	this->writeRegister(ROC::Data_Broadcast|ROC::Data_CRC, 0xA8);
+    // bit 3: FM Rx Enable
+    // bit 5: DDR Write Sequencer Enable
+    // bit 7: DDR read sequencer Enable
+	this->writeRegister(ROC::Data_Broadcast|ROC::Data_CRC, 0xA8); //
 
     // Reset input buffers
-    ResetTxBuffers();
+    ResetRxBuffers();
 
 	// Reset DDR on Data FPGAs
 	for (int i = 0; i < 3; ++i) {
@@ -489,23 +515,36 @@ void ROCCosmicRayVetoInterface::RocConfigure(bool gr) {
 	    this->writeRegister(ROC::Data[i]|ROC::Data_DDR_ReadHigh, 0x0);
 	    this->writeRegister(ROC::Data[i]|ROC::Data_DDR_ReadLow, 0x0);
 	}
-
-    	// Set TRIG 1
+    
+    // Set TRIG 1
 	this->writeRegister(ROC::TRIG, 0x1);
 
-    	// set the ROC address
-	this->writeRegister(ROC::ID, (uint16_t)linkID_);
+    // TODO write uB offset
+    this->writeRegister(ROC::uBOffset, 0x0);
 
 	// Enable GR package return
 	TLOG(TLVL_ROCConfig) << "Global Run Mode is " << (gr ? "enabled" : "disabled") << "." << __E__;
-	if(gr) this->writeRegister(ROC::sendGR, 0x1);
-	else this->writeRegister(ROC::sendGR, 0x0);
+	if(gr) {
+        this->writeRegister(ROC::sendGR, 0x1 + (grn<<8));
+        //this->writeRegister(ROC::sendGR, 0x2);///
+
+        // Disable send of active FEBs
+        this->writeRegister(ROC::Data[0]|ROC::Data_LinkCtrl, 0x0);
+    } else {
+        this->writeRegister(ROC::sendGR, 0x0);
+
+        // Enable send of active FEBs
+        this->writeRegister(ROC::Data[0]|ROC::Data_LinkCtrl, 0x1);
+    }
+
+
 }
 
 void ROCCosmicRayVetoInterface::RocConfigure(__ARGS__)
 {
 	bool gr = __GET_ARG_IN__("send GR packages (Default: true)", bool, true);
-    RocConfigure(gr);
+    uint16_t grn = __GET_ARG_IN__("# of counter packages (Default: 0)", uint16_t, 0);
+    RocConfigure(gr, grn);
 }
 
 void ROCCosmicRayVetoInterface::GetStatus(__ARGS__)
@@ -545,6 +584,116 @@ void ROCCosmicRayVetoInterface::GetStatus(__ARGS__)
 	__SET_ARG_OUT__("Injection Length (12.5ns)", this->readRegister(ROC::InjectionLength));
 	__SET_ARG_OUT__("Injection Timestamp", this->readRegister(ROC::InjectionTS));
 	
+}
+
+void ROCCosmicRayVetoInterface::GetPrettyStatus(__ARGS__)
+{
+    std::stringstream ostr;
+    uint16_t val;
+    ostr << std::endl;
+    ostr << "----------------" << std::endl;
+    ostr << "Firmware version" << std::endl;
+    ostr << "    version:       " << "  0x" << std::setfill('0') << std::setw(4) << std::hex
+                                  << this->readRegister(ROC::Version) << std::endl;
+    ostr << "    git hash:      " << "  0x" << std::setfill('0') << std::setw(8) << std::hex 
+                                  << "  " << (((this->readRegister(ROC::GitHashHigh) << 16) +
+		                                this->readRegister(ROC::GitHashLow)) & 0xffffffff) 
+                                  << std::endl;
+    ostr << "----------------" << std::endl;
+    ostr << "Status" << std::endl;
+    ostr << "    ID:            " << "  0x" << std::setfill('0') << std::setw(4) << std::hex
+                                  << this->readRegister(ROC::ID) << std::endl;
+    ostr << "    Control:       " << "  0x" << std::setfill('0') << std::setw(4) << std::hex
+                                  << this->readRegister(ROC::CR) << std::endl;
+    ostr << "    PLL locked:    " << "  " << (((this->readRegister(ROC::PLLStat)) >> 4) & 0x1 )
+                                  << std::endl;
+    auto bits = std::bitset<24>(((this->readRegister(ROC::ActivePortsHigh) << 16) +
+                            this->readRegister(ROC::ActivePortsLow)) & 0xffffffff).to_string();
+    std::reverse(bits.begin(), bits.end());
+    ostr << "    active FEBs    " << "  " << bits << std::endl;
+    ostr << "    active port:   "  << std::dec
+                                  << this->readRegister(ROC::LP) << std::endl;
+    ostr << "    Loopback:      " << "  0x" << std::setfill('0') << std::setw(4) << std::hex
+                                  << this->readRegister(ROC::LoopbackMode) << std::endl;
+    ostr << "    80MHz align:   " << "  " << (this->readRegister(ROC::Clk80MHz) & 0x1) << std::endl;
+    ostr << "    80MHz al. cnt  " << "  " << std::dec
+                                  << (this->readRegister(ROC::Clk80MHz) >> 8) << std::endl;
+    ostr << "----------------" << std::endl;
+    ostr << "Settings" << std::endl;
+    ostr << "    marker delay:  " << "  0x" << std::setfill('0') << std::setw(4) << std::hex
+                                  << this->readRegister(ROC::MarkerDelay) << std::endl;
+    ostr << "    DR timeout:    " << "  0x" << std::setfill('0') << std::setw(4) << std::hex
+                                  << this->readRegister(ROC::DRTimeout) << std::endl;
+    ostr << "    EWT Offset:    " << "  0x" << std::setfill('0') << std::setw(4) << std::hex
+                                  << this->readRegister(ROC::uBOffset) << std::endl;
+    val = this->readRegister(ROC::sendGR);
+    ostr << "    GR mode:       " << "  " << (val & 0x1) << std::endl;
+    ostr << "    GR n packets:  " << "  0xXXXX" << std::endl;
+    //ostr << "    GR n packets:  " << std::dec << (val >> 8) << std::endl;
+    ostr << "----------------" << std::endl;
+    ostr << "Counters" << std::endl;
+    ostr << "    uptime:        " << std::setfill(' ') << std::setw(8) << std::dec
+                                  << ((this->readRegister(ROC::UpTimeHigh) << 16) +
+		                               this->readRegister(ROC::UpTimeLow))
+                                  << " seconds" << std::endl;
+    ostr << "    test cnt:      " << std::setfill(' ') << std::setw(8) << std::dec
+                                  << this->readRegister(ROC::TestCounter) << std::endl;
+    //val = this->readRegister(ROC::MarkerCnt);
+    //ostr << "    marker dec.    " << std::setfill(' ') << std::setw(8)
+    //                             << (val & 0xff) << std::endl;
+    //ostr << "    marker dely    " << std::setfill(' ') << std::setw(8)
+    //                              << ((val >> 8)) << std::endl;
+    ostr << "    EWT (fiber)    " << std::setfill(' ') << std::setw(8) << std::dec
+                                  << (this->readRegister(ROC::HeartBeatCn)) << std::endl;
+    ostr << "    markers (sent) " << std::setfill(' ') << std::setw(8) << std::dec
+                                  << (this->readRegister(ROC::HeartBeat)) << std::endl;
+    //ostr << "    DR cnt         " << std::setfill(' ') << std::setw(8) << std::dec
+    //                              << ((this->readRegister(ROC::DRCntHigh) << 16) +
+	//	                               this->readRegister(ROC::DRCnLow)) 
+    //                              << std::endl;
+    ostr << "    GR mode:       " << std::setfill(' ') << std::setw(8) << (val & 0x1) << std::endl;
+    ostr << "    fake pack. cnt:" << std::setfill(' ') << std::setw(8)
+                                  << std::dec << (this->readRegister(ROC::sendGR) >> 8) << std::endl;
+    ostr << "    loopback       " << std::setfill(' ') << std::setw(8)
+                                  << (this->readRegister(ROC::LoopbackMarkerCnt)) << std::endl;
+    ostr << "    last EWT       " << "  0x" << std::setfill('0') << std::setw(4) << std::hex
+                                  << (this->readRegister(ROC::LastUbSent)) << std::endl;
+    ostr << "----------------" << std::endl;
+    ostr << "Error Counters" << std::endl;
+    val = this->readRegister(ROC::sendGR);
+    ostr << "    lock loss      " << std::setfill(' ') << std::setw(8) << std::dec
+                                  << (val & 0xff) << std::endl;
+    ostr << "    crc            " << std::setfill(' ') << std::setw(8) << std::dec
+                                  << (val >> 12) << std::endl;
+                                  
+
+                      
+    //val = this->readRegister(ROC::HeartBeat);
+    //ostr << "    heartbeat rx   " << std::setfill(' ') << std::setw(8)
+    //                              << ((val& 0xff)) << std::endl;
+    //ostr << "    marker dely    " << std::setfill(' ') << std::setw(8)
+    //                              << ((val >> 8)) << std::endl;
+    ostr << "----------------" << std::endl;
+    ostr << "Buffer Status" << std::endl;
+    val = this->readRegister(ROC::HrtBtBuffStat);
+    ostr << "    HB buf. empty  " << "       " << (val >> 15) << std::endl;
+    ostr << "    HB buf. words  " << std::setfill(' ') << std::setw(8) << std::dec
+                                  << (val & 0x0fff) << std::endl;
+    val = this->readRegister(ROC::DreqBuffStat);
+    ostr << "    DR buf. empty  " << "       "<< (val >> 15) << std::endl;
+    ostr << "    DR buf. words  " << std::setfill(' ') << std::setw(8) << std::dec
+                                  << (val & 0x0fff) << std::endl;
+    ostr << "    Wd cnt Link 0  " << std::setfill(' ') << std::setw(8) << std::dec
+                                  << this->readRegister(ROC::LinkWdCnt0) << std::endl;
+    ostr << "    Wd cnt Link 1  " << std::setfill(' ') << std::setw(8) << std::dec
+                                  << this->readRegister(ROC::LinkWdCnt1) << std::endl;
+    ostr << "    Wd cnt Link 2  " << std::setfill(' ') << std::setw(8) << std::dec
+                                  << this->readRegister(ROC::LinkWdCnt2) << std::endl;
+    val = this->readRegister(ROC::EvBuffStat);
+    ostr << "    Ev. buff empty " << "       " << (val & 0x1) << std::endl;
+    ostr << "    Ev. buff full  " << "       " << ((val & 0x2) >> 1) << std::endl;
+    ostr << "----------------" << std::endl;
+    __SET_ARG_OUT__("response", ostr.str());
 }
 
 void ROCCosmicRayVetoInterface::FiberRx(__ARGS__) {
@@ -629,6 +778,20 @@ void ROCCosmicRayVetoInterface::FebCMBENA(__ARGS__) {
 void ROCCosmicRayVetoInterface::PWRRST(__ARGS__) {
 	int16_t port = __GET_ARG_IN__("port (Default 25 - all)", int16_t, 25);
 	this->writeRegister(ROC::PWRRST, port);
+}
+
+void ROCCosmicRayVetoInterface::RegDump(__ARGS__) {
+
+    std::stringstream ostr;
+    ostr << "ROC Register Dump:" << std::endl;
+    for (uint16_t add = 0; add <= 0xFF; add++) {
+        ostr << "0x" << std::setfill('0') << std::setw(4) << std::hex << add << ": ";
+        ostr << "0x" << std::setfill('0') << std::setw(4) << std::hex 
+             << this->readRegister(add)
+             << std::endl;
+    }
+
+    __SET_ARG_OUT__("response", ostr.str());
 }
 
 void ROCCosmicRayVetoInterface::GetHistograms(__ARGS__) {
@@ -752,6 +915,12 @@ void ROCCosmicRayVetoInterface::SetActivePort(uint16_t port, bool check) {
 			usleep(5000); // 5ms before retry
 		}
 	}
+}
+
+void ROCCosmicRayVetoInterface::SetMarkerSync(bool enable) {
+    uint32_t cr = this->readRegister(ROC::CR);
+    cr = enable ? (cr | (1u << 5)) : (cr & ~(1u << 5));
+    this->writeRegister(ROC::CR, cr);
 }
 
 DEFINE_OTS_INTERFACE(ROCCosmicRayVetoInterface)

@@ -54,9 +54,10 @@ public:
 
     // CRV ROC specific functions
     void Reset();
-	void RocConfigure(bool gr=false);
+	void RocConfigure(bool gr=false, uint16_t grn=0);
 	void FebConfigure();
-	void ResetTxBuffers();
+	void ResetRxBuffers();
+    void SetMarkerSync(bool enable=true);
 
 public:
 	void 									DoTheCRV_Dance			(__ARGS__);
@@ -67,6 +68,7 @@ public:
 	void                                    SoftReset            	(__ARGS__);
 	void                                    RocConfigure        	(__ARGS__);
 	void                                    GetStatus            	(__ARGS__);
+    void                                    GetPrettyStatus         (__ARGS__);
 	void                                    FiberRx                 (__ARGS__);
 	void                                    FiberTx                 (__ARGS__);
 	void                                    SetLoopbackMode         (__ARGS__);
@@ -78,6 +80,7 @@ public:
     void                                    FebCMBENA               (__ARGS__);
     void                                    PWRRST                  (__ARGS__);
     void                                    GetHistograms           (__ARGS__);
+    void                                    RegDump                 (__ARGS__);
 	// clang-format on
 };
 

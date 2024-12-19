@@ -7,29 +7,41 @@ namespace ROC {
 enum Register : uint16_t 
 {
     // FPGA1 registers
-    CR                 = 0x00,
+    CR                 = 0x00, // bit 5: 
     GTP_CRC            = 0x02,
+    LinkWdCnt0         = 0x04,
+    LinkWdCnt1         = 0x05,
+    LinkWdCnt2         = 0x06,
+    EvBuffStat         = 0x07,
     ActivePortsHigh    = 0x08,
     ActivePortsLow     = 0x09,
     ID                 = 0x0a,
     PLLMuxHigh         = 0x17,
     PLLMuxHLow         = 0x18,
-    PLLStat            = 0x19, // bit 0 is pwr dwn, bit 4 is lock
+    PLLStat            = 0x19, // bit 0 is pwr dwn (1 is powered down), bit 4 is lock
     GTPRxRead          = 0x20, // GTP0 input trace
     CRS                = 0x27,
     TestCounter        = 0x35,
-    MarkerCnt          = 0x41,
-    HeartBeat          = 0x42,
+    DreqBuffStat       = 0x3C,
+    HrtBtBuffStat      = 0x3D,
+    MarkerCnt          = 0x41, // not used
+    HeartBeat          = 0x42, // markers sent out by FPGA 1
     LastEventLength    = 0x43,
     InjectionTS        = 0x44,
+    Clk80MHz           = 0x45, // enable the 80MHz clock alignment
     LoopbackMode       = 0x47,
     LoopbackMarkerCnt  = 0x4A,
+    HeartBeatCn        = 0x4F, // EWT from fibers, bad name!
     sendGR             = 0x58,
     InjectionCnt       = 0x59,
     InjectionLength    = 0x5A,
+    DRTimeout          = 0x5D,
     UpTimeHigh         = 0x6C,
     UpTimeLow          = 0x6D,
+    LastUbSent         = 0x70,
+    MarkerDelay        = 0x78,
     LinkErrors         = 0x80,
+    uBOffset           = 0x81,
     DRCntHigh          = 0x82,
     DRCnLow            = 0x83,
     GTPTxRead          = 0x85,
@@ -40,6 +52,7 @@ enum Register : uint16_t
     // FPGA2 (data-FPGAs) registers
     Data_Broadcast     = 0x300,
     Data_CRC           = 0x00,
+    Data_LinkCtrl      = 0x01,
     Data_DDR_WriteHigh = 0x02,
     Data_DDR_WriteLow  = 0x03,
     Data_DDR_ReadHigh  = 0x04,
