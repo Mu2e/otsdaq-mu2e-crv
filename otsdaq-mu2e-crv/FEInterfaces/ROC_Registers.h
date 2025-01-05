@@ -16,6 +16,7 @@ enum Register : uint16_t
     ActivePortsHigh    = 0x08,
     ActivePortsLow     = 0x09,
     ID                 = 0x0a,
+    //TRigReqWdUsed      = 0x0e, // same as DreqBuffStat
     PLLMuxHigh         = 0x17,
     PLLMuxHLow         = 0x18,
     PLLStat            = 0x19, // bit 0 is pwr dwn (1 is powered down), bit 4 is lock
@@ -57,6 +58,9 @@ enum Register : uint16_t
     Data_DDR_WriteLow  = 0x03,
     Data_DDR_ReadHigh  = 0x04,
     Data_DDR_ReadLow   = 0x05,
+    Data_TestCounter   = 0x44,
+    Data_UpTimeHigh    = 0x6C,
+    Data_UpTimeLow     = 0x6D,
 
     // FEB registers
     FEB                = 0x1000,
