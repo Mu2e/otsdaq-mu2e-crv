@@ -74,6 +74,7 @@ public:
     void                                    FebConfigure        	(__ARGS__);
 	void                                    GetStatus            	(__ARGS__);
     void                                    GetStatusPretty         (__ARGS__);
+    void                                    GetPool                 (__ARGS__);
     void                                    GetFebStatusPretty      (__ARGS__);
 	void                                    FiberRx                 (__ARGS__);
 	void                                    FiberTx                 (__ARGS__);

@@ -18,8 +18,10 @@ enum Register : uint16_t {
     uBLo               = 0x1065,
     uBBuffHi           = 0x1066,
     uBBuffLo           = 0x1067,
+    DebugVersion       = 0x1076,
     onSpillCnt         = 0x1078,
     offSpillCnt        = 0x1079,
+    Pedestal           = 0x1080, // to 88
     HistInterval       = 0x1011,
     HistRun            = 0x1010,
     HistPointer        = 0x1014, // to 0x15

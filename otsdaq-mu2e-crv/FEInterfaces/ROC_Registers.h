@@ -72,6 +72,30 @@ enum Register : uint16_t
     PWRRST       = 0x800A,
     TRIG         = 0x800B,
     POOLENA      = 0x8107,
+
+    // POOLPARA
+    // 0-6: see below
+    // 7-10: port number
+    POOLPARA               = 0x8800,
+    POOLPARA_Serial        = 0x0000,
+    POOLPARA_SpillCycleCnt = 0x0001,
+    POOLPARA_FebTemp       = 0x0002,
+    POOLPARA_1_2V          = 0x0003,
+    POOLPARA_1_8V          = 0x0004,
+    POOLPARA_5V            = 0x0005,
+    POOLPARA_10V           = 0x0006,
+    POOLPARA_2_5V          = 0x0007,
+    POOLPARA_n5V           = 0x0008,
+    POOLPARA_15V           = 0x0009,
+    POOLPARA_3_3V          = 0x000a,
+    POOLPARA_Bias          = 0x000b, // up to 0x0012
+    POOLPARA_BiasADC       = 0x0013, // 0x00014, +n*6: (0x00019, 0x0001a),  
+    //POOLPARA_BiasBus       = 0x0015, // 0x00016, +n*6: (0x0001b, 0x0001c),
+    POOLPARA_CMB_Temp      = 0x0015, // 0x00018, +n*6: (0x0001b, 0x0001e), 
+    POOLPARA_TrigCntrl     = 0x002b,
+    POOLPARA_Pipeline      = 0x002c,
+    POOLPARA_Sample        = 0x002d,
+    POOLPARA_RESERVED      = 0x002e, // to 0x3f
 }; // end ROC_Register enum
 
 uint16_t Data[] = {0x400, 0x800, 0xC00}; 

@@ -114,6 +114,12 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 					std::vector<std::string>{},
 					std::vector<std::string>{"response"},
 					1);  // requiredUserPermissions
+                registerFEMacroFunction("Get POOL",
+	    static_cast<FEVInterface::frontEndMacroFunction_t>(
+					&ROCCosmicRayVetoInterface::GetPool),
+					std::vector<std::string>{"Port (Default: -1)"},
+					std::vector<std::string>{"response"},
+					1);  // requiredUserPermissions
 
         registerFEMacroFunction("FEB Get Status Pretty",
 	    static_cast<FEVInterface::frontEndMacroFunction_t>(
@@ -652,6 +658,66 @@ void ROCCosmicRayVetoInterface::GetStatus(__ARGS__)
 	
 }
 
+void ROCCosmicRayVetoInterface::GetPool(__ARGS__) {
+    uint16_t port = 1;
+    uint16_t val;
+    std::stringstream ostr;
+    // BusBiases
+    ostr << std::endl;
+    ostr << "Serial:         " << "0x" << std::setfill('0') << std::setw(4) << std::hex 
+                               << this->readRegister((ROC::POOLPARA|ROC::POOLPARA_Serial) + (port << 7)) << std::endl;
+    ostr << "Spill Counter:  " << std::setw(5) << std::dec
+                               << this->readRegister((ROC::POOLPARA|ROC::POOLPARA_SpillCycleCnt) + (port << 7)) << std::endl;
+    val  = this->readRegister((ROC::POOLPARA|ROC::POOLPARA_FebTemp) + (port << 7));
+    ostr << "FEB Temperature " << std::fixed << std::setprecision(2) << std::dec << (val * 0.01) << "C (0x"
+                               << std::setfill('0') << std::setw(4) << std::hex << val << ")" << std::endl;
+    ostr << "----------------" << std::endl;
+    ostr << "FEB Voltages" << std::endl;
+    val  = this->readRegister((ROC::POOLPARA|ROC::POOLPARA_1_2V) + (port << 7));
+    ostr << "    1.2V        " << std::fixed << std::setprecision(2) << std::dec << (val * 0.001) << "V (0x"
+                               << std::setfill('0') << std::setw(4) << std::hex << val << ")" << std::endl;
+    val  = this->readRegister((ROC::POOLPARA|ROC::POOLPARA_1_8V) + (port << 7));
+    ostr << "    1.8V        " << std::fixed << std::setprecision(2) << std::dec << (val * 0.001) << "V (0x"
+                               << std::setfill('0') << std::setw(4) << std::hex << val << ")" << std::endl;
+    val  = this->readRegister((ROC::POOLPARA|ROC::POOLPARA_5V) + (port << 7));
+    ostr << "    5V          " << std::fixed << std::setprecision(2) << std::dec << (val * 0.002) << "V (0x"
+                               << std::setfill('0') << std::setw(4) << std::hex << val << ")" << std::endl;
+    val  = this->readRegister((ROC::POOLPARA|ROC::POOLPARA_10V) + (port << 7));
+    ostr << "    10V         " << std::fixed << std::setprecision(2) << std::dec << (val * 0.004) << "V (0x"
+                               << std::setfill('0') << std::setw(4) << std::hex << val << ")" << std::endl;
+    val  = this->readRegister((ROC::POOLPARA|ROC::POOLPARA_2_5V) + (port << 7));
+    ostr << "    2.5V        " << std::fixed << std::setprecision(2) << std::dec << (val * 0.001) << "V (0x"
+                               << std::setfill('0') << std::setw(4) << std::hex << val << ")" << std::endl;
+    val  = this->readRegister((ROC::POOLPARA|ROC::POOLPARA_n5V) + (port << 7));
+    ostr << "    -5V         " << std::fixed << std::setprecision(2) << std::dec << (val * 0.002) << "V (0x"
+                               << std::setfill('0') << std::setw(4) << std::hex << val << ")" << std::endl;
+    ostr << "    15V         " << std::dec << (val * 0.006) << "V (0x"
+                               << std::setfill('0') << std::setw(4) << std::hex << val << ")" << std::endl;
+    val  = this->readRegister((ROC::POOLPARA|ROC::POOLPARA_3_3V) + (port << 7));
+    ostr << "    3.3V        " << std::fixed << std::setprecision(2) << std::dec << (val * 0.001) << "V (0x"
+                               << std::setfill('0') << std::setw(4) << std::hex << val << ")" << std::endl;
+    ostr << "----------------" << std::endl;
+    ostr << "Bias" << std::endl;
+    for(int k = 0; k < 8;k++) {
+        val  = this->readRegister((ROC::POOLPARA|ROC::POOLPARA_Bias) + (port << 7) + k);
+        ostr << "    " << k << "         " << std::fixed << std::setprecision(2) << std::dec << (val * 0.02) << "V (0x"
+                                     << std::setfill('0') << std::setw(4) << std::hex << val << ")";
+        ostr << " ADC " << "0x" << std::setfill('0') << std::setw(4) << std::hex
+                            << this->readRegister((ROC::POOLPARA|ROC::POOLPARA_BiasADC) + k%2 + (6*int(k/2)) + (port << 7))  << std::endl;  
+    }
+    ostr << "----------------" << std::endl;
+    ostr << "CMB Temperatures" << std::endl;
+    for(int fpga = 0; fpga < 4; fpga++) {
+        for(int cmb = 0; cmb < 4; cmb++) {
+            val  = this->readRegister((ROC::POOLPARA|ROC::POOLPARA_CMB_Temp) + cmb + (6*fpga) + (port << 7));
+            ostr << "   " << std::setfill(' ') << std::setw(2) << (fpga*4 + cmb) << "         "
+                           << std::fixed << std::setprecision(2) << std::dec << (val * .0625) << "C (0x"
+                           << std::setfill('0') << std::setw(4) << std::hex << val << ")" << std::endl;
+        }
+    }
+    __SET_ARG_OUT__("response", ostr.str());
+}
+
 void ROCCosmicRayVetoInterface::GetStatusPretty(__ARGS__)
 {
     std::stringstream ostr;
@@ -835,6 +901,8 @@ void ROCCosmicRayVetoInterface::GetFebStatusPretty(__ARGS__)
     for(int n = 0; n < 4; n++ ) {
         ostr << std::endl;
         ostr << "============ FPGA " << (n) << "============" << std::endl;
+        ostr << "Version" << "  0x" << std::setfill('0') << std::setw(4) << std::hex
+                                  << this->readRegister(FEB::FPGA[n]|FEB::DebugVersion) << std::endl; 
         ostr << "Counters" << std::endl;
         ostr << "    onSpill:      " << std::setfill(' ') << std::setw(8) << std::dec
                                   << this->readRegister(FEB::FPGA[n]|FEB::onSpillCnt) << std::endl;
@@ -870,6 +938,10 @@ void ROCCosmicRayVetoInterface::GetFebStatusPretty(__ARGS__)
         for (int j = 0; j < 8; j++ ) {
             ostr << "    Threshold " << j << ":  " << "  0x" << std::setfill('0') << std::setw(4) << std::hex
                                       << this->readRegister((FEB::FPGA[n]|FEB::Threshold)+j) << std::endl;
+        }
+        for (int j = 0; j < 8; j++ ) {
+            ostr << "    Pedestal " << j << ":  " << "  0x" << std::setfill('0') << std::setw(4) << std::hex
+                                      << this->readRegister((FEB::FPGA[n]|FEB::Pedestal)+j) << std::endl;
         }
     }
     ostr << "===============================" << std::endl;
