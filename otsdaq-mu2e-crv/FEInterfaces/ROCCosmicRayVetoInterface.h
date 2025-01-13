@@ -70,6 +70,7 @@ public:
 	void                                    SetTestCounter        	(__ARGS__);
 	void                                    HardReset             	(__ARGS__);
 	void                                    SoftReset            	(__ARGS__);
+	void                                    Configure            	(__ARGS__);
 	void                                    RocConfigure        	(__ARGS__);
     void                                    FebConfigure        	(__ARGS__);
 	void                                    GetStatus            	(__ARGS__);

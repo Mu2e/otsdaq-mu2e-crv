@@ -73,10 +73,20 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 					std::vector<std::string>{},
 					1);  // requiredUserPermissions
 
+    	registerFEMacroFunction("Configure CRV",
+	    static_cast<FEVInterface::frontEndMacroFunction_t>(
+					&ROCCosmicRayVetoInterface::Configure),
+					std::vector<std::string>{"hard resets (Default: false)",
+                                             "bias (Default: 0xaac)",
+                                             "threshold (Default: 0xc)",
+                                             "spill length (Default: 0xff)"},
+					std::vector<std::string>{"response"},
+					1);  // requiredUserPermissions
+
     	registerFEMacroFunction("Configure ROC",
 	    static_cast<FEVInterface::frontEndMacroFunction_t>(
 					&ROCCosmicRayVetoInterface::RocConfigure),
-					std::vector<std::string>{"send GR packages (Default: true)",
+					std::vector<std::string>{"send GR packages (Default: false)",
                                              "# of counter packages (Default: 0)",
                                              "uB offser (if not GR) (Default: 0xa)"},
 					std::vector<std::string>{},
@@ -606,9 +616,50 @@ void ROCCosmicRayVetoInterface::RocConfigure(bool gr, uint16_t grn, uint16_t uBo
 
 }
 
+void ROCCosmicRayVetoInterface::Configure(__ARGS__)
+{
+    bool reset            = __GET_ARG_IN__("hard resets (Default: false)", bool, false);
+    uint16_t bias         = __GET_ARG_IN__("bias (Default: 0xaac)", uint16_t, 0xaac);
+    uint16_t th           = __GET_ARG_IN__("threshold (Default: 0xc)", uint16_t, 0xc);
+    uint16_t spillLengh   = __GET_ARG_IN__("spill length (Default: 0xff)", uint16_t, 0xff);
+    std::stringstream ostr;
+    // BusBiases
+    ostr << std::endl;
+    if(reset) {
+        ostr << "Power cycle all FEB ports" << std::endl;
+        this->writeRegister(ROC::PWRRST, 25);
+        ostr << "Reset ROC uC, sleep 10s" << std::endl;
+        Reset();
+        sleep(10);
+    }
+    ostr << "ROC Configure with a uB offset of 0xa" << std::endl;
+    RocConfigure(false, 0, 0xa);
+
+    ostr << "FEB Configure" << std::endl;
+    FebConfigure(false);
+    ostr << "Set Biases to 0x" << std::hex << bias << std::endl;
+    ostr << "Set Threshold to 0x" << std::hex << th << std::endl;
+    for(unsigned int fpga = 0; fpga < 4; fpga++){
+        for(unsigned int number = 0; number < 2; number++){
+            this->writeRegister(FEB::FPGA[fpga]|(FEB::Bias + (number & 0x1)), bias);
+        }
+        for(unsigned int channel = 0; channel < 16; channel++){
+            this->writeRegister(FEB::FPGA[fpga]|(FEB::Threshold + (channel & 0xf)), th);
+        }
+    }
+    ostr << "Let the bias ramp up for 6s" << std::endl;
+    sleep(6);
+    ostr << "Take Pedestals" << std::endl;
+    this->writeRegister(FEB::AllFPGA|FEB::CSRBroadCast, 0x100);
+    ostr << "Set the gate length to 0x" << std::hex << spillLengh << " (" << std::dec << (spillLengh * 0.0125) << "us)" << std::endl;
+    this->writeRegister(FEB::AllFPGA|FEB::OffSpillGate, spillLengh);
+    ostr << "Ready" << std::endl;
+    __SET_ARG_OUT__("response", ostr.str());
+}
+
 void ROCCosmicRayVetoInterface::RocConfigure(__ARGS__)
 {
-	bool gr = __GET_ARG_IN__("send GR packages (Default: true)", bool, true);
+	bool gr = __GET_ARG_IN__("send GR packages (Default: true)", bool, false);
     uint16_t grn = __GET_ARG_IN__("# of counter packages (Default: 0)", uint16_t, 0);
     uint16_t uBoffset = __GET_ARG_IN__("uB offser (if not GR) (Default: 0xa)", uint16_t, 0xa);
     RocConfigure(gr, grn, uBoffset);
