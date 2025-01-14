@@ -422,6 +422,7 @@ void  ROCCosmicRayVetoInterface::ResetRxBuffers() {
    this->writeRegister(ROC::CRS, 0x300);
    this->writeRegister(ROC::GTP_CRC, 0x1);
 }
+
 void ROCCosmicRayVetoInterface::SoftReset(__ARGS__)
 {
     ResetRxBuffers();

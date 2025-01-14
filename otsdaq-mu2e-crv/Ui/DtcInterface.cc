@@ -28,6 +28,15 @@ using namespace std;
 
 namespace crvdaq {
 
+static constexpr std::array<std::pair<std::string_view, uint16_t>, 6> RocRegs{{
+    {"Version",    ROC::Version},
+    {"ID",         ROC::ID},
+    {"ActivePort", ROC::LP},
+    {"Test Cnt",   ROC::TestCounter},
+    {"EWT Cnt",    ROC::HeartBeatCn},
+    {"Marker Cnt", ROC::HeartBeat}
+}};
+
 DtcInterface::DtcInterface(int PcieAddr, uint LinkMask, bool SkipInit, bool initRocs, bool initFebs) 
     : mu2edaq::DtcInterface(PcieAddr, LinkMask, SkipInit),
     fInitRocs(initRocs),
@@ -161,9 +170,56 @@ DtcInterface::DtcInterface(int PcieAddr, uint LinkMask, bool SkipInit, bool init
         // TODO
     }
 
-    //std::vector<std::string> DTCInterface::GetRocRegistersNames     (           bool history);
-    //std::vector<uint32_t>    DTCInterface::GetRocRegisters          (int ilink, bool history);
-    //std::vector<float>       DTCInterface::GetConvertedRocRegisters (int ilink, bool history);
+    std::vector<std::string> DtcInterface::GetRocRegistersNames     (           bool history) {
+        if(history) {
+            return GetRocRegHistNames();
+        } else {
+            std::vector<std::string> keys;
+            keys.reserve(RocRegs.size());
+            std::transform(RocRegs.begin(), RocRegs.end(), std::back_inserter(keys),
+                [](const auto& pair) { return std::string(pair.first); });
+            keys.emplace_back("Active Ports");
+            keys.emplace_back("Uptime");
+            keys.emplace_back("PLL locked");
+            keys.emplace_back("CRC Errors");
+            keys.emplace_back("Lock Loss");
+            return keys;
+        }
+    }
+
+    std::vector<uint32_t>    DtcInterface::GetRocRegisters          (int ilink, bool history) {
+        auto link = DTCLib::DTC_Link_ID(ilink);
+        std::vector<uint32_t> vals;
+        if(!history) {
+            for (const auto& reg : RocRegs) {
+                vals.emplace_back(ReadRocRegister(link, reg.second));
+            }
+            vals.emplace_back((((int32_t)ReadRocRegister(link, ROC::ActivePortsHigh) << 16) +
+                                (int32_t)ReadRocRegister(link, ROC::ActivePortsLow)) & 0xffffffff);
+            vals.emplace_back( ((int32_t)ReadRocRegister(link, ROC::UpTimeHigh) << 16) +
+                                (int32_t)ReadRocRegister(link, ROC::UpTimeLow));
+            vals.emplace_back((ReadRocRegister(link, ROC::PLLStat) >> 4) & 0x1);
+            auto linkError = ReadRocRegister(link, ROC::LinkErrors);
+            vals.emplace_back(linkError & 0xff);
+            vals.emplace_back(linkError >> 12);
+        } else {
+
+        }
+        return vals;
+    }
+
+    std::vector<float>       DtcInterface::GetConvertedRocRegisters (int ilink, bool history) {
+        std::vector<float> vals;
+        vals.emplace_back(42.);
+        return vals;
+    }
+
+    std::vector<std::string> DtcInterface::GetRocRegHistNames() {
+        std::vector<std::string> names = {
+            "ROC-test"
+        };
+        return names;
+    }
 
     //-----------------------------------------------------------
     // ROC specific functions, all with the first argument of linl
