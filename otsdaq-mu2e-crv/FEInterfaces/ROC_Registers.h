@@ -1,6 +1,7 @@
 #ifndef ROC_REGISTERS_H
 #define ROC_REGISTERS_H
 
+#include <cstdint>
 // #include <functional>  // std::bind, std::function (if needed)
 
 namespace ROC {

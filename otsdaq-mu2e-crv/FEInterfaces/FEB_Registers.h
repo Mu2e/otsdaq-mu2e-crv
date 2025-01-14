@@ -1,6 +1,7 @@
 #ifndef FEB_REGISTERS_H
 #define FEB_REGISTERS_H
 
+#include <cstdint>
 // #include <functional>  // std::bind, std::function (if needed)
 
 namespace FEB {
