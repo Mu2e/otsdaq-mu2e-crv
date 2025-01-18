@@ -66,6 +66,8 @@ namespace crvdaq {
         // CRV ROC Port specific functions
         uint32_t GetRocActivePorts(DTCLib::DTC_Link_ID& link);
         void SetRocActivePort     (DTCLib::DTC_Link_ID& link, uint16_t port, bool check = true); // starts at 1, max 24  
+        std::vector<std::string> GetRocPortRegNames();
+        std::vector<float>       GetRocPortRegValues(int ilink, uint16_t port);
 
         // CRV FEB specific functions
         void ResetFebDDRBuffers   (DTCLib::DTC_Link_ID& link);

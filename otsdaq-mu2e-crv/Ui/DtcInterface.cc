@@ -221,6 +221,64 @@ DtcInterface::DtcInterface(int PcieAddr, uint LinkMask, bool SkipInit, bool init
         return names;
     }
 
+    std::vector<std::string> DtcInterface::GetRocPortRegNames(){
+        std::vector<std::string> names = {
+            "Serial",
+            "SpillCycleCnt",
+            "FebTemp",
+            "1.2V",
+            "1.8V",
+            "5V",
+            "10V",
+            "2.5V",
+            "-5V",
+            "15V",
+            "3.3V"};
+        for(int i = 0; i<8; i++) {
+            names.push_back("Bias" + std::to_string(i));
+        }
+        for(int i = 0; i<8; i++) {
+            names.push_back("BiasADC" + std::to_string(i));
+        }
+        for(int i = 0; i<16; i++) {
+            std::stringstream ss;
+            ss << "CBMTemp" << std::setfill('0') << std::setw(2) << i;
+            names.push_back(ss.str());
+        }
+        return names;
+    }
+
+    std::vector<float>       DtcInterface::GetRocPortRegValues(int ilink, uint16_t port) {
+        auto link = DTCLib::DTC_Link_ID(ilink);
+        std::vector<float> vals;
+        vals.reserve(42);
+
+        vals.push_back(ReadRocRegister(link, (ROC::POOLPARA|ROC::POOLPARA_Serial)        + (port << 7)));
+        vals.push_back(ReadRocRegister(link, (ROC::POOLPARA|ROC::POOLPARA_SpillCycleCnt) + (port << 7)));
+        vals.push_back(ReadRocRegister(link, (ROC::POOLPARA|ROC::POOLPARA_FebTemp)       + (port << 7)) * 0.01);
+        vals.push_back(ReadRocRegister(link, (ROC::POOLPARA|ROC::POOLPARA_1_2V)          + (port << 7)) * 0.001);
+        vals.push_back(ReadRocRegister(link, (ROC::POOLPARA|ROC::POOLPARA_1_8V)          + (port << 7)) * 0.001);
+        vals.push_back(ReadRocRegister(link, (ROC::POOLPARA|ROC::POOLPARA_5V)            + (port << 7)) * 0.002);
+        vals.push_back(ReadRocRegister(link, (ROC::POOLPARA|ROC::POOLPARA_10V)           + (port << 7)) * 0.004);
+        vals.push_back(ReadRocRegister(link, (ROC::POOLPARA|ROC::POOLPARA_2_5V)          + (port << 7)) * 0.001);
+        vals.push_back(ReadRocRegister(link, (ROC::POOLPARA|ROC::POOLPARA_n5V)           + (port << 7)) * 0.002);
+        vals.push_back(ReadRocRegister(link, (ROC::POOLPARA|ROC::POOLPARA_15V)           + (port << 7)) * 0.006);
+        vals.push_back(ReadRocRegister(link, (ROC::POOLPARA|ROC::POOLPARA_3_3V)          + (port << 7)) * 0.001);
+  
+        for(int k = 0; k < 8;k++) { // Bias
+            vals.push_back(ReadRocRegister(link, (ROC::POOLPARA|ROC::POOLPARA_Bias) +k   + (port << 7))  * 0.02);
+        }
+        for(int k = 0; k < 8;k++) { // BiasADC - maybe move to Registers?
+            vals.push_back(ReadRocRegister(link, (ROC::POOLPARA|ROC::POOLPARA_Bias) +k   + (port << 7))  * 0.02);
+        }
+        for(int fpga = 0; fpga < 4; fpga++) {
+            for(int cmb = 0; cmb < 4; cmb++) {
+                vals.push_back(ReadRocRegister(link, (ROC::POOLPARA|ROC::POOLPARA_CMB_Temp) + cmb + (6*fpga) + (port << 7)) * .0625);
+            }
+        }
+        return vals;
+    }
+
     //-----------------------------------------------------------
     // ROC specific functions, all with the first argument of linl
     // We might want to make a class out of these at some point
