@@ -1,0 +1,238 @@
+.mu2e {
+    font-family: Verdana, sans-serif;
+    font-size:12pt;
+    color:rgb(51, 51, 51);
+    box-sizing: border-box;
+}
+
+#mu2e_header {
+    position: fixed;
+    top: 0px;
+    left: 0px;
+    width: 100%;
+    height: 28px;
+    background-color: rgb(232, 232, 232);
+    border-bottom: 1px solid darkgrey;
+    padding: 2px 2px 0px 2px;
+    z-index: 2;
+    margin: 0px;
+    font-size: 12pt;
+    color: gray;
+}
+
+#mu2e_header div {
+    display: inline;
+    //color: gray;
+}
+
+#mu2e_nav {
+    position: fixed;
+    top: 28px;
+    width: 144px;
+    left: 0px;
+    height:100%;
+    padding-top:2px;
+    overflow-x: hidden;
+    background-color: rgb(232, 232, 232);
+}
+
+#mu2e_nav a {
+    display: block;
+    padding: 3px 5px 1px 5px;
+    width:100%;
+    text-decoration: none;
+    color:rgb(51, 51, 51);
+}
+
+#mu2e_nav a:hover {
+    width:100%;
+    background-color: lightgray;
+}
+
+.mu2e_nav_active {
+    background-color: rgb(151, 151, 151);
+}
+
+#mu2e_main {
+    position: absolute;
+    top:28px;
+    left:144px;
+    right:0px;
+    padding: 5px;
+    text-align: center;
+}
+
+.mu2e_container {
+    border: 1px dotted darkgray;
+    border-radius: 10px;
+    margin: 3px;
+    margin-bottom:10px;
+}
+
+.mu2e_grid {
+    display: grid;
+    grid-gap: 3px;
+    color: #444;
+}
+
+#mu2e_status {
+    display: grid;
+    grid-gap: 3px;
+    color: #444;
+}
+
+#mu2e_apps {
+    display: grid;
+    grid-gap: 3px;
+    color: #444;
+}
+
+#mu2e_hardware {
+    display: grid;
+    grid-gap: 3px;
+    color: #444;
+}
+#mu2e_artdaq {
+    display: grid;
+    grid-gap: 3px;
+    color: #444;
+}
+
+.mu2e_grid {
+    display: grid;
+    grid-gap: 3px;
+    color: #444;
+}
+
+.mu2e_dcs_timestamp {
+    color:#0000004e;
+}
+
+//.mu2e_container>div{
+//    float:left;
+//}
+
+//.mu2e_container:after {
+//    display: table;
+//    clear: both;
+//}
+
+//.mu2e_quarter {
+//    width:25%;
+//    min-width: 200px;
+//    float:left;
+//}
+//.mu2e_half {
+//    width:50%;
+//    min-width: 400px;
+//    float:left;
+//}
+
+//.mu2e_full {
+//    width:100%;
+//    min-width: 800px;
+//}
+
+.mu2e_data {
+    //border: 1px solid black;
+    background-color:rgb(232, 232, 232);
+    border-radius: 5px;
+}
+
+.mu2e_list {
+    //border: 1px solid black;
+    background-color:rgb(232, 232, 232);
+    border-radius: 5px;
+    text-align:left;
+    padding-left:4px;
+}
+
+.mu2e_data a {
+    text-decoration:none;
+}
+
+.mu2e_list a {
+    text-decoration:none;
+}
+
+.mu2e_right_float {
+    float:right;
+    padding-right:4px;
+}
+
+.mu2e_disabled {
+    color:#0000004e;
+    //background-color:#ffeb3b;
+}
+
+.mu2e_title {
+    background-color: lightseagreen;
+    color:white;
+    border-radius: 3px;
+    font-size:120%;
+}
+  
+.tooltiptext {
+    visibility: hidden;
+    width: 600px;
+    background-color: rgba(0, 0, 0, 0.64);
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px 0;
+    position: absolute;
+    z-index: 1;
+    //bottom: 150%;
+    top:10px;
+    left: 50%;
+    margin-left: -400px;
+  }
+  
+.tooltiptext::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: black transparent transparent transparent;
+  }
+  
+div:hover>.tooltiptext {
+    visibility: visible;
+  }
+  
+.mu2e_hidden {
+    display:none;
+}
+
+.mu2e_bad {
+    background-color:#f44336;
+    color:white;
+}
+.mu2e_bad_text {
+    color:#f44336;
+}
+
+.mu2e_ok {
+    background-color:#4CAF50;
+}
+
+.mu2e_warning {
+    background-color:#ffeb3b;
+}
+
+.mu2e_transition {
+    background-color:#9c27b0;
+}
+
+.mu2e_editable {
+    cursor: pointer;
+    border: 1px solid transparent;
+    padding: 0px;
+    padding-right: 10px;
+  }
+  .mu2e_editable:hover {
+    border-color: #1343ab5c;
+  }
