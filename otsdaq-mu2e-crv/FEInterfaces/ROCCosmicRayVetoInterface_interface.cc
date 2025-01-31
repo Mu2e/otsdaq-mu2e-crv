@@ -365,8 +365,8 @@ void ROCCosmicRayVetoInterface::resume(void) {}
 //==============================================================================
 void ROCCosmicRayVetoInterface::start(std::string) { // runNumber) 
     // take pedestrals
-    this->writeRegister(FEB::AllFEB|FEB::AllFPGA|FEB::CSRBroadCast, 0x100);
-    TLOG(TLVL_Start) << "Taking pedestrals" << __E__;
+    //this->writeRegister(FEB::AllFEB|FEB::AllFPGA|FEB::CSRBroadCast, 0x100);
+    //TLOG(TLVL_Start) << "Taking pedestrals" << __E__;
 }
 
 //==============================================================================
