@@ -1,0 +1,37 @@
+process_name : CrvDQM
+
+source: {
+  module_type: RootInput # EmptyEvent
+  maxEvents: -1
+}
+services : {
+  message : {
+    destinations : {
+      console : {
+        type : "cout"
+        threshold : "INFO"
+        categories : {
+          default : { limit : 50 }
+        }
+      }
+    }
+  }
+}
+
+physics : {
+  analyzers : {
+    dqm : {
+      module_type : CrvDQM
+      port : 8877 // server port 
+      diagLevel : 1 // debug level
+      onlineRefreshPeriod : 250 // ms
+      keepAlive : 1
+      keepAliveDuration : 1 // mins
+      histColor : "red" // "blue" // "green"
+    }
+  }
+ 
+  dqm_path : [dqm]
+  end_paths : [dqm_path]
+  
+}
