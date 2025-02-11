@@ -339,17 +339,17 @@ void ROCCosmicRayVetoInterface::configure(void) try
     }  // ignore missing field
 	if(doConfigureFEBs) FebConfigure();
 
-	// __MCOUT_INFO__("......... Clear DCS FIFOs" << __E__);
+	// __COUT_INFO__ << "......... Clear DCS FIFOs" << __E__;
 }
 catch(const std::runtime_error& e)
 {
-	__FE_MOUT__ << "Error caught: " << e.what() << __E__;
+	__FE_COUT__ << "Error caught: " << e.what() << __E__;
 	throw;
 }
 catch(...)
 {
 	__FE_SS__ << "Unknown error caught. Check printouts!" << __E__;
-	__FE_MOUT__ << ss.str();
+	__FE_COUT__ << ss.str();
 	__FE_SS_THROW__;
 }
 
