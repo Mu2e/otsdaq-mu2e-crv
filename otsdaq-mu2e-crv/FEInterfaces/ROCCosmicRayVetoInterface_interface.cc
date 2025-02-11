@@ -24,9 +24,9 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 {
 	INIT_MF("." /*directory used is USER_DATA/LOG/.*/);
 
-	__MCOUT_INFO__("ROCCosmicRayVetoInterface instantiated with link: "
-	               << (int)linkID_ << " and EventWindowDelayOffset = " << delay_ << __E__);
-
+	__COUT_INFO__ << "ROCCosmicRayVetoInterface instantiated with link: "
+	               << (int)linkID_ << " and EventWindowDelayOffset = " << delay_ << __E__;
+                   
 	registerFEMacroFunction(
 		"Do the CRV Dance",
 			static_cast<FEVInterface::frontEndMacroFunction_t>(
@@ -310,7 +310,7 @@ uint16_t ROCCosmicRayVetoInterface::readEmulatorRegister(uint16_t address)
 //==================================================================================================
 void ROCCosmicRayVetoInterface::configure(void) try
 {
-	__MCOUT_INFO__("configure CRV ROC");
+	__COUT_INFO__ << "configure CRV ROC";
 	bool gr = false;
 	try {
 		auto rocConfigs = getSelfNode().getNode("ROCTypeLinkTable")
