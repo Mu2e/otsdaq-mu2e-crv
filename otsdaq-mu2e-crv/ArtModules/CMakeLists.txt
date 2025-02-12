@@ -2,8 +2,8 @@ include(BuildPlugins)
 
 cet_build_plugin(CrvDQM art::module LIBRARIES REG
     art_root_io::TFileService_service
-    artdaq_core_mu2e::artdaq-core-mu2e_Data
-    otsdaq_mu2e::otsdaq-mu2e_ArtModules
+    artdaq-core-mu2e::Data
+    otsdaq-mu2e::ArtModules
     otsdaq::NetworkUtilities
     ROOT::Hist
     ROOT::Tree
