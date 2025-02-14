@@ -60,4 +60,7 @@ endif()
 #FILE(COPY ServiceData DESTINATION Data)
 #INSTALL(DIRECTORY ServiceData DESTINATION ${product}/${version}/Data)
 
+install(DIRECTORY UserWebGUI/
+	DESTINATION UserWebGUI/crv/ )
+
 cet_cmake_config()
