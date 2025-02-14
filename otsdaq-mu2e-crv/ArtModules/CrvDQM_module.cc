@@ -1,5 +1,5 @@
-// ROOT-based DQM and viewer for the CRV 
-// Authors: Sam Grant and Simon Corrodi 
+// ROOT-based DQM and viewer for the CRV
+// Authors: Sam Grant and Simon Corrodi
 // Data: Feb 2025
 
 // C++ includes
@@ -13,11 +13,11 @@
 #include "art/Framework/Principal/Run.h"
 
 // artdaq includes
-#include "artdaq-core/Data/ContainerFragment.hh"
-#include "artdaq-core/Data/Fragment.hh"
 #include "artdaq-core-mu2e/Data/CRVDataDecoder.hh"
 #include "artdaq-core-mu2e/Overlays/DTCEventFragment.hh"
 #include "artdaq-core-mu2e/Overlays/FragmentType.hh"
+#include "artdaq-core/Data/ContainerFragment.hh"
+#include "artdaq-core/Data/Fragment.hh"
 
 // ROOT includes
 #include "TCanvas.h"
@@ -29,29 +29,30 @@
 // Custom includes
 #include "CrvDQMStyle.hh"
 
-namespace demo { // what is the appropriate namespace?
+namespace demo
+{  // what is the appropriate namespace?
 
-class CrvDQM : public art::EDAnalyzer {
-public:
-    // Constructor
-    explicit CrvDQM(fhicl::ParameterSet const& ps);
-    // Destructor
-    ~CrvDQM() override;
+class CrvDQM : public art::EDAnalyzer
+{
+  public:
+	// Constructor
+	explicit CrvDQM(fhicl::ParameterSet const& ps);
+	// Destructor
+	~CrvDQM() override;
 
-private:
-    
-    // Functions
-    void beginJob() override;
-    void analyze(art::Event const& e) override;
-    void endJob() override;
+  private:
+	// Functions
+	void beginJob() override;
+	void analyze(art::Event const& e) override;
+	void endJob() override;
 
-    // fcl parameters
-    int port_;
-    int diagLevel_;
-    float onlineRefreshPeriod_; 
-    bool keepAlive_; 
-    int keepAliveDuration_; // minutes
-    std::string histColor_; // "red"/"blue"/"green"
+	// fcl parameters
+	int         port_;
+	int         diagLevel_;
+	float       onlineRefreshPeriod_;
+	bool        keepAlive_;
+	int         keepAliveDuration_;  // minutes
+	std::string histColor_;          // "red"/"blue"/"green"
 
     // Member variables
     TCanvas* canvas_;
@@ -70,10 +71,10 @@ CrvDQM::CrvDQM(fhicl::ParameterSet const& ps)
     : art::EDAnalyzer(ps)
     , port_(ps.get<int>("port", 8877))
     , diagLevel_(ps.get<int>("diagLevel", 1))
-    , onlineRefreshPeriod_(ps.get<float> ("onlineRefreshPeriod", 500)) // ms
-    , keepAlive_(ps.get<int> ("keepAlive", true))
-    , keepAliveDuration_(ps.get<int> ("keepAliveDuration", 5)) // minutes
-    , histColor_(ps.get<std::string> ("histColor", "blue")) // minutes
+    , onlineRefreshPeriod_(ps.get<float>("onlineRefreshPeriod", 500))  // ms
+    , keepAlive_(ps.get<int>("keepAlive", true))
+    , keepAliveDuration_(ps.get<int>("keepAliveDuration", 5))  // minutes
+    , histColor_(ps.get<std::string>("histColor", "blue"))     // minutes
 {
     // Initialise non-fcl member variables
     eventCounter_ = 0;
@@ -107,9 +108,10 @@ CrvDQM::~CrvDQM() {
     graphs_.clear();
 }
 
-void CrvDQM::beginJob() {
-    // Create HTTP server
-    server_ = new THttpServer(Form("http:%d", port_));
+void CrvDQM::beginJob()
+{
+	// Create HTTP server
+	server_ = new THttpServer(Form("http:%d", port_));
 
     // Set global plot style
     CrvDQMStyle::SetStyle();    
@@ -151,74 +153,88 @@ void CrvDQM::beginJob() {
         graph.second->Draw("APL");
     }
 
-    // Register with server
-    server_->Register("/", canvas_);
+	// Register with server
+	server_->Register("/", canvas_);
 
-    // Set item defaults
-    server_->SetItemField("/","_monitoring", Form("%f", onlineRefreshPeriod_)); // Update period 
-    server_->SetItemField("/","_sidebar", "0");
-    server_->SetItemField("/","_drawitem", canvasName.c_str()); // Set DQM canvas as default item
-    server_->SetItemField("/","_http_cache", "0");  // Disable HTTP caching
+	// Set item defaults
+	server_->SetItemField(
+	    "/", "_monitoring", Form("%f", onlineRefreshPeriod_));  // Update period
+	server_->SetItemField("/", "_sidebar", "0");
+	server_->SetItemField(
+	    "/", "_drawitem", canvasName.c_str());       // Set DQM canvas as default item
+	server_->SetItemField("/", "_http_cache", "0");  // Disable HTTP caching
 
-    // Last update variable 
-    lastUpdate_ = std::chrono::steady_clock::now();
+	// Last update variable
+	lastUpdate_ = std::chrono::steady_clock::now();
 
-    // Print URL
-    printf("Server running on http://localhost:%d/\n", port_);
+	// Print URL
+	printf("Server running on http://localhost:%d/\n", port_);
 
-    // Start an independent thread for server
-    keepAliveThread_ = std::thread([this]() {
-        while(keepAlive_) {
-            gSystem->ProcessEvents(); // Process events
-            std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Small sleep
-        }
-    });
-
+	// Start an independent thread for server
+	keepAliveThread_ = std::thread([this]() {
+		while(keepAlive_)
+		{
+			gSystem->ProcessEvents();  // Process events
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Small sleep
+		}
+	});
 }
 
-void CrvDQM::analyze(art::Event const& e) {
-	// Get fragments 
-    std::vector<art::Handle<artdaq::Fragments> > fragmentHandles;
-    fragmentHandles = e.getMany<std::vector<artdaq::Fragment> >();
-    artdaq::FragmentPtrs containerFragments;
-    artdaq::Fragments fragments;
+void CrvDQM::analyze(art::Event const& e)
+{
+	// Get fragments
+	std::vector<art::Handle<artdaq::Fragments> > fragmentHandles;
+	fragmentHandles = e.getMany<std::vector<artdaq::Fragment> >();
+	artdaq::FragmentPtrs containerFragments;
+	artdaq::Fragments    fragments;
 
-    // Iterate through fragment handles
-	for (const auto& handle : fragmentHandles) {
-        // Catch invalid or empty handles
-        if (!handle.isValid() || handle->empty()) {
-	        continue;
-        }
-        // Check if the first object is Container Fragment
-        // ContainerFragment
-        // ├── Fragment 1 (DTCEVT)
-        // └── Fragment n (DTCEVT)
-        if (handle->front().type() == artdaq::Fragment::ContainerFragmentType) {
-            // Iterate through containers
-            for (const auto& cont : *handle) {
-                artdaq::ContainerFragment contf(cont);
-                // Break if this is single fragment rather than a container
-	            if (contf.fragment_type() != mu2e::FragmentType::DTCEVT) {
-                    break;
-                }
-                // Iterate through fragments in container and fill fragments vector
-                for (size_t i = 0; i < contf.block_count(); ++i) {
-                    containerFragments.push_back(contf[i]);
-                    fragments.push_back(*containerFragments.back());
-                }
-            }
-        } else { // If the first object in the handle a single fragment
-            if (handle->front().type() == mu2e::FragmentType::DTCEVT) {
-                // Iterate through fragments and fill fragments vector
-                for (auto frag : *handle) {
-                    fragments.emplace_back(frag);
-                }
-            }
-        }
-    }
-    if (diagLevel_ > 1) { 
-        TLOG(TLVL_INFO) << "[CrvDQM::analyze] Found nFragments" << fragments.size();
-    }
+	// Iterate through fragment handles
+	for(const auto& handle : fragmentHandles)
+	{
+		// Catch invalid or empty handles
+		if(!handle.isValid() || handle->empty())
+		{
+			continue;
+		}
+		// Check if the first object is Container Fragment
+		// ContainerFragment
+		// ├── Fragment 1 (DTCEVT)
+		// └── Fragment n (DTCEVT)
+		if(handle->front().type() == artdaq::Fragment::ContainerFragmentType)
+		{
+			// Iterate through containers
+			for(const auto& cont : *handle)
+			{
+				artdaq::ContainerFragment contf(cont);
+				// Break if this is single fragment rather than a container
+				if(contf.fragment_type() != mu2e::FragmentType::DTCEVT)
+				{
+					break;
+				}
+				// Iterate through fragments in container and fill fragments vector
+				for(size_t i = 0; i < contf.block_count(); ++i)
+				{
+					containerFragments.push_back(contf[i]);
+					fragments.push_back(*containerFragments.back());
+				}
+			}
+		}
+		else
+		{  // If the first object in the handle a single fragment
+			if(handle->front().type() == mu2e::FragmentType::DTCEVT)
+			{
+				// Iterate through fragments and fill fragments vector
+				for(auto frag : *handle)
+				{
+					fragments.emplace_back(frag);
+				}
+			}
+		}
+	}
+	if(diagLevel_ > 1)
+	{
+		TLOG(TLVL_INFO) << "[CrvDQM::analyze] Found nFragments" << fragments.size();
+	}
 
     // Handle the fragments
     for (const auto& frag : fragments) {
@@ -363,24 +379,28 @@ void CrvDQM::analyze(art::Event const& e) {
 }
 
 // End job printouts
-void CrvDQM::endJob() {
-    // What am we defining as an "event"? Need to think about it.
-    printf("========================================\n");
-    printf("Processed Events  : %zu\n", eventCounter_);
-    // printf("Invalid Events    : %zu\n", invalidEventCounter_);
-    // printf("Valid Events      : %zu\n", eventCounter_ - invalidEventCounter_);
-    // printf("Error Rate        : %.2f%%\n", 
-    //      (eventCounter_ > 0) ? (100.0 * invalidEventCounter_ / eventCounter_) : 0.0);
-    if (keepAlive_) { 
-        printf("Keeping server alive for %i minutes", keepAliveDuration_);
-        printf("\n========================================\n");
-        std::this_thread::sleep_for(std::chrono::minutes(keepAliveDuration_));
-    } else { 
-        printf("Killing server");
-        printf("\n========================================\n");
-    }
-    // Server server thread is then stopped by the destructor
+void CrvDQM::endJob()
+{
+	// What am we defining as an "event"? Need to think about it.
+	printf("========================================\n");
+	printf("Processed Events  : %zu\n", eventCounter_);
+	// printf("Invalid Events    : %zu\n", invalidEventCounter_);
+	// printf("Valid Events      : %zu\n", eventCounter_ - invalidEventCounter_);
+	// printf("Error Rate        : %.2f%%\n",
+	//      (eventCounter_ > 0) ? (100.0 * invalidEventCounter_ / eventCounter_) : 0.0);
+	if(keepAlive_)
+	{
+		printf("Keeping server alive for %i minutes", keepAliveDuration_);
+		printf("\n========================================\n");
+		std::this_thread::sleep_for(std::chrono::minutes(keepAliveDuration_));
+	}
+	else
+	{
+		printf("Killing server");
+		printf("\n========================================\n");
+	}
+	// Server server thread is then stopped by the destructor
 }
 
 DEFINE_ART_MODULE(CrvDQM)
-}
+}  // namespace demo
