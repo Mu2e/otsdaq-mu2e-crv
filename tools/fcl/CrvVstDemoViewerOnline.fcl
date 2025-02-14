@@ -1,0 +1,82 @@
+process_name : CrvVstDemoViewerOffline 
+
+TransferPluginConfigShmem: {
+                     transferPluginType: Shmem
+                     shm_key: 0x40471452
+                     max_fragment_size_words: 2097152
+                     #first_event_builder_rank: 1
+                     destination_rank: 100
+                     source_rank             : 4
+}
+
+################## This doesn't work yet ##################
+TransferPluginConfigTCP: {
+        transferPluginType: TCPSocket
+        host_map: [{ rank: 1  host: "localhost"},
+                   { rank: 4  host: "localhost"}, 
+                   { rank: 100 host: "localhost"}]
+        max_fragment_size_words: 1048576
+        source_rank: 4
+        destination_rank: 100
+        unique_label: crvDQM_to_dispatcher0
+}
+###########################################################
+
+physics: {
+    analyzers: {
+        CrvVstViewer : {
+             module_type : CrvVstDemoViewer
+             diag_level : 0
+        }
+    }
+    a1: [ CrvVstViewer  ]
+    e1: [  ]
+    end_paths: [ a1 ]
+}
+
+services: { 
+    ArtdaqSharedMemoryServiceInterface: { 
+       service_provider: ArtdaqGlobalsService 
+       resume_after_timeout: true
+   }
+
+   ArtdaqFragmentNamingServiceInterface: { 
+       service_provider: ArtdaqFragmentNamingService
+       helper_plugin: Mu2e
+   }
+}
+
+outputs: { }
+
+source: {
+    module_type: TransferInput
+    register_fragment_types: false
+
+    timeoutInUsecs: 10000000  
+
+    commanderPluginType: xmlrpc
+    dispatcherHost: localhost
+    dispatcherPort: 10500
+    transfer_plugin: @local::TransferPluginConfigShmem #@local::TransferPluginConfigTCP
+    dispatcher_config: { 
+        unique_label: "crvdqm"
+        path: [ out ]
+        filter_paths: [ {name: pmod path: [ prescale ]}  ]
+        physics: {
+            filters: {
+                prescale: {
+                     module_type: Prescaler
+                     prescaleFactor: 1
+                     prescaleOffset: 0
+               }
+            }
+        }
+        outputs: {
+            out: {
+                 module_type: TransferOutput
+                 SelectEvents: [ pmod ]  # it works without any filter if desired
+                 transfer_plugin: @local::TransferPluginConfigShmem #@local::TransferPluginConfigTCP
+            }
+        }
+    }
+}

@@ -5,7 +5,7 @@
 #define CRV_DQM_STYLE_H
 
 #include "TH1.h"
-#include "TH2.h"
+#include "TGraph.h"
 #include "TStyle.h"
 #include "TCanvas.h"
 #include "TPad.h"
@@ -55,17 +55,17 @@ public:
         style->SetFrameLineWidth(1);
         style->SetLineWidth(1);
         
-        style->SetOptStat(0);
+        style->SetOptStat(111111);
         
         // Use current style - this works in 6.30
         gROOT->SetStyle("CrvStyle");
         gROOT->ForceStyle();
     }
 
-    static void FormatHist(TH1* hist, const std::string& colour = "blue") {
+    static void FormatHist(TH1 *hist, const std::string& colour = "red") {
         if (!hist) return;
         // Basic histogram-specific formatting 
-        hist->SetStats(0);
+        // hist->SetStats(0);
         hist->SetLineWidth(2);
         hist->SetFillStyle(1001);
         hist->SetLineStyle(1);
@@ -84,6 +84,29 @@ public:
         else if (colour == "red") {
             hist->SetLineColor(kRed+2);
             hist->SetFillColor(kRed-9);
+        }
+    }
+
+    static void FormatGraph(TGraph *graph, const std::string& colour = "red") {
+        if (!graph) return;
+        // Basic graph-specific formatting 
+        graph->SetLineStyle(1);
+        graph->GetYaxis()->SetTitleOffset(1.6);
+        graph->GetXaxis()->SetTitleOffset(1.2);
+        graph->SetMarkerStyle(20); // full circle
+        
+        // Primary colours
+        if (colour == "blue") {
+            graph->SetMarkerColor(kAzure+2);
+            graph->SetLineColor(kAzure-9);
+        }
+        else if (colour == "green") {
+            graph->SetMarkerColor(kGreen+2);
+            graph->SetLineColor(kGreen-9);
+        }
+        else if (colour == "red") {
+            graph->SetMarkerColor(kRed+2);
+            graph->SetLineColor(kRed-9);
         }
     }
 };

@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mu2e</title>
+    
+    <script type="text/JavaScript" src="/WebPath/js/Globals.js"></script>   
+    <script type="text/JavaScript" src="/WebPath/js/Debug.js"></script>     
+    <script type="text/JavaScript" src="/WebPath/UserWebPath/js/mu2e.js"></script>
+    <!--<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">-->
+    <link rel="stylesheet" href="/WebPath/UserWebPath/css/mu2e.css"> 
+</head>
+<body class="mu2e" onload="mu2e_init('ROC')">
+    <script>
+        async function readCmd(el) {
+            const dtcName = new URLSearchParams(window.location.search).get('dtc')
+            const dtcLink = new URLSearchParams(window.location.search).get('link')
+            if(dtcName == undefined) return;
+            const register = document.querySelector("input[id='dtcReadWrite_reg']")
+            if(register == undefined) {
+                return;
+            }
+            const reg = register.value
+            const res = await rocRead(reg, dtcName, dtcLink);
+            const read_value = res["feMacroExec"]["ROC Read"]["outputArgs_value"].split(' ')[0]
+            const read_time  = new Date(res["feMacroExec"]["ROC Read"]["exec_time"])
+            let div = document.querySelector("div[id=dtcRead_value]");
+            if(div) {
+                div.innerHTML = "0x"+parseInt(read_value).toString(16).toUpperCase().padStart(4, '0');
+                addTime(div, read_time)
+            }
+        }
+
+        async function writeCmd(el) {
+            const dtcName = new URLSearchParams(window.location.search).get('dtc')
+            const dtcLink = new URLSearchParams(window.location.search).get('link')
+            if(dtcName == undefined) return;
+            const register = document.querySelector("input[id='dtcReadWrite_reg']")
+            const value    = document.querySelector("input[id='dtcWrite_value']")
+            if((register == undefined) || (value == undefined)) {
+                return;
+            }
+            const reg = register.value;
+            const val = value.value;
+            const res = await rocWrite(reg, val, dtcName, dtcLink);
+            //const write_value = res["feMacroExec"]["ROC Write"]["outputArgs_value"].split("%")[1].substring(2)
+            const write_time  = new Date(res["feMacroExec"]["ROC Write"]["exec_time"])
+            let div = document.querySelector("div[id=dtcWrite_value]");
+            if(div != undefined ) {
+                //div.innerHTML = "0x"+parseInt(write_value).toString(16);
+                addTime(div, write_time)
+            }
+        }
+
+        async function rocResetCmd() {
+            const dtcName = new URLSearchParams(window.location.search).get('dtc')
+            const dtcLink = new URLSearchParams(window.location.search).get('link')
+            if((dtcName != undefined) && (dtcLink != undefined)) {
+                rocReset(dtcName, dtcLink);
+            }
+        }
+
+        async function rocPwrPortCmd(port="Default") { // Default: all
+            const dtcName = new URLSearchParams(window.location.search).get('dtc')
+            const dtcLink = new URLSearchParams(window.location.search).get('link')
+            if((dtcName != undefined) && (dtcLink != undefined)) {
+                rocPwrPort(dtcName, dtcLink, port);
+            }
+        }
+
+    </script>
+    <div id="mu2e_header">mu2e</div>
+    <div id="mu2e_nav"></div>
+    <div id="mu2e_main">
+        <!--<div class="mu2e_container">-->
+            <div id="mu2e_roc" class="mu2e_container mu2e_grid">
+                <div class="mu2e_title"                                     style="grid-column: 1/6; grid-row: 1">ROC</div>
+
+                <div style="grid-column: 1/3; grid-row: 2;" class="mu2e_list">Version:</div>
+                <div style="grid-column: 2;   grid-row: 2;" class="mu2e_list" name="mu2e_dcs"  data="Version"  format="hex">Value</div>
+                <div style="grid-column: 4/6; grid-row: 3;" class="mu2e_list">ID:</div>
+                <div style="grid-column: 5;   grid-row: 3;" class="mu2e_list" name="mu2e_dcs"  data="ROCID"  format="hex">Value</div>
+                <div style="grid-column: 4/6; grid-row: 2;" class="mu2e_list">DTC:</div>
+                <div style="grid-column: 5;   grid-row: 2;" class="mu2e_list" id="dtc">Value</div>
+                <div style="grid-column: 1/4; grid-row: 3;" class="mu2e_list">Uptime:</div>
+                <div style="grid-column: 2;   grid-row: 3;" class="mu2e_list" name="mu2e_dcs"  data="Uptime_High"  format="0">Value</div>
+                <div style="grid-column: 3;   grid-row: 3;" class="mu2e_list" name="mu2e_dcs"  data="Uptime_Low"  format="0" units="s">Value</div>
+                <div style="grid-column: 4/6; grid-row: 4;" class="mu2e_list">PLL locked:</div>
+                <div style="grid-column: 5;   grid-row: 4;" class="mu2e_list" name="mu2e_dcs"  data="PLL_locked"  format="hex">Value</div>
+                <div style="grid-column: 4/6; grid-row: 5;" class="mu2e_list">Link Errors:</div>
+                <div style="grid-column: 5;   grid-row: 5;" class="mu2e_list" name="mu2e_dcs"  data="Link_Errors"  format="hex">Value</div>
+                <div style="grid-column: 4/6; grid-row: 6;" class="mu2e_list">Data Mode:</div>
+                <div style="grid-column: 5;   grid-row: 6;" class="mu2e_list" name="mu2e_dcs"  data="Data_mode"  format="hex">Value</div>
+
+                <div style="grid-column: 1/4; grid-row: 4;" class="mu2e_list">Heartbeats:</div>
+                <div style="grid-column: 2;   grid-row: 4;" class="mu2e_list" name="mu2e_dcs"  data="HeartBeat_Cnt"  format="0">Value</div>
+                <div style="grid-column: 1/4; grid-row: 5;" class="mu2e_list">Eventmarkers:</div>
+                <div style="grid-column: 2;   grid-row: 5;" class="mu2e_list" name="mu2e_dcs"  data="Marker_Cnt"  format="0">Value</div>
+                <div style="grid-column: 1/4; grid-row: 6;" class="mu2e_list">Data Requests:</div>
+                <div style="grid-column: 2;   grid-row: 6;" class="mu2e_list" name="mu2e_dcs"  data="DR_Cnt_High"  format="0">Value</div>
+                <div style="grid-column: 3;   grid-row: 6;" class="mu2e_list" name="mu2e_dcs"  data="DR_Cnt_Low"  format="0">Value</div>
+
+
+                <div style="grid-column: 1/4; grid-row: 8;" class="mu2e_list">&nbsp;</div>
+                <div style="grid-column: 1; grid-row: 8;" class="mu2e_list">Last Event Length:</div>
+                <div style="grid-column: 2;   grid-row: 8;" class="mu2e_list" name="mu2e_dcs"  data="Last_Event_Length"  format="0" units="ns">Value</div>
+                
+
+            </div>
+            <div id="mu2e_dtc_links" class="mu2e_container mu2e_grid">
+                <div style="grid-column: 1/6; grid-row: 1" class="mu2e_title">ROC Ports</div>
+
+                <div style="grid-column: 1;   grid-row: 4;"  class="mu2e_list">Port 1</div>
+                <div style="grid-column: 1;   grid-row: 5;"  class="mu2e_list">Port 2</div>
+                <div style="grid-column: 1;   grid-row: 6;"  class="mu2e_list">Port 3</div>
+                <div style="grid-column: 1;   grid-row: 7;"  class="mu2e_list">Port 4</div>
+                <div style="grid-column: 1;   grid-row: 8;"  class="mu2e_list">Port 5</div>
+                <div style="grid-column: 1;   grid-row: 9;"  class="mu2e_list">Port 6</div>
+                <div style="grid-column: 1;   grid-row: 10;"  class="mu2e_list">Port 7</div>
+                <div style="grid-column: 1;   grid-row: 11;" class="mu2e_list">Port 8</div>
+                <div style="grid-column: 1;   grid-row: 12;" class="mu2e_list">Port 9</div>
+                <div style="grid-column: 1;   grid-row: 13;" class="mu2e_list">Port 10</div>
+                <div style="grid-column: 1;   grid-row: 14;" class="mu2e_list">Port 11</div>
+                <div style="grid-column: 1;   grid-row: 15;" class="mu2e_list">Port 12</div>
+                <div style="grid-column: 1;   grid-row: 16;" class="mu2e_list">Port 13</div>
+                <div style="grid-column: 1;   grid-row: 17;" class="mu2e_list">Port 14</div>
+                <div style="grid-column: 1;   grid-row: 18;" class="mu2e_list">Port 15</div>
+                <div style="grid-column: 1;   grid-row: 19;" class="mu2e_list">Port 16</div>
+                <div style="grid-column: 1;   grid-row: 20;" class="mu2e_list">Port 17</div>
+                <div style="grid-column: 1;   grid-row: 21;" class="mu2e_list">Port 18</div>
+                <div style="grid-column: 1;   grid-row: 22;" class="mu2e_list">Port 19</div>
+                <div style="grid-column: 1;   grid-row: 23;" class="mu2e_list">Port 20</div>
+                <div style="grid-column: 1;   grid-row: 24;" class="mu2e_list">Port 21</div>
+                <div style="grid-column: 1;   grid-row: 25;" class="mu2e_list">Port 22</div>
+                <div style="grid-column: 1;   grid-row: 26;" class="mu2e_list">Port 23</div>
+                <div style="grid-column: 1;   grid-row: 27;" class="mu2e_list">Port 24</div>
+
+                <div style="grid-column: 2;   grid-row: 2/4;"  class="mu2e_list">&nbsp;</div>
+                <div style="grid-column: 2;   grid-row: 2;"   class="mu2e_list">Active</div>
+                <div style="grid-column: 2;   grid-row: 3;"   class="mu2e_list" name="mu2e_dcs"  data="ROC_active_febs"  format="hex" bitfield="active">Value</div>
+                <div style="grid-column: 2;   grid-row: 4;"   class="mu2e_list" name="active" bit="0"></div>
+                <div style="grid-column: 2;   grid-row: 5;"   class="mu2e_list" name="active" bit="1"></div>
+                <div style="grid-column: 2;   grid-row: 6;"   class="mu2e_list" name="active" bit="2"></div>
+                <div style="grid-column: 2;   grid-row: 7;"   class="mu2e_list" name="active" bit="3"></div>
+                <div style="grid-column: 2;   grid-row: 8;"   class="mu2e_list" name="active" bit="4"></div>
+                <div style="grid-column: 2;   grid-row: 9;"   class="mu2e_list" name="active" bit="5"></div>
+                <div style="grid-column: 2;   grid-row: 10;"  class="mu2e_list" name="active" bit="6"></div>
+                <div style="grid-column: 2;   grid-row: 11;"  class="mu2e_list" name="active" bit="7"></div>
+                <div style="grid-column: 2;   grid-row: 12;"  class="mu2e_list" name="active" bit="8"></div>
+                <div style="grid-column: 2;   grid-row: 13;"  class="mu2e_list" name="active" bit="9"></div>
+                <div style="grid-column: 2;   grid-row: 14;"  class="mu2e_list" name="active" bit="10"></div>
+                <div style="grid-column: 2;   grid-row: 15;"  class="mu2e_list" name="active" bit="11"></div>
+                <div style="grid-column: 2;   grid-row: 16;"  class="mu2e_list" name="active" bit="12"></div>
+                <div style="grid-column: 2;   grid-row: 17;"  class="mu2e_list" name="active" bit="13"></div>
+                <div style="grid-column: 2;   grid-row: 18;"  class="mu2e_list" name="active" bit="14"></div>
+                <div style="grid-column: 2;   grid-row: 19;"  class="mu2e_list" name="active" bit="15"></div>
+                <div style="grid-column: 2;   grid-row: 20;"  class="mu2e_list" name="active" bit="16"></div>
+                <div style="grid-column: 2;   grid-row: 21;"  class="mu2e_list" name="active" bit="17"></div>
+                <div style="grid-column: 2;   grid-row: 22;"  class="mu2e_list" name="active" bit="18"></div>
+                <div style="grid-column: 2;   grid-row: 23;"  class="mu2e_list" name="active" bit="19"></div>
+                <div style="grid-column: 2;   grid-row: 24;"  class="mu2e_list" name="active" bit="20"></div>
+                <div style="grid-column: 2;   grid-row: 25;"  class="mu2e_list" name="active" bit="21"></div>
+                <div style="grid-column: 2;   grid-row: 26;"  class="mu2e_list" name="active" bit="22"></div>
+                <div style="grid-column: 2;   grid-row: 27;"  class="mu2e_list" name="active" bit="23"></div>
+
+                <div style="grid-column: 3;   grid-row: 2/4;"  class="mu2e_list">&nbsp;</div>
+                <div style="grid-column: 3;   grid-row: 2;"  class="mu2e_list">Voltage</div>
+                <div style="grid-column: 3;   grid-row: 4;"  class="mu2e_list" name="mu2e_dcs"  data="P01_Voltage"  format="2" units="V">Value</div>
+                <div style="grid-column: 3;   grid-row: 5;"  class="mu2e_list" name="mu2e_dcs"  data="P02_Voltage"  format="2" units="V">Value</div>
+                <div style="grid-column: 3;   grid-row: 6;"  class="mu2e_list" name="mu2e_dcs"  data="P03_Voltage"  format="2" units="V">Value</div>
+                <div style="grid-column: 3;   grid-row: 7;"  class="mu2e_list" name="mu2e_dcs"  data="P04_Voltage"  format="2" units="V">Value</div>
+                <div style="grid-column: 3;   grid-row: 8;"  class="mu2e_list" name="mu2e_dcs"  data="P05_Voltage"  format="2" units="V">Value</div>
+                <div style="grid-column: 3;   grid-row: 9;"  class="mu2e_list" name="mu2e_dcs"  data="P06_Voltage"  format="2" units="V">Value</div>
+                <div style="grid-column: 3;  grid-row: 10;"  class="mu2e_list" name="mu2e_dcs"  data="P07_Voltage"  format="2" units="V">Value</div>
+                <div style="grid-column: 3;  grid-row: 11;"  class="mu2e_list" name="mu2e_dcs"  data="P08_Voltage"  format="2" units="V">Value</div>
+                <div style="grid-column: 3;  grid-row: 12;"  class="mu2e_list" name="mu2e_dcs"  data="P09_Voltage"  format="2" units="V">Value</div>
+                <div style="grid-column: 3;  grid-row: 13;"  class="mu2e_list" name="mu2e_dcs"  data="P10_Voltage"  format="2" units="V">Value</div>
+                <div style="grid-column: 3;  grid-row: 14;"  class="mu2e_list" name="mu2e_dcs"  data="P11_Voltage"  format="2" units="V">Value</div>
+                <div style="grid-column: 3;  grid-row: 15;"  class="mu2e_list" name="mu2e_dcs"  data="P12_Voltage"  format="2" units="V">Value</div>
+                <div style="grid-column: 3;  grid-row: 16;"  class="mu2e_list" name="mu2e_dcs"  data="P13_Voltage"  format="2" units="V">Value</div>
+                <div style="grid-column: 3;  grid-row: 17;"  class="mu2e_list" name="mu2e_dcs"  data="P14_Voltage"  format="2" units="V">Value</div>
+                <div style="grid-column: 3;  grid-row: 18;"  class="mu2e_list" name="mu2e_dcs"  data="P15_Voltage"  format="2" units="V">Value</div>
+                <div style="grid-column: 3;  grid-row: 19;"  class="mu2e_list" name="mu2e_dcs"  data="P16_Voltage"  format="2" units="V">Value</div>
+                <div style="grid-column: 3;  grid-row: 20;"  class="mu2e_list" name="mu2e_dcs"  data="P17_Voltage"  format="2" units="V">Value</div>
+                <div style="grid-column: 3;  grid-row: 21;"  class="mu2e_list" name="mu2e_dcs"  data="P18_Voltage"  format="2" units="V">Value</div>
+                <div style="grid-column: 3;  grid-row: 22;"  class="mu2e_list" name="mu2e_dcs"  data="P19_Voltage"  format="2" units="V">Value</div>
+                <div style="grid-column: 3;  grid-row: 23;"  class="mu2e_list" name="mu2e_dcs"  data="P20_Voltage"  format="2" units="V">Value</div>
+                <div style="grid-column: 3;  grid-row: 24;"  class="mu2e_list" name="mu2e_dcs"  data="P21_Voltage"  format="2" units="V">Value</div>
+                <div style="grid-column: 3;  grid-row: 25;"  class="mu2e_list" name="mu2e_dcs"  data="P22_Voltage"  format="2" units="V">Value</div>
+                <div style="grid-column: 3;  grid-row: 26;"  class="mu2e_list" name="mu2e_dcs"  data="P23_Voltage"  format="2" units="V">Value</div>
+                <div style="grid-column: 3;  grid-row: 27;"  class="mu2e_list" name="mu2e_dcs"  data="P24_Voltage"  format="2" units="V">Value</div>
+
+                <div style="grid-column: 4;   grid-row: 2/4;"  class="mu2e_list">&nbsp;</div>
+                <div style="grid-column: 4;   grid-row: 2;"  class="mu2e_list">Current</div>
+                <div style="grid-column: 4;   grid-row: 4;"  class="mu2e_list" name="mu2e_dcs"  data="P01_Current"  format="2" units="A">Value</div>
+                <div style="grid-column: 4;   grid-row: 5;"  class="mu2e_list" name="mu2e_dcs"  data="P02_Current"  format="2" units="A">Value</div>
+                <div style="grid-column: 4;   grid-row: 6;"  class="mu2e_list" name="mu2e_dcs"  data="P03_Current"  format="2" units="A">Value</div>
+                <div style="grid-column: 4;   grid-row: 7;"  class="mu2e_list" name="mu2e_dcs"  data="P04_Current"  format="2" units="A">Value</div>
+                <div style="grid-column: 4;   grid-row: 8;"  class="mu2e_list" name="mu2e_dcs"  data="P05_Current"  format="2" units="A">Value</div>
+                <div style="grid-column: 4;   grid-row: 9;"  class="mu2e_list" name="mu2e_dcs"  data="P06_Current"  format="2" units="A">Value</div>
+                <div style="grid-column: 4;  grid-row: 10;"  class="mu2e_list" name="mu2e_dcs"  data="P07_Current"  format="2" units="A">Value</div>
+                <div style="grid-column: 4;  grid-row: 11;"  class="mu2e_list" name="mu2e_dcs"  data="P08_Current"  format="2" units="A">Value</div>
+                <div style="grid-column: 4;  grid-row: 12;"  class="mu2e_list" name="mu2e_dcs"  data="P09_Current"  format="2" units="A">Value</div>
+                <div style="grid-column: 4;  grid-row: 13;"  class="mu2e_list" name="mu2e_dcs"  data="P10_Current"  format="2" units="A">Value</div>
+                <div style="grid-column: 4;  grid-row: 14;"  class="mu2e_list" name="mu2e_dcs"  data="P11_Current"  format="2" units="A">Value</div>
+                <div style="grid-column: 4;  grid-row: 15;"  class="mu2e_list" name="mu2e_dcs"  data="P12_Current"  format="2" units="A">Value</div>
+                <div style="grid-column: 4;  grid-row: 16;"  class="mu2e_list" name="mu2e_dcs"  data="P13_Current"  format="2" units="A">Value</div>
+                <div style="grid-column: 4;  grid-row: 17;"  class="mu2e_list" name="mu2e_dcs"  data="P14_Current"  format="2" units="A">Value</div>
+                <div style="grid-column: 4;  grid-row: 18;"  class="mu2e_list" name="mu2e_dcs"  data="P15_Current"  format="2" units="A">Value</div>
+                <div style="grid-column: 4;  grid-row: 19;"  class="mu2e_list" name="mu2e_dcs"  data="P16_Current"  format="2" units="A">Value</div>
+                <div style="grid-column: 4;  grid-row: 20;"  class="mu2e_list" name="mu2e_dcs"  data="P17_Current"  format="2" units="A">Value</div>
+                <div style="grid-column: 4;  grid-row: 21;"  class="mu2e_list" name="mu2e_dcs"  data="P18_Current"  format="2" units="A">Value</div>
+                <div style="grid-column: 4;  grid-row: 22;"  class="mu2e_list" name="mu2e_dcs"  data="P19_Current"  format="2" units="A">Value</div>
+                <div style="grid-column: 4;  grid-row: 23;"  class="mu2e_list" name="mu2e_dcs"  data="P20_Current"  format="2" units="A">Value</div>
+                <div style="grid-column: 4;  grid-row: 24;"  class="mu2e_list" name="mu2e_dcs"  data="P21_Current"  format="2" units="A">Value</div>
+                <div style="grid-column: 4;  grid-row: 25;"  class="mu2e_list" name="mu2e_dcs"  data="P22_Current"  format="2" units="A">Value</div>
+                <div style="grid-column: 4;  grid-row: 26;"  class="mu2e_list" name="mu2e_dcs"  data="P23_Current"  format="2" units="A">Value</div>
+                <div style="grid-column: 4;  grid-row: 27;"  class="mu2e_list" name="mu2e_dcs"  data="P24_Current"  format="2" units="A">Value</div>
+
+                <div style="grid-column: 5;   grid-row: 4;"  class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('1');">&#x23FB;</a></div>
+                <div style="grid-column: 5;   grid-row: 5;"  class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('2');">&#x23FB;</a></div>
+                <div style="grid-column: 5;   grid-row: 6;"  class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('3');">&#x23FB;</a></div>
+                <div style="grid-column: 5;   grid-row: 7;"  class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('4');">&#x23FB;</a></div>
+                <div style="grid-column: 5;   grid-row: 8;"  class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('5');">&#x23FB;</a></div>
+                <div style="grid-column: 5;   grid-row: 9;"  class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('6');">&#x23FB;</a></div>
+                <div style="grid-column: 5;   grid-row: 10;" class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('7');">&#x23FB;</a></div>
+                <div style="grid-column: 5;   grid-row: 11;" class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('8');">&#x23FB;</a></div>
+                <div style="grid-column: 5;   grid-row: 12;" class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('9');">&#x23FB;</a></div>
+                <div style="grid-column: 5;   grid-row: 13;" class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('10');">&#x23FB;</a></div>
+                <div style="grid-column: 5;   grid-row: 14;" class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('11');">&#x23FB;</a></div>
+                <div style="grid-column: 5;   grid-row: 15;" class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('12');">&#x23FB;</a></div>
+                <div style="grid-column: 5;   grid-row: 16;" class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('13');">&#x23FB;</a></div>
+                <div style="grid-column: 5;   grid-row: 17;" class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('14');">&#x23FB;</a></div>
+                <div style="grid-column: 5;   grid-row: 18;" class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('15');">&#x23FB;</a></div>
+                <div style="grid-column: 5;   grid-row: 19;" class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('16');">&#x23FB;</a></div>
+                <div style="grid-column: 5;   grid-row: 20;" class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('17');">&#x23FB;</a></div>
+                <div style="grid-column: 5;   grid-row: 21;" class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('18');">&#x23FB;</a></div>
+                <div style="grid-column: 5;   grid-row: 22;" class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('19');">&#x23FB;</a></div>
+                <div style="grid-column: 5;   grid-row: 23;" class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('20');">&#x23FB;</a></div>
+                <div style="grid-column: 5;   grid-row: 24;" class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('21');">&#x23FB;</a></div>
+                <div style="grid-column: 5;   grid-row: 25;" class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('22');">&#x23FB;</a></div>
+                <div style="grid-column: 5;   grid-row: 26;" class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('23');">&#x23FB;</a></div>
+                <div style="grid-column: 5;   grid-row: 27;" class="mu2e_list"><a href="#" onclick="rocPwrPortCmd('24');">&#x23FB;</a></div>
+
+            </div>
+            <div id="mu2e_dtc_action" class="mu2e_container mu2e_grid">
+                <div style="grid-column: 1/6; grid-row: 1" class="mu2e_title">Functions</div>
+                <div style="grid-column: 1;   grid-row: 2/4;"    class="mu2e_list">Read/Write</div>
+                <div style="grid-column: 2;   grid-row: 2;"    class="mu2e_list"> Register </div>
+                <div style="grid-column: 3;   grid-row: 2;"    class="mu2e_list">
+                     <input type="text" value="0x35" size="6" id="dtcReadWrite_reg"></input>
+                </div>
+                <div style="grid-column: 4;   grid-row: 2;"    class="mu2e_list">
+                    <button onClick="readCmd(this);">read &#10095;</button>
+                </div>
+                <div style="grid-column: 5;   grid-row: 2;"    class="mu2e_list" id="dtcRead_value"></div>
+
+                <div style="grid-column: 2;   grid-row: 3;"    class="mu2e_list">Value</div>
+                <div style="grid-column: 3;   grid-row: 3;"    class="mu2e_list">
+                    <input type="text" value="0x0000" size="8" id="dtcWrite_value"></input>
+                </div>
+                <div style="grid-column: 4;   grid-row: 3;"    class="mu2e_list">
+                    <button onClick="writeCmd(this);">write &#10095;</button>
+                </div>
+                <div style="grid-column: 5;   grid-row: 3;"    class="mu2e_list" id="dtcWrite_value"></div>
+                
+                <!-- RESETS -->
+                <div style="grid-column: 1;   grid-row: 4;"    class="mu2e_list">Resets</div>
+                <div style="grid-column: 2;   grid-row: 4;"    class="mu2e_list">
+                    <button onClick="rocResetCmd();">Reset</button>
+                    <button onClick="rocPwrPortCmd();">Power Cycle Ports</button>
+                </div>
+
+
+            </div>
+        <!--
+  "Mu2e:TDAQ_crv:crvROC09:Last_Event_Length",
+  "Mu2e:TDAQ_crv:crvROC09:ROC_active_febs",
+
+"Mu2e:TDAQ_crv:crvROC09:FEB_p1_10Vpos",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_15Vpos",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_1_2Vpos",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_1_8Vpos",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_2_5Vpos",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_3_3Vpos",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_5Vneg",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_5Vpos",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_BiasDac_0",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_BiasDac_1",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_BiasDac_2",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_BiasDac_3",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_BiasDac_4",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_BiasDac_5",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_BiasDac_6",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_BiasDac_7",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_Bias_0",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_Bias_1",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_Bias_2",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_Bias_3",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_Bias_4",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_Bias_5",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_Bias_6",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_Bias_7",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_CMB0_temperature",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_CMB10_temperature",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_CMB11_temperature",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_CMB12_temperature",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_CMB13_temperature",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_CMB14_temperature",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_CMB15_temperature",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_CMB1_temperature",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_CMB2_temperature",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_CMB3_temperature",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_CMB4_temperature",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_CMB5_temperature",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_CMB6_temperature",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_CMB7_temperature",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_CMB8_temperature",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_CMB9_temperature",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_status",
+  "Mu2e:TDAQ_crv:crvROC09:FEB_p1_temperature",
+  "Mu2e:TDAQ_crv:crvROC09:ROC_active_febs",
+  "Mu2e:TDAQ_crv:crvROC09:ROC_cnt",
+  "Mu2e:TDAQ_crv:crvROC09:ROC_p1_current",
+  "Mu2e:TDAQ_crv:crvROC09:ROC_p1_voltage",
+
+
+
+        -->
+
+    </div>
+
+</body>
+</html>

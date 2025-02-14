@@ -22,6 +22,7 @@
 // ROOT includes
 #include "TCanvas.h"
 #include "TH1D.h"
+#include "TGraph.h"
 #include "THttpServer.h"
 #include "TSystem.h"
 
@@ -53,13 +54,16 @@ class CrvDQM : public art::EDAnalyzer
 	int         keepAliveDuration_;  // minutes
 	std::string histColor_;          // "red"/"blue"/"green"
 
-	// Member variables
-	TCanvas*                                           canvas_;
-	std::unordered_map<std::string, TH1D*>             hists_;
-	THttpServer*                                       server_;
-	std::chrono::time_point<std::chrono::steady_clock> lastUpdate_;
-	std::size_t                                        eventCounter_;
-	std::thread                                        keepAliveThread_;
+    // Member variables
+    TCanvas* canvas_;
+    std::unordered_map<std::string, TH1D*> hists_;
+    std::unordered_map<std::string, TGraph*> graphs_;
+    THttpServer* server_;
+    std::chrono::time_point<std::chrono::steady_clock> lastUpdate_;
+    std::size_t eventCounter_;
+    std::thread keepAliveThread_;  
+    std::size_t ewtCounter_;
+
 };
 
 // Constructor implementation
@@ -72,36 +76,36 @@ CrvDQM::CrvDQM(fhicl::ParameterSet const& ps)
     , keepAliveDuration_(ps.get<int>("keepAliveDuration", 5))  // minutes
     , histColor_(ps.get<std::string>("histColor", "blue"))     // minutes
 {
-	// Initialise non-fcl member variables
-	eventCounter_ = 0;
+    // Initialise non-fcl member variables
+    eventCounter_ = 0;
+    ewtCounter_ = 0;
 }
 
 // Destructor implementation
-CrvDQM::~CrvDQM()
-{
-	// Make sure the server thread is stopped
-	if(keepAliveThread_.joinable())
-	{
-		keepAliveThread_.join();
-	}
-	// Then clean up ROOT objects
-	if(server_)
-	{
-		delete server_;
-		server_ = nullptr;
-	}
-	if(canvas_)
-	{
-		delete canvas_;
-		canvas_ = nullptr;
-	}
-	for(auto& hist : hists_)
-	{
-		if(hist.second)
-			delete hist.second;
-		hist.second = nullptr;
-	}
-	hists_.clear();
+CrvDQM::~CrvDQM() {
+    // Make sure the server thread is stopped
+    if(keepAliveThread_.joinable()) {
+        keepAliveThread_.join();
+    }
+    // Then clean up ROOT objects
+    if (server_) {
+        delete server_; 
+        server_ = nullptr;
+    }
+    if (canvas_) {
+        delete canvas_;
+        canvas_ = nullptr;
+    }
+    for (auto& hist : hists_) {
+        if (hist.second) delete hist.second;
+        hist.second = nullptr;
+    }
+    hists_.clear();
+    for (auto& graph : graphs_) {
+        if (graph.second) delete graph.second;
+        graph.second = nullptr;
+    }
+    graphs_.clear();
 }
 
 void CrvDQM::beginJob()
@@ -109,33 +113,45 @@ void CrvDQM::beginJob()
 	// Create HTTP server
 	server_ = new THttpServer(Form("http:%d", port_));
 
-	// Set global plot style
-	CrvDQMStyle::SetStyle();
+    // Set global plot style
+    CrvDQMStyle::SetStyle();    
+    
+    // Create canvas
+    std::string canvasName = "WebDisplay";
+    canvas_ = new TCanvas(canvasName.c_str(), "CRV web display"); 
+    canvas_->Divide(2,3); // divide 
+    
+    // Create histograms
+    hists_["channels"] = new TH1D("Channels", ";Channel;Counts", 64, -0.5, 63.5);
+    hists_["timestamps"] = new TH1D("Timestamps", ";Timestamp;Counts", 256, 0, 255); // 0-0xff 
+    hists_["nhits"] = new TH1D("Hits", ";Hits / block;Counts", 61, 0, 60);
+    hists_["adc"] = new TH1D("ADC",";ADC;Counts", 201, -100, 100); 
 
-	// Create canvas
-	std::string canvasName = "WebDisplay";
-	canvas_                = new TCanvas(canvasName.c_str(), "CRV web display");
-	canvas_->Divide(2, 2);  // divide into 4x4 grid
+    // Create graphs
+    graphs_["latency"] = new TGraph();
+    graphs_["latency"]->SetTitle(";EWT;Latency");
 
-	// Create histograms
-	hists_["channels"] = new TH1D("Channels", ";Channel;Counts", 64, -0.5, 63.5);
-	hists_["timestamps"] =
-	    new TH1D("Timestamps", ";Timestamp;Counts", 256, 0, 255);  // 0-0xff
-	hists_["nhits"] = new TH1D("Hits", ";Hits / block;Counts", 61, 0, 60);
-	hists_["adc"]   = new TH1D("ADC", ";ADC;Counts", 201, -100, 100);
+    // Format and draw
+    int canvasIdx = 1;
+    for (auto& hist : hists_) {
+        // Get pad 
+        canvas_->cd(canvasIdx);
+        ++canvasIdx;
+        // Consistent formatting
+        CrvDQMStyle::FormatHist(hist.second, histColor_);
+        // Draw
+        hist.second->Draw("HIST");
+    }
 
-	// Format and draw
-	int canvasIdx = 1;
-	for(auto& hist : hists_)
-	{
-		// Get pad
-		canvas_->cd(canvasIdx);
-		++canvasIdx;
-		// Consistent formatting
-		CrvDQMStyle::FormatHist(hist.second, histColor_);
-		// Draw
-		hist.second->Draw();
-	}
+    for (auto& graph : graphs_) {
+        // Get pad 
+        canvas_->cd(canvasIdx);
+        ++canvasIdx;
+        // Consistent formatting
+        CrvDQMStyle::FormatGraph(graph.second, histColor_);
+        // Draw
+        graph.second->Draw("APL");
+    }
 
 	// Register with server
 	server_->Register("/", canvas_);
@@ -220,138 +236,146 @@ void CrvDQM::analyze(art::Event const& e)
 		TLOG(TLVL_INFO) << "[CrvDQM::analyze] Found nFragments" << fragments.size();
 	}
 
-	// Handle the fragments
-	for(const auto& frag : fragments)
-	{
-		try
-		{
-			mu2e::DTCEventFragment bb(frag);
-			auto                   data  = bb.getData();
-			auto                   event = &data;
-			if(diagLevel_ > 1)
-			{
-				TLOG(TLVL_INFO) << "Event tag:\t" << "0x" << std::hex << std::setw(4)
-				                << std::setfill('0')
-				                << event->GetEventWindowTag().GetEventWindowTag(true);
-			}
-			DTCLib::DTC_EventHeader* eventHeader = event->GetHeader();
+    // Handle the fragments
+    for (const auto& frag : fragments) {
+        try {
+            mu2e::DTCEventFragment bb(frag); 
+            auto data = bb.getData(); 
+            auto event = &data; 
+            // DTCLib::DTC_EventWindowTag EWT = event->GetEventWindowTag(); // .GetEventWindowTag(true);
+            auto EWT = event->GetEventWindowTag().GetEventWindowTag(true); 
+            // std::cout<<EWT<<std::endl;
+            if (diagLevel_ > 1) { 
+                TLOG(TLVL_INFO) << "Event tag:\t" << "0x" << std::hex << std::setw(4) << std::setfill('0') << event->GetEventWindowTag().GetEventWindowTag(true);
+            }
+            // Event header
+            DTCLib::DTC_EventHeader* eventHeader = event->GetHeader();
+            
+            if (diagLevel_ > 1) {
+                TLOG(TLVL_INFO) << eventHeader->toJson() << std::endl
+                << "Subevents count: " << event->GetSubEventCount() << std::endl;
+            }
+        
+            // std::cout<< "Event tag:\t" << "0x" << std::hex << std::setw(4) << std::setfill('0') << event->GetEventWindowTag().GetEventWindowTag(true)<<std::endl;
 
-			if(diagLevel_ > 1)
-			{
-				TLOG(TLVL_INFO)
-				    << eventHeader->toJson() << std::endl
-				    << "Subevents count: " << event->GetSubEventCount() << std::endl;
-			}
+            bool plotsUpdated = false;
+            for (unsigned int i = 0; i < event->GetSubEventCount(); ++i) { // In future, use GetSubsystemData to only get CRV subevents
+                // Subevent
+                DTCLib::DTC_SubEvent& subevent = *(event->GetSubEvent(i));
 
-			bool plotsUpdated = false;
-			for(unsigned int i = 0; i < event->GetSubEventCount(); ++i)
-			{  // In future, use GetSubsystemData to only get CRV subevents
-				DTCLib::DTC_SubEvent& subevent = *(event->GetSubEvent(i));
-				if(diagLevel_ > 1)
-				{
-					TLOG(TLVL_INFO) << "Subevent [" << i << "]:" << std::endl;
-					TLOG(TLVL_INFO) << subevent.GetHeader()->toJson() << std::endl;
-					TLOG(TLVL_INFO)
-					    << "Number of Data Block: " << subevent.GetDataBlockCount()
-					    << std::endl;
-				}
+                // Subevent header
+                const DTCLib::DTC_SubEventHeader *subeventHeader = subevent.GetHeader();
+                //should you reference the pointer?
+                // const DTCLib::DTC_SubEventHeader& subeventHeader = *(subevent.GetHeader()); 
+                // // Subevent info
+                uint64_t link0_latency = subeventHeader->link0_drp_rx_latency;
 
-				for(size_t bl = 0; bl < subevent.GetDataBlockCount(); ++bl)
-				{
-					++eventCounter_;
-					auto block       = subevent.GetDataBlock(bl);
-					auto blockheader = block->GetHeader();
-					if(diagLevel_ > 1)
-					{
-						TLOG(TLVL_INFO) << blockheader->toJSON() << std::endl;
-						for(int ii = 0; ii < blockheader->GetPacketCount(); ++ii)
-						{
-							TLOG(TLVL_INFO)
-							    << DTCLib::DTC_DataPacket(
-							           ((uint8_t*)block->blockPointer) + ((ii + 1) * 16))
-							           .toJSON()
-							    << std::endl;
-						}
-					}
-					// Check if we want to decode this data block
-					// Make sure we only process CRV data
-					if(blockheader->GetSubsystem() == 0x2)
-					{
-						if(blockheader->isValid())
-						{
-							// DQM for version 0x0 data
-							if(blockheader->GetVersion() == 0x0)
-							{
-								auto crvData =
-								    mu2e::CRVDataDecoder(subevent);  // reference
-								// const auto crvStatus =
-								// crvData.GetCRVROCStatusPacket(bl);
+                // Fill graph
+                // Little bit confused about this.
+                graphs_["latency"]->SetPoint(ewtCounter_, EWT, link0_latency); 
+                ++ewtCounter_;
+                // graphs_["latency"]->SetPointX(i); 
+                // graphs_["latency"]->SetPointY(link0_latency);
+                // // ...
+                // // uint64_t link5_latency = subevtheader.link5_drp_rx_latency;
+                // link0_latency = 1;
 
-								std::vector<mu2e::CRVDataDecoder::CRVHit> hits;
-								auto res = crvData.GetCRVHits(bl, hits);
-								if(!res)
-								{
-									TLOG(TLVL_ERROR) << "Unable to get CRV hist!";
-									// Iterate invalid count?
-									// ++invalidEventCounter_;
-									continue;
-								}
+                // std::cout<<"link0_latency "<<link0_latency<<std::endl;
+                // std::cout<<"link1_latency "<<link1_latency<<std::endl;
 
-								for(auto& hit : hits)
-								{
-									// Fill histograms
-									hists_["channels"]->Fill(hit.first.febChannel);
-									hists_["timestamps"]->Fill(hit.first.HitTime);
-									for(auto& adc : hit.second)
-									{
-										hists_["adc"]->Fill(adc.ADC);
-									}
-								}
-								hists_["nhits"]->Fill(hits.size());
-								plotsUpdated = true;
-							}
-						}
-						else
-						{
-							// Iterate invalid count?
-							// ++invalidEventCounter_;
-							continue;
-						}
-					}
-				}
-			}
+                if (diagLevel_ > 1) {
+                    TLOG(TLVL_INFO) << "Subevent [" << i << "]:" << std::endl;
+                    // TLOG(TLVL_INFO) << subevent.GetHeader()->toJson() << std::endl;
+                    TLOG(TLVL_INFO) << subeventHeader->toJson() << std::endl;
+                    TLOG(TLVL_INFO) << "Number of Data Block: " << subevent.GetDataBlockCount() << std::endl;
+                }
+                
+                for (size_t bl = 0; bl < subevent.GetDataBlockCount(); ++bl) {
+                    ++eventCounter_;
+                    auto block = subevent.GetDataBlock(bl);
+                    auto blockheader = block->GetHeader();
+                    if (diagLevel_ > 1) {
+                        TLOG(TLVL_INFO) << blockheader->toJSON() << std::endl;
+                        for (int ii = 0; ii < blockheader->GetPacketCount(); ++ii) {
+                            TLOG(TLVL_INFO) << DTCLib::DTC_DataPacket(((uint8_t*)block->blockPointer) + ((ii + 1) * 16)).toJSON() << std::endl;
+                        }
+                    }
+                    // Check if we want to decode this data block
+                    // Make sure we only process CRV data
+                    if(blockheader->GetSubsystem() == 0x2) { 
+                        if(blockheader->isValid()) {
+                            // DQM for version 0x0 data
+                            if( blockheader->GetVersion() == 0x0 ) {
+                                auto crvData = mu2e::CRVDataDecoder(subevent); // reference
+                                //const auto crvStatus = crvData.GetCRVROCStatusPacket(bl);
+                                auto hits = crvData.GetCRVHits(bl);
+                                for (auto& hit : hits) {
+                                    // Fill histograms
+                                    hists_["channels"]->Fill(hit.first.febChannel);
+                                    hists_["timestamps"]->Fill(hit.first.HitTime);
+                                    for (auto& adc : hit.second) {
+                                        hists_["adc"]->Fill(adc.ADC);
+                                    }
+                                }
+                                hists_["nhits"]->Fill(hits.size());
+                                plotsUpdated = true;
+                            }
+                        } else {
+                            // Iterate invalid count?
+                            // ++invalidEventCounter_;
+                            continue;
+                        }
+                    }
+                }
+            }
 
-			if(plotsUpdated)
-			{
-				auto currentTime = std::chrono::steady_clock::now();
-				std::chrono::duration<double, std::milli> elapsed =
-				    currentTime - lastUpdate_;
-				if(elapsed.count() >= onlineRefreshPeriod_)
-				{
-					// Auto scale y-axis
-					for(auto& hist : hists_)
-					{
-						double maxContent =
-						    hist.second->GetBinContent(hist.second->GetMaximumBin());
-						hist.second->GetYaxis()->SetRangeUser(0, 1.15 * maxContent);
-					}
-					// Update the canvas
-					canvas_->Modified();
-					canvas_->Update();
-					gSystem->ProcessEvents();   // Update display
-					lastUpdate_ = currentTime;  // Update the time
-				}
-			}
-		}
-		catch(const std::exception& e)
-		{
-			if(diagLevel_ > 0)
-			{
-				TLOG(TLVL_WARNING) << "Error processing fragment: " << e.what();
-			}
-			continue;
-		}
-	}
+            if(plotsUpdated) {
+                auto currentTime = std::chrono::steady_clock::now();
+                std::chrono::duration<double, std::milli> elapsed = currentTime - lastUpdate_;
+                if(elapsed.count() >= onlineRefreshPeriod_) {
+                    // Auto scale y-axis
+                    for (auto& hist : hists_) { 
+                        double maxContent =  hist.second->GetBinContent(hist.second->GetMaximumBin()); 
+                        hist.second->GetYaxis()->SetRangeUser(0, 1.15*maxContent);
+                    }
+                    for (auto& graph : graphs_) {
+                        // Get the number of points in the graph
+                        int nPoints = graph.second->GetN();
+                        // std::cout<<nPoints<<std::endl;
+                        // Get the x and y values of the graph
+                        double* xValues = graph.second->GetX();
+                        double* yValues = graph.second->GetY();
+                        
+                        // Find the min and max x and y values
+                        double xMin = *std::min_element(xValues, xValues + nPoints);
+                        double xMax = *std::max_element(xValues, xValues + nPoints);
+                        double yMin = *std::min_element(yValues, yValues + nPoints);
+                        double yMax = *std::max_element(yValues, yValues + nPoints);
+                        
+                        // Optionally add a margin to the y-axis for better visualization
+                        double yMargin = 0.1 * (yMax - yMin);
+                        
+                        // Set the range for both axes
+                        graph.second->GetXaxis()->SetRangeUser(xMin, xMax);
+                        graph.second->GetYaxis()->SetRangeUser(yMin - yMargin, yMax + yMargin);
+                    }
+
+                    // Update the canvas
+                    canvas_->Modified();
+                    canvas_->Update();
+                    gSystem->ProcessEvents(); // Update display
+                    lastUpdate_ = currentTime; // Update the time
+                }
+            }
+
+        }
+        catch (const std::exception& e) {
+            if (diagLevel_ > 0) {
+                TLOG(TLVL_WARNING) << "Error processing fragment: " << e.what();
+            }
+            continue;
+        }
+    }
 }
 
 // End job printouts
