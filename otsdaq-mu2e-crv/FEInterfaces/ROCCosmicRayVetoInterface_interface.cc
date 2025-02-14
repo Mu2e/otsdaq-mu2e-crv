@@ -2,7 +2,7 @@
 #include "otsdaq-mu2e-crv/FEInterfaces/ROCCosmicRayVetoInterface.h"
 #include "otsdaq-mu2e-crv/FEInterfaces/ROC_Registers.h"
 #include "otsdaq-mu2e-crv/FEInterfaces/FEB_Registers.h"
-
+#
 #include "otsdaq/Macros/InterfacePluginMacros.h"
 
 using namespace ots;
@@ -88,7 +88,7 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 					&ROCCosmicRayVetoInterface::RocConfigure),
 					std::vector<std::string>{"send GR packages (Default: false)",
                                              "# of counter packages (Default: 0)",
-                                             "uB offser (if not GR) (Default: 0xa)"},
+                                             "uB offset (if not GR) (Default: 0xa)"},
 					std::vector<std::string>{},
 					1);  // requiredUserPermissions
 
@@ -659,9 +659,9 @@ void ROCCosmicRayVetoInterface::Configure(__ARGS__)
 
 void ROCCosmicRayVetoInterface::RocConfigure(__ARGS__)
 {
-	bool gr = __GET_ARG_IN__("send GR packages (Default: true)", bool, false);
+	bool gr = __GET_ARG_IN__("send GR packages (Default: false)", bool, false);
     uint16_t grn = __GET_ARG_IN__("# of counter packages (Default: 0)", uint16_t, 0);
-    uint16_t uBoffset = __GET_ARG_IN__("uB offser (if not GR) (Default: 0xa)", uint16_t, 0xa);
+    uint16_t uBoffset = __GET_ARG_IN__("uB offset (if not GR) (Default: 0xa)", uint16_t, 0xa);
     RocConfigure(gr, grn, uBoffset);
 }
 
