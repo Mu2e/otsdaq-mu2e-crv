@@ -29,8 +29,8 @@
 // Custom includes
 #include "CrvDQMStyle.hh"
 
-namespace demo
-{  // what is the appropriate namespace?
+namespace ots
+{ 
 
 class CrvDQM : public art::EDAnalyzer
 {
@@ -309,6 +309,10 @@ void CrvDQM::analyze(art::Event const& e)
                                 auto crvData = mu2e::CRVDataDecoder(subevent); // reference
                                 //const auto crvStatus = crvData.GetCRVROCStatusPacket(bl);
                                 auto hits = crvData.GetCRVHits(bl);
+                                if (!hits) { 
+                                    TLOG(TLVL_ERROR) << "Unable to get CRV hits!";
+								    continue;
+                                }
                                 for (auto& hit : hits) {
                                     // Fill histograms
                                     hists_["channels"]->Fill(hit.first.febChannel);
