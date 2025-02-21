@@ -55,41 +55,42 @@ public:
     // CRV ROC specific functions
     void Reset();
 	void RocConfigure(bool gr=false, uint16_t grn=0, uint16_t uBoffset = 0x0);
-	void FebConfigure(bool useOtsConfig = true);
-	void ResetRxBuffers();
+    void FebConfigure(bool useOtsConfig = true);
+    void ResetRxBuffers();	
     void SetMarkerSync(bool enable=true);
 
     // CRV FEB specific functions
     //void FebTakePedestral();
 
-public:
-	void 									DoTheCRV_Dance			(__ARGS__);
-    void 									DoTheCRV_Dance2			(__ARGS__);
-	void                                    GetFirmwareVersion 	    (__ARGS__);
-	void                                    GetTestCounter        	(__ARGS__);
-	void                                    SetTestCounter        	(__ARGS__);
-	void                                    HardReset             	(__ARGS__);
-	void                                    SoftReset            	(__ARGS__);
-	void                                    Configure            	(__ARGS__);
-	void                                    RocConfigure        	(__ARGS__);
-    void                                    FebConfigure        	(__ARGS__);
-	void                                    GetStatus            	(__ARGS__);
-    void                                    GetStatusPretty         (__ARGS__);
-    void                                    GetPool                 (__ARGS__);
-    void                                    GetFebStatusPretty      (__ARGS__);
-	void                                    FiberRx                 (__ARGS__);
-	void                                    FiberTx                 (__ARGS__);
-	void                                    SetLoopbackMode         (__ARGS__);
-	//void                                    FebGetStatus            (__ARGS__);
-	void                                    FebSetBias              (__ARGS__);
-	void                                    FebSetBiasTrim          (__ARGS__);
-	void                                    FebSetThreshold         (__ARGS__);
-	void                                    FebSetPipeline          (__ARGS__);
-    void                                    FebCMBENA               (__ARGS__);
-    void                                    FebTakePedestral        (__ARGS__);
-    void                                    PWRRST                  (__ARGS__);
-    void                                    GetHistograms           (__ARGS__);
-    void                                    RegDump                 (__ARGS__);
+    void DoTheCRV_Dance 	(__ARGS__);
+    void DoTheCRV_Dance2 	(__ARGS__);
+    void GetFirmwareVersion (__ARGS__);
+    void GetTestCounter 	(__ARGS__);
+    void SetTestCounter     (__ARGS__);
+    void ResetMC            (__ARGS__);
+    void HardReset          (__ARGS__);
+    void SoftReset          (__ARGS__);
+    void GetUptime          (__ARGS__);
+    void Configure          (__ARGS__);
+    void RocConfigure       (__ARGS__);
+    void FebConfigure       (__ARGS__);
+    void GetStatus          (__ARGS__);
+    void GetStatusPretty    (__ARGS__);
+    void GetPool            (__ARGS__);
+    void GetFebStatusPretty (__ARGS__);
+    void FiberRx            (__ARGS__);
+    void FiberTx            (__ARGS__);
+    void SetLoopbackMode    (__ARGS__);
+    //void                                    FebGetStatus            (__ARGS__);
+    void FebSetBias         (__ARGS__);
+    void FebSetBiasTrim     (__ARGS__);
+    void FebSetThreshold    (__ARGS__);
+    void FebSetPipeline     (__ARGS__);
+    void FebCMBENA          (__ARGS__);
+    void FebTakePedestral   (__ARGS__);
+    void PWRRST             (__ARGS__);
+    void GetHistograms      (__ARGS__);
+    void RegDump            (__ARGS__);
 	// clang-format on
 };
 

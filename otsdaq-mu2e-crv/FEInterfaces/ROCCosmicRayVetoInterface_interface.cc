@@ -66,174 +66,188 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 					std::vector<std::string>{},
 					1);  // requiredUserPermissions
 
-    	registerFEMacroFunction("Reset uC",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-					&ROCCosmicRayVetoInterface::HardReset),
-					std::vector<std::string>{},
-					std::vector<std::string>{},
-					1);  // requiredUserPermissions
+    registerFEMacroFunction("Reset uC",
+    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                &ROCCosmicRayVetoInterface::ResetMC),
+                std::vector<std::string>{},
+                std::vector<std::string>{},
+                1);  // requiredUserPermissions        
 
-    	registerFEMacroFunction("Configure CRV",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-					&ROCCosmicRayVetoInterface::Configure),
-					std::vector<std::string>{"hard resets (Default: false)",
-                                             "bias (Default: 0xaac)",
-                                             "threshold (Default: 0xc)",
-                                             "spill length (Default: 0xff)"},
-					std::vector<std::string>{"response"},
-					1);  // requiredUserPermissions
+    registerFEMacroFunction("Configure CRV",
+    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                &ROCCosmicRayVetoInterface::Configure),
+                std::vector<std::string>{"hard resets (Default: false)",
+                                            "bias (Default: 0xaac)",
+                                            "threshold (Default: 0xc)",
+                                            "spill length (Default: 0xff)"},
+                std::vector<std::string>{"response"},
+                1);  // requiredUserPermissions
 
-    	registerFEMacroFunction("Configure ROC",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-					&ROCCosmicRayVetoInterface::RocConfigure),
-					std::vector<std::string>{"send GR packages (Default: false)",
-                                             "# of counter packages (Default: 0)",
-                                             "uB offset (if not GR) (Default: 0xa)"},
-					std::vector<std::string>{},
-					1);  // requiredUserPermissions
+    registerFEMacroFunction("Configure ROC",
+    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                &ROCCosmicRayVetoInterface::RocConfigure),
+                std::vector<std::string>{"send GR packages (Default: false)",
+                                            "# of counter packages (Default: 0)",
+                                            "uB offset (if not GR) (Default: 0xa)"},
+                std::vector<std::string>{},
+                1);  // requiredUserPermissions
 
-    	registerFEMacroFunction("FEB Configure",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-					&ROCCosmicRayVetoInterface::FebConfigure),
-					std::vector<std::string>{},
-					std::vector<std::string>{},
-					1);  // requiredUserPermissions
+    registerFEMacroFunction("FEB Configure",
+    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                &ROCCosmicRayVetoInterface::FebConfigure),
+                std::vector<std::string>{},
+                std::vector<std::string>{},
+                1);  // requiredUserPermissions
 
-		registerFEMacroFunction("Soft Reset",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-					&ROCCosmicRayVetoInterface::SoftReset),
-					std::vector<std::string>{},
-					std::vector<std::string>{},
-					1);  // requiredUserPermissions
+    registerFEMacroFunction("Soft Reset",
+    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                &ROCCosmicRayVetoInterface::SoftReset),
+                std::vector<std::string>{},
+                std::vector<std::string>{},
+                1);  // requiredUserPermissions
 
-        registerFEMacroFunction("Get Status",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-					&ROCCosmicRayVetoInterface::GetStatus),
-					std::vector<std::string>{},
-					std::vector<std::string>{
-					"version", "git hash",
-					"CR", "Send GR", "Loopback Mode", "PLL lock", "Active Ports", "Uptime", "Link Errors Loss", "Link Errors CRC", 
-					"Test Cnt", "Marker Decoded Cnt", "Marker Delayed Cnt", "Heartbeat Rx Cnt", "Heartbeat Tx Cnt", "DR Cnt", "Injection Cnt", "Loopback Markers (fiber) Cnt",
-					"Last Event Length (12.5ns)", "Injection Length (12.5ns)", "Injection Timestamp"
-					},
-					1);  // requiredUserPermissions
+    registerFEMacroFunction("Hard Reset",
+        static_cast<FEVInterface::frontEndMacroFunction_t>(
+                &ROCCosmicRayVetoInterface::HardReset),
+            std::vector<std::string>{},  // input arguments
+            std::vector<std::string>{"status"},  // output arguments
+            1);  // requiredUserPermissions
 
-        registerFEMacroFunction("Get Status Pretty",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-					&ROCCosmicRayVetoInterface::GetStatusPretty),
-					std::vector<std::string>{},
-					std::vector<std::string>{"response"},
-					1);  // requiredUserPermissions
-                registerFEMacroFunction("Get POOL",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-					&ROCCosmicRayVetoInterface::GetPool),
-					std::vector<std::string>{"Port (Default: -1)"},
-					std::vector<std::string>{"response"},
-					1);  // requiredUserPermissions
+        registerFEMacroFunction("Get Uptime",
+            static_cast<FEVInterface::frontEndMacroFunction_t>(
+                        &ROCCosmicRayVetoInterface::GetUptime),
+                        std::vector<std::string>{},
+                        std::vector<std::string>{"uptime"},
+                        1);  // requiredUserPermissions
 
-        registerFEMacroFunction("FEB Get Status Pretty",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-					&ROCCosmicRayVetoInterface::GetFebStatusPretty),
-					std::vector<std::string>{"Port (Default: -1)"},
-					std::vector<std::string>{"response"},
-					1);  // requiredUserPermissions
+    registerFEMacroFunction("Get Status",
+    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                &ROCCosmicRayVetoInterface::GetStatus),
+                std::vector<std::string>{},
+                std::vector<std::string>{
+                "version", "git hash",
+                "CR", "Send GR", "Loopback Mode", "PLL lock", "Active Ports", "Uptime", "Link Errors Loss", "Link Errors CRC", 
+                "Test Cnt", "Marker Decoded Cnt", "Marker Delayed Cnt", "Heartbeat Rx Cnt", "Heartbeat Tx Cnt", "DR Cnt", "Injection Cnt", "Loopback Markers (fiber) Cnt",
+                "Last Event Length (12.5ns)", "Injection Length (12.5ns)", "Injection Timestamp"
+                },
+                1);  // requiredUserPermissions
 
-        registerFEMacroFunction("FEB Take Pedestral",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-					&ROCCosmicRayVetoInterface::FebTakePedestral),
-					std::vector<std::string>{"Port (Default: -1)"},
-					std::vector<std::string>{},
-					1);  // requiredUserPermissions
+    registerFEMacroFunction("Get Status Pretty",
+    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                &ROCCosmicRayVetoInterface::GetStatusPretty),
+                std::vector<std::string>{},
+                std::vector<std::string>{"response"},
+                1);  // requiredUserPermissions
+            registerFEMacroFunction("Get POOL",
+    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                &ROCCosmicRayVetoInterface::GetPool),
+                std::vector<std::string>{"Port (Default: -1)"},
+                std::vector<std::string>{"response"},
+                1);  // requiredUserPermissions
 
-        registerFEMacroFunction("Read Fiber Rx",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-					&ROCCosmicRayVetoInterface::FiberRx),
-					std::vector<std::string>{"number of packages (Default: 10)"},
-					std::vector<std::string>{"buffer"},
-					1);  // requiredUserPermissions
+    registerFEMacroFunction("FEB Get Status Pretty",
+    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                &ROCCosmicRayVetoInterface::GetFebStatusPretty),
+                std::vector<std::string>{"Port (Default: -1)"},
+                std::vector<std::string>{"response"},
+                1);  // requiredUserPermissions
 
-		registerFEMacroFunction("Read Fiber Tx",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-					&ROCCosmicRayVetoInterface::FiberTx),
-					std::vector<std::string>{"number of packages (Default: 10)"},
-					std::vector<std::string>{"buffer"},
-					1);  // requiredUserPermissions
-				
-		registerFEMacroFunction("Set Loopback Mode",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-					&ROCCosmicRayVetoInterface::SetLoopbackMode),
-					std::vector<std::string>{"loopback mode (Default: 0)"},
-					std::vector<std::string>{},
-					1);  // requiredUserPermissions
+    registerFEMacroFunction("FEB Take Pedestral",
+    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                &ROCCosmicRayVetoInterface::FebTakePedestral),
+                std::vector<std::string>{"Port (Default: -1)"},
+                std::vector<std::string>{},
+                1);  // requiredUserPermissions
 
-		registerFEMacroFunction("FEB Set Bias",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-					&ROCCosmicRayVetoInterface::FebSetBias),
-					std::vector<std::string>{"port (Default: -1, current active)",
-					                         "fpga [0,1,2,3]",
-											 "number [0,1]",
-											 "bias"},
-					std::vector<std::string>{},
-					1);  // requiredUserPermissions
-		
-		registerFEMacroFunction("FEB Set Bias Trim",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-					&ROCCosmicRayVetoInterface::FebSetBiasTrim),
-					std::vector<std::string>{"port (Default: -1, current active)",
-					                         "fpga [0,1,2,3]",
-											 "channel [0-15]",
-											 "bias trim"},
-					std::vector<std::string>{},
-					1);  // requiredUserPermissions
-		
-		registerFEMacroFunction("FEB Set Threshold",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-					&ROCCosmicRayVetoInterface::FebSetThreshold),
-					std::vector<std::string>{"port (Default: -1, current active)",
-					                         "fpga [0,1,2,3]",
-											 "channel [0-15]",
-											 "threshold"},
-					std::vector<std::string>{},
-					1);  // requiredUserPermissions
-		
-		registerFEMacroFunction("FEBs Set Pipeline Delay",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-					&ROCCosmicRayVetoInterface::FebSetPipeline),
-					std::vector<std::string>{"pipeline delay (Default 5)"},
-					std::vector<std::string>{},
-					1);  // requiredUserPermissions
+    registerFEMacroFunction("Read Fiber Rx",
+    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                &ROCCosmicRayVetoInterface::FiberRx),
+                std::vector<std::string>{"number of packages (Default: 10)"},
+                std::vector<std::string>{"buffer"},
+                1);  // requiredUserPermissions
 
-        registerFEMacroFunction("FEBs CMBENA",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-					&ROCCosmicRayVetoInterface::FebCMBENA),
-					std::vector<std::string>{"value (Default 1)"},
-					std::vector<std::string>{},
-					1);  // requiredUserPermissions
+    registerFEMacroFunction("Read Fiber Tx",
+    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                &ROCCosmicRayVetoInterface::FiberTx),
+                std::vector<std::string>{"number of packages (Default: 10)"},
+                std::vector<std::string>{"buffer"},
+                1);  // requiredUserPermissions
+            
+    registerFEMacroFunction("Set Loopback Mode",
+    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                &ROCCosmicRayVetoInterface::SetLoopbackMode),
+                std::vector<std::string>{"loopback mode (Default: 0)"},
+                std::vector<std::string>{},
+                1);  // requiredUserPermissions
 
-        registerFEMacroFunction("PWRRST",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-					&ROCCosmicRayVetoInterface::PWRRST),
-					std::vector<std::string>{"port (Default 25 - all)"},
-					std::vector<std::string>{},
-					1);  // requiredUserPermissions
-        registerFEMacroFunction("Histogram",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-					&ROCCosmicRayVetoInterface::GetHistograms),
-					std::vector<std::string>{"port (Default: -1, current active)",
-                                                                 "fpga [0,1,2,3]",
-                                                                 "channel [0-15]",
-                                                                 "interval (Default 2s) [ms]",
-                                                                 "filename (Default: histogram.csv)",
-                                                                 "number of bins (Default all: 0x400)"},
-					std::vector<std::string>{"buffer"},
-					1);  // requiredUserPermissions
+    registerFEMacroFunction("FEB Set Bias",
+    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                &ROCCosmicRayVetoInterface::FebSetBias),
+                std::vector<std::string>{"port (Default: -1, current active)",
+                                            "fpga [0,1,2,3]",
+                                            "number [0,1]",
+                                            "bias"},
+                std::vector<std::string>{},
+                1);  // requiredUserPermissions
+    
+    registerFEMacroFunction("FEB Set Bias Trim",
+    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                &ROCCosmicRayVetoInterface::FebSetBiasTrim),
+                std::vector<std::string>{"port (Default: -1, current active)",
+                                            "fpga [0,1,2,3]",
+                                            "channel [0-15]",
+                                            "bias trim"},
+                std::vector<std::string>{},
+                1);  // requiredUserPermissions
+    
+    registerFEMacroFunction("FEB Set Threshold",
+    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                &ROCCosmicRayVetoInterface::FebSetThreshold),
+                std::vector<std::string>{"port (Default: -1, current active)",
+                                            "fpga [0,1,2,3]",
+                                            "channel [0-15]",
+                                            "threshold"},
+                std::vector<std::string>{},
+                1);  // requiredUserPermissions
+    
+    registerFEMacroFunction("FEBs Set Pipeline Delay",
+    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                &ROCCosmicRayVetoInterface::FebSetPipeline),
+                std::vector<std::string>{"pipeline delay (Default 5)"},
+                std::vector<std::string>{},
+                1);  // requiredUserPermissions
 
-        registerFEMacroFunction("Register Dump",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-					&ROCCosmicRayVetoInterface::RegDump),
-					std::vector<std::string>{},
-					std::vector<std::string>{"response"},
-					1);  // requiredUserPermissions
+    registerFEMacroFunction("FEBs CMBENA",
+    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                &ROCCosmicRayVetoInterface::FebCMBENA),
+                std::vector<std::string>{"value (Default 1)"},
+                std::vector<std::string>{},
+                1);  // requiredUserPermissions
+
+    registerFEMacroFunction("PWRRST",
+    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                &ROCCosmicRayVetoInterface::PWRRST),
+                std::vector<std::string>{"port (Default 25 - all)"},
+                std::vector<std::string>{},
+                1);  // requiredUserPermissions
+    registerFEMacroFunction("Histogram",
+    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                &ROCCosmicRayVetoInterface::GetHistograms),
+                std::vector<std::string>{"port (Default: -1, current active)",
+                                                                "fpga [0,1,2,3]",
+                                                                "channel [0-15]",
+                                                                "interval (Default 2s) [ms]",
+                                                                "filename (Default: histogram.csv)",
+                                                                "number of bins (Default all: 0x400)"},
+                std::vector<std::string>{"buffer"},
+                1);  // requiredUserPermissions
+
+    registerFEMacroFunction("Register Dump",
+    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                &ROCCosmicRayVetoInterface::RegDump),
+                std::vector<std::string>{},
+                std::vector<std::string>{"response"},
+                1);  // requiredUserPermissions
 
 }
 
@@ -415,7 +429,76 @@ void ROCCosmicRayVetoInterface::SetTestCounter(__ARGS__)
 void ROCCosmicRayVetoInterface::Reset() {
 	this->writeRegister(ROC::Reset, 0x1);
 }
-void ROCCosmicRayVetoInterface::HardReset(__ARGS__) { Reset(); }
+
+void ROCCosmicRayVetoInterface::ResetMC(__ARGS__) {
+    // Perform the uC reset
+    Reset();
+}
+
+
+void ROCCosmicRayVetoInterface::GetUptime(__ARGS__) {
+    // ROC uptime
+	__SET_ARG_OUT__("uptime", 
+	    (this->readRegister(ROC::UpTimeHigh) << 16) +
+		this->readRegister(ROC::UpTimeLow));
+}
+
+
+// Broken?
+void ROCCosmicRayVetoInterface::HardReset(__ARGS__) {
+    // Init status string
+    std::stringstream status;
+    
+    // Perform the uC reset
+    Reset();
+
+    status << "Resetting ROC uC, waiting...\n";
+    __SET_ARG_OUT__("status", status.str());
+    
+    // Set the ROC link address
+    this->writeRegister(ROC::ID, (uint16_t)linkID_);
+    
+    // Poll the uptime counter every second for up to 30 seconds
+    const int MAX_ATTEMPTS = 30;
+    const int SLEEP_TIME = 1; // sec
+
+	__SET_ARG_OUT__("Uptime", 
+	    (this->readRegister(ROC::UpTimeHigh) << 16) +
+		this->readRegister(ROC::UpTimeLow));
+    
+    for(int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        // Sleep
+        sleep(SLEEP_TIME);
+        
+        try {
+            // Try to read uptime counter
+            auto uptime = (this->readRegister(ROC::UpTimeHigh) << 16) + this->readRegister(ROC::UpTimeLow);
+            
+            // If uptime is small, ROC has just reset
+            if(uptime < 5) { // Less than 5 seconds uptime
+                status << "ROC has reset! Current uptime: " << uptime << " seconds\n";
+                
+                // Perform ROC soft reset
+                ResetRxBuffers();
+                status << "Final soft reset...\n";
+                
+                __SET_ARG_OUT__("status", status.str());
+                return;
+            }
+            
+            status << "Attempt " << (attempt + 1) << ": ROC uptime = " << uptime << " seconds\n";
+        }
+        catch(...) {
+            status << "Attempt " << (attempt + 1) << ": Failed to read uptime\n";
+        }
+        
+        __SET_ARG_OUT__("status", status.str());
+    }
+    
+    // If we get here, reset failed
+    status << "Failed to verify ROC reset after " << MAX_ATTEMPTS << " attempts\n";
+    __SET_ARG_OUT__("status", status.str());
+}
 
 void  ROCCosmicRayVetoInterface::ResetRxBuffers() {
    this->writeRegister(ROC::GTP_CRC, 0x1);
