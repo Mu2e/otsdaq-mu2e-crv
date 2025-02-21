@@ -1,0 +1,106 @@
+###########################################################
+
+process_name: CrvDQM
+
+###########################################################
+
+services: { 
+    ArtdaqSharedMemoryServiceInterface: {
+         service_provider: ArtdaqGlobalsService
+    }
+}
+
+###########################################################
+
+source: {
+    module_type: TransferInput
+    register_fragment_types: false 
+    allowMultipleRuns: true
+    commanderPluginType: xmlrpc 
+    dispatcherHost: localhost 
+    dispatcherPort: 10500
+
+    transfer_plugin: {
+        transferPluginType: "TCPSocket"
+        # Not sure 
+        host_map: [
+            { rank: 55 host: "localhost"}, # DQM client, any available port
+            { rank: 5  host: "localhost"}  # Dispatcher, see ArtdaqSupervisor log file 
+        ]
+        source_rank: 5
+        destination_rank: 55 
+        unique_label: "CrvDQMTransfer000" # Must be unique in every instance 
+        port: 19555 # TCP port=base+offset+partition+rank (look at TRACE to figure this out)
+    }
+
+    # "Local" dispatcher art job
+    dispatcher_config: {
+        process_name: "DispatcherArtJob"
+        unique_label: "CrvDQMDispatcher000" # Must be unique in every instance 
+        path: [ out ]
+        outputs: {
+            out: {
+                module_type: "TransferOutputReliable"
+                transfer_plugin: {
+                    transferPluginType: TCPSocket
+                    destination_rank: 55 # Not 100% sure if this is needed
+                }
+            }
+        }
+
+        physics: {
+            filters: {} 
+        }
+    
+        services: {
+            ArtdaqFragmentNamingServiceInterface: {
+                helper_plugin: "Mu2e"
+                service_provider: "ArtdaqFragmentNamingService"
+            }
+            ArtdaqSharedMemoryServiceInterface: {
+                resume_after_timeout: true
+                service_provider: "ArtdaqSharedMemoryService"
+                waiting_time: 10 # Probably too long
+            }
+        }
+        source: {
+            module_type: "ArtdaqInput"
+        }
+    }
+}
+
+###########################################################
+
+physics: {
+    analyzers: {
+        crvdqm: {
+            module_type: CrvDQM
+            port: 8877
+            diagLevel: 1
+            onlineRefreshPeriod: 250
+            keepAlive: 1
+            keepAliveDuration: 1
+            histColor: "red"
+        }
+        crvdump: {
+            module_type: CrvDumper
+        }
+    }
+    a1: [ crvdump, crvdqm ]
+    e1: [ out1 ] 
+    end_paths: [ a1, e1 ]
+}
+
+###########################################################
+
+outputs: { 
+
+  out1: {
+    module_type: FileDumperOutput
+    wantProductFriendlyClassName: true   # Print class names
+    onlyIfPresent: true # Only present products
+  }
+      
+}
+
+###########################################################

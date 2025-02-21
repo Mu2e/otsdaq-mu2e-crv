@@ -1,0 +1,50 @@
+process_name : CrvDQMOffline
+
+source: {
+  module_type: RootInput # EmptyEvent
+  maxEvents: -1
+}
+
+services : {
+  message : {
+    destinations : {
+      console : {
+        type : "cout"
+        threshold : "DEBUG"
+        categories : {
+          default : { limit : 50 }
+        }
+      }
+    }
+  }
+}
+
+physics : {
+  analyzers : {
+    crvdqm: {
+      module_type: CrvDQM
+      port: 8877
+      diagLevel: 1
+      onlineRefreshPeriod: 250
+      keepAlive: 1
+      keepAliveDuration: 1
+      histColor: "red"
+    }
+    crvdump: {
+      module_type : CrvDumper
+    }
+  }
+
+  a1 : [crvdump, crvdqm]
+  e1 : [out1]
+  end_paths : [a1, e1]
+}
+
+outputs: { 
+  out1: { # Debugging
+    module_type: FileDumperOutput
+    wantProductFriendlyClassName: true   # Print class names
+    onlyIfPresent: true # Only print products if they're present
+  } 
+}
+
