@@ -1,5 +1,15 @@
 include(BuildPlugins) 
 
+
+cet_build_plugin(CrvDumper art::module LIBRARIES 
+    REG 
+    TRACE::TRACE 
+    artdaq_core_mu2e::artdaq-core-mu2e_Data_dict
+    artdaq_core_mu2e::artdaq-core-mu2e_Overlays
+    artdaq_core_mu2e::artdaq-core-mu2e_Data
+    artdaq::DAQdata
+)
+
 cet_build_plugin(CrvVstDemoViewer art::module LIBRARIES 
     REG 
     TRACE::TRACE 
