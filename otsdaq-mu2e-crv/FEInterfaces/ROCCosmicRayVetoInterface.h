@@ -38,7 +38,7 @@ public:
 
 	// FEB realted functions
 	uint32_t GetActivePorts();
-	void SetActivePort(uint16_t port, bool check = true); // starts at 1, max 24                     
+	void SetActivePort(uint16_t port, bool check = true); // starts at 1, max 24
 
 	//virtual void 							readROCBlock			(std::vector<uint16_t>& data, uint16_t address, uint16_t numberOfReads, bool incrementAddress) override { }
 	//virtual void 							readEmulatorBlock		(std::vector<uint16_t>& data, uint16_t address, uint16_t numberOfReads, bool incrementAddress) override { }
@@ -52,19 +52,19 @@ public:
 	//virtual int  							readDTCLinkLossCounter	(void) override;
 	//virtual void 							resetDTCLinkLossCounter	(void) override;
 
-    // CRV ROC specific functions
-    void Reset();
+	// CRV ROC specific functions
+	void Reset();
 	void RocConfigure(bool gr=false, uint16_t grn=0, uint16_t uBoffset = 0x0);
 	void FebConfigure(bool useOtsConfig = true);
 	void ResetRxBuffers();
-    void SetMarkerSync(bool enable=true);
+	void SetMarkerSync(bool enable=true);
 
-    // CRV FEB specific functions
-    //void FebTakePedestral();
+	// CRV FEB specific functions
+	//void FebTakePedestral();
 
 public:
 	void 									DoTheCRV_Dance			(__ARGS__);
-    void 									DoTheCRV_Dance2			(__ARGS__);
+	void 									DoTheCRV_Dance2			(__ARGS__);
 	void                                    GetFirmwareVersion 	    (__ARGS__);
 	void                                    GetTestCounter        	(__ARGS__);
 	void                                    SetTestCounter        	(__ARGS__);
@@ -72,11 +72,11 @@ public:
 	void                                    SoftReset            	(__ARGS__);
 	void                                    Configure            	(__ARGS__);
 	void                                    RocConfigure        	(__ARGS__);
-    void                                    FebConfigure        	(__ARGS__);
+	void                                    FebConfigure        	(__ARGS__);
 	void                                    GetStatus            	(__ARGS__);
-    void                                    GetStatusPretty         (__ARGS__);
-    void                                    GetPool                 (__ARGS__);
-    void                                    GetFebStatusPretty      (__ARGS__);
+	void                                    GetStatusPretty         (__ARGS__);
+	void                                    GetPool                 (__ARGS__);
+	void                                    GetFebStatusPretty      (__ARGS__);
 	void                                    FiberRx                 (__ARGS__);
 	void                                    FiberTx                 (__ARGS__);
 	void                                    SetLoopbackMode         (__ARGS__);
@@ -85,11 +85,11 @@ public:
 	void                                    FebSetBiasTrim          (__ARGS__);
 	void                                    FebSetThreshold         (__ARGS__);
 	void                                    FebSetPipeline          (__ARGS__);
-    void                                    FebCMBENA               (__ARGS__);
-    void                                    FebTakePedestral        (__ARGS__);
-    void                                    PWRRST                  (__ARGS__);
-    void                                    GetHistograms           (__ARGS__);
-    void                                    RegDump                 (__ARGS__);
+	void                                    FebCMBENA               (__ARGS__);
+	void                                    FebTakePedestral        (__ARGS__);
+	void                                    PWRRST                  (__ARGS__);
+	void                                    GetHistograms           (__ARGS__);
+	void                                    RegDump                 (__ARGS__);
 	// clang-format on
 };
 

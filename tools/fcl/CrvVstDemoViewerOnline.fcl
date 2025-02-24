@@ -1,4 +1,4 @@
-process_name : CrvVstDemoViewerOffline 
+process_name : CrvVstDemoViewerOffline
 
 TransferPluginConfigShmem: {
                      transferPluginType: Shmem
@@ -13,7 +13,7 @@ TransferPluginConfigShmem: {
 TransferPluginConfigTCP: {
         transferPluginType: TCPSocket
         host_map: [{ rank: 1  host: "localhost"},
-                   { rank: 4  host: "localhost"}, 
+                   { rank: 4  host: "localhost"},
                    { rank: 100 host: "localhost"}]
         max_fragment_size_words: 1048576
         source_rank: 4
@@ -34,13 +34,13 @@ physics: {
     end_paths: [ a1 ]
 }
 
-services: { 
-    ArtdaqSharedMemoryServiceInterface: { 
-       service_provider: ArtdaqGlobalsService 
+services: {
+    ArtdaqSharedMemoryServiceInterface: {
+       service_provider: ArtdaqGlobalsService
        resume_after_timeout: true
    }
 
-   ArtdaqFragmentNamingServiceInterface: { 
+   ArtdaqFragmentNamingServiceInterface: {
        service_provider: ArtdaqFragmentNamingService
        helper_plugin: Mu2e
    }
@@ -52,13 +52,13 @@ source: {
     module_type: TransferInput
     register_fragment_types: false
 
-    timeoutInUsecs: 10000000  
+    timeoutInUsecs: 10000000
 
     commanderPluginType: xmlrpc
     dispatcherHost: localhost
     dispatcherPort: 10500
     transfer_plugin: @local::TransferPluginConfigShmem #@local::TransferPluginConfigTCP
-    dispatcher_config: { 
+    dispatcher_config: {
         unique_label: "crvdqm"
         path: [ out ]
         filter_paths: [ {name: pmod path: [ prescale ]}  ]
