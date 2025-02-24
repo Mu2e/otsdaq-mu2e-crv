@@ -2,7 +2,7 @@
 #define FEB_REGISTERS_H
 
 // #include <functional>  // std::bind, std::function (if needed)
-#include <cstdint> // uint16_t
+#include <cstdint>  // uint16_t
 
 namespace FEB
 {
