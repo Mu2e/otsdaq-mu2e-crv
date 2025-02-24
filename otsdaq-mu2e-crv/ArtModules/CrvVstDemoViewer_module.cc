@@ -457,6 +457,7 @@ void CrvVstDemoViewer::analyze(art::Event const& event)
 								TLOG(TLVL_ERROR) << "Unable to get CRV hist!";
 								continue;
 							}
+
 							for(auto& hit : hits)
 							{
 								// if (newCanvas_) {

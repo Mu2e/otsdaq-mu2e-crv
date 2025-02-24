@@ -352,6 +352,7 @@ void CrvDQM::analyze(art::Event const& e)
 									TLOG(TLVL_ERROR) << "Unable to get CRV hist!";
 									continue;
 								}
+
 								for(auto& hit : hits)
 								{
 									// Fill histograms
