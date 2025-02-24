@@ -137,9 +137,9 @@ CrvVstDemoViewer::CrvVstDemoViewer(fhicl::ParameterSet const& ps)
     //, prescale_        (ps.get<int>        ("prescale"))
     , current_run_(0)
     //, max_num_x_plots_ (ps.get<std::size_t>("num_x_plots",
-    //std::numeric_limits<std::size_t>::max())) , max_num_y_plots_
+    // std::numeric_limits<std::size_t>::max())) , max_num_y_plots_
     //(ps.get<std::size_t>("num_y_plots", std::numeric_limits<std::size_t>::max())) ,
-    //num_x_plots_     (0) , num_y_plots_     (0) , raw_data_label_
+    // num_x_plots_     (0) , num_y_plots_     (0) , raw_data_label_
     //(ps.get<std::string>("raw_data_label", "daq"))
     , graphs_()
     , histograms_()
@@ -159,8 +159,10 @@ CrvVstDemoViewer::CrvVstDemoViewer(fhicl::ParameterSet const& ps)
 
 	// if (ps.has_key("fragment_ids")) {
 	//	auto fragment_ids =
-	//ps.get<std::vector<artdaq::Fragment::fragment_id_t>>("fragment_ids"); 	for (auto& id
-	//: fragment_ids) { 		auto index = id_to_index_.size(); 		id_to_index_[id] = index;
+	// ps.get<std::vector<artdaq::Fragment::fragment_id_t>>("fragment_ids"); 	for (auto&
+	// id
+	//: fragment_ids) { 		auto index = id_to_index_.size(); 		id_to_index_[id] =
+	//: index;
 	//	}
 	// }
 }
