@@ -61,6 +61,7 @@ class CrvDQM : public art::EDAnalyzer
     THttpServer* server_;
     std::chrono::time_point<std::chrono::steady_clock> lastUpdate_;
     std::size_t eventCounter_;
+    std::size_t fragmentCounter_;
     std::thread keepAliveThread_;  
     std::size_t ewtCounter_;
 
@@ -79,6 +80,7 @@ CrvDQM::CrvDQM(fhicl::ParameterSet const& ps)
     // Initialise non-fcl member variables
     eventCounter_ = 0;
     ewtCounter_ = 0;
+    // fragmentCounter_ = 0;
 }
 
 // Destructor implementation
@@ -131,6 +133,9 @@ void CrvDQM::beginJob()
     graphs_["latency"] = new TGraph();
     graphs_["latency"]->SetTitle(";EWT;Latency");
 
+    graphs_["subevents_vs_ewt"] = new TGraph();
+    graphs_["subevents_vs_ewt"]->SetTitle(";EWT;Subevents / EWT;");
+
     // Format and draw
     int canvasIdx = 1;
     for (auto& hist : hists_) {
@@ -157,12 +162,10 @@ void CrvDQM::beginJob()
 	server_->Register("/", canvas_);
 
 	// Set item defaults
-	server_->SetItemField(
-	    "/", "_monitoring", Form("%f", onlineRefreshPeriod_));  // Update period
-	server_->SetItemField("/", "_sidebar", "0");
-	server_->SetItemField(
-	    "/", "_drawitem", canvasName.c_str());       // Set DQM canvas as default item
-	server_->SetItemField("/", "_http_cache", "0");  // Disable HTTP caching
+	server_->SetItemField("/", "_monitoring", Form("%f", onlineRefreshPeriod_));  // Update period
+    server_->SetItemField("/", "_browser", "off"); // Turn off sidebar
+	server_->SetItemField("/", "_drawitem", canvasName.c_str()); // Set DQM canvas as default item
+	server_->SetItemField("/", "_http_cache", "0");  // Disable HTTP caching?
 
 	// Last update variable
 	lastUpdate_ = std::chrono::steady_clock::now();
@@ -246,7 +249,7 @@ void CrvDQM::analyze(art::Event const& e)
             auto EWT = event->GetEventWindowTag().GetEventWindowTag(true); 
             // std::cout<<EWT<<std::endl;
             if (diagLevel_ > 1) { 
-                TLOG(TLVL_INFO) << "Event tag:\t" << "0x" << std::hex << std::setw(4) << std::setfill('0') << event->GetEventWindowTag().GetEventWindowTag(true);
+                TLOG(TLVL_INFO) << "Event tag:\t" << "0x" << std::hex << std::setw(4) << std::setfill('0') << EWT;
             }
             // Event header
             DTCLib::DTC_EventHeader* eventHeader = event->GetHeader();
@@ -255,9 +258,9 @@ void CrvDQM::analyze(art::Event const& e)
                 TLOG(TLVL_INFO) << eventHeader->toJson() << std::endl
                 << "Subevents count: " << event->GetSubEventCount() << std::endl;
             }
-        
-            // std::cout<< "Event tag:\t" << "0x" << std::hex << std::setw(4) << std::setfill('0') << event->GetEventWindowTag().GetEventWindowTag(true)<<std::endl;
 
+            graphs_["subevents_vs_ewt"]->SetPoint(ewtCounter_, EWT, event->GetSubEventCount()); 
+        
             bool plotsUpdated = false;
             for (unsigned int i = 0; i < event->GetSubEventCount(); ++i) { // In future, use GetSubsystemData to only get CRV subevents
                 // Subevent
@@ -272,8 +275,11 @@ void CrvDQM::analyze(art::Event const& e)
 
                 // Fill graph
                 // Little bit confused about this.
+                // if 
                 graphs_["latency"]->SetPoint(ewtCounter_, EWT, link0_latency); 
-                ++ewtCounter_;
+                ++ewtCounter_; // Um?
+
+                // graphs_["subevent_vs_ewt"]->SetPoint(ewtCounter_, EWT, i);
                 // graphs_["latency"]->SetPointX(i); 
                 // graphs_["latency"]->SetPointY(link0_latency);
                 // // ...
@@ -309,10 +315,10 @@ void CrvDQM::analyze(art::Event const& e)
                                 auto crvData = mu2e::CRVDataDecoder(subevent); // reference
                                 //const auto crvStatus = crvData.GetCRVROCStatusPacket(bl);
                                 auto hits = crvData.GetCRVHits(bl);
-                                if (!hits) { 
-                                    TLOG(TLVL_ERROR) << "Unable to get CRV hits!";
-								    continue;
-                                }
+                                // if (!crvData) { 
+                                //     TLOG(TLVL_ERROR) << "Unable to get CRV hits!";
+								//     continue;
+                                // }
                                 for (auto& hit : hits) {
                                     // Fill histograms
                                     hists_["channels"]->Fill(hit.first.febChannel);
@@ -407,4 +413,4 @@ void CrvDQM::endJob()
 }
 
 DEFINE_ART_MODULE(CrvDQM)
-}  // namespace demo
+}  // namespace ots
