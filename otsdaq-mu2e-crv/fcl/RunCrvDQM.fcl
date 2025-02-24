@@ -22,7 +22,7 @@ physics : {
   analyzers : {
     dqm : {
       module_type : CrvDQM
-      port : 8877 // server port 
+      port : 8877 // server port
       diagLevel : 1 // debug level
       onlineRefreshPeriod : 250 // ms
       keepAlive : 1
@@ -30,8 +30,8 @@ physics : {
       histColor : "red" // "blue" // "green"
     }
   }
- 
+
   dqm_path : [dqm]
   end_paths : [dqm_path]
-  
+
 }
