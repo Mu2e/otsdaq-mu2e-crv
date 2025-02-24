@@ -363,7 +363,8 @@ void ROCCosmicRayVetoInterface::pause(void) {}
 void ROCCosmicRayVetoInterface::resume(void) {}
 
 //==============================================================================
-void ROCCosmicRayVetoInterface::start(std::string) { // runNumber) 
+void ROCCosmicRayVetoInterface::start(std::string) { // runNumber)
+    ResetRxBuffers();	
     // take pedestrals
     //this->writeRegister(FEB::AllFEB|FEB::AllFPGA|FEB::CSRBroadCast, 0x100);
     //TLOG(TLVL_Start) << "Taking pedestrals" << __E__;
@@ -421,6 +422,7 @@ void  ROCCosmicRayVetoInterface::ResetRxBuffers() {
    this->writeRegister(ROC::GTP_CRC, 0x1);
    this->writeRegister(ROC::CRS, 0x300);
    this->writeRegister(ROC::GTP_CRC, 0x1);
+   sleep(1);
 }
 void ROCCosmicRayVetoInterface::SoftReset(__ARGS__)
 {
@@ -572,15 +574,17 @@ void ROCCosmicRayVetoInterface::RocConfigure(bool gr, uint16_t grn, uint16_t uBo
 
 	// enable package forwarding based on markers
 	//this->writeRegister(ROC::CR, 0x20);
+    usleep(1000000);
+    //return;
     SetMarkerSync(true);
 
-    this->writeRegister(ROC::Clk80MHz, 0x0); // enable the 80MHz clock alignment
+    this->writeRegister(ROC::Clk80MHz, 0x1); // enable the 80MHz clock alignment
 
 	// Set CSR of data-FPGAs
     // bit 3: FM Rx Enable
     // bit 5: DDR Write Sequencer Enable
     // bit 7: DDR read sequencer Enable
-	this->writeRegister(ROC::Data_Broadcast|ROC::Data_CRC, 0xA8); //
+	this->writeRegister(ROC::Data_Broadcast|ROC::Data_CRC, 0xA8); // 
 
     // Reset input buffers
     ResetRxBuffers();
