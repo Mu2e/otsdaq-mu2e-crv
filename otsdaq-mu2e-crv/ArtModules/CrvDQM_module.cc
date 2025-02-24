@@ -21,8 +21,8 @@
 
 // ROOT includes
 #include "TCanvas.h"
-#include "TH1D.h"
 #include "TGraph.h"
+#include "TH1D.h"
 #include "THttpServer.h"
 #include "TSystem.h"
 
@@ -84,30 +84,38 @@ CrvDQM::CrvDQM(fhicl::ParameterSet const& ps)
 }
 
 // Destructor implementation
-CrvDQM::~CrvDQM() {
-    // Make sure the server thread is stopped
-    if(keepAliveThread_.joinable()) {
-        keepAliveThread_.join();
-    }
-    // Then clean up ROOT objects
-    if (server_) {
-        delete server_; 
-        server_ = nullptr;
-    }
-    if (canvas_) {
-        delete canvas_;
-        canvas_ = nullptr;
-    }
-    for (auto& hist : hists_) {
-        if (hist.second) delete hist.second;
-        hist.second = nullptr;
-    }
-    hists_.clear();
-    for (auto& graph : graphs_) {
-        if (graph.second) delete graph.second;
-        graph.second = nullptr;
-    }
-    graphs_.clear();
+CrvDQM::~CrvDQM()
+{
+	// Make sure the server thread is stopped
+	if(keepAliveThread_.joinable())
+	{
+		keepAliveThread_.join();
+	}
+	// Then clean up ROOT objects
+	if(server_)
+	{
+		delete server_;
+		server_ = nullptr;
+	}
+	if(canvas_)
+	{
+		delete canvas_;
+		canvas_ = nullptr;
+	}
+	for(auto& hist : hists_)
+	{
+		if(hist.second)
+			delete hist.second;
+		hist.second = nullptr;
+	}
+	hists_.clear();
+	for(auto& graph : graphs_)
+	{
+		if(graph.second)
+			delete graph.second;
+		graph.second = nullptr;
+	}
+	graphs_.clear();
 }
 
 void CrvDQM::beginJob()
@@ -115,19 +123,20 @@ void CrvDQM::beginJob()
 	// Create HTTP server
 	server_ = new THttpServer(Form("http:%d", port_));
 
-    // Set global plot style
-    CrvDQMStyle::SetStyle();    
-    
-    // Create canvas
-    std::string canvasName = "WebDisplay";
-    canvas_ = new TCanvas(canvasName.c_str(), "CRV web display"); 
-    canvas_->Divide(2,3); // divide 
-    
-    // Create histograms
-    hists_["channels"] = new TH1D("Channels", ";Channel;Counts", 64, -0.5, 63.5);
-    hists_["timestamps"] = new TH1D("Timestamps", ";Timestamp;Counts", 256, 0, 255); // 0-0xff 
-    hists_["nhits"] = new TH1D("Hits", ";Hits / block;Counts", 61, 0, 60);
-    hists_["adc"] = new TH1D("ADC",";ADC;Counts", 201, -100, 100); 
+	// Set global plot style
+	CrvDQMStyle::SetStyle();
+
+	// Create canvas
+	std::string canvasName = "WebDisplay";
+	canvas_                = new TCanvas(canvasName.c_str(), "CRV web display");
+	canvas_->Divide(2, 3);  // divide
+
+	// Create histograms
+	hists_["channels"] = new TH1D("Channels", ";Channel;Counts", 64, -0.5, 63.5);
+	hists_["timestamps"] =
+	    new TH1D("Timestamps", ";Timestamp;Counts", 256, 0, 255);  // 0-0xff
+	hists_["nhits"] = new TH1D("Hits", ";Hits / block;Counts", 61, 0, 60);
+	hists_["adc"]   = new TH1D("ADC", ";ADC;Counts", 201, -100, 100);
 
     // Create graphs
     graphs_["latency"] = new TGraph();
@@ -136,27 +145,29 @@ void CrvDQM::beginJob()
     graphs_["subevents_vs_ewt"] = new TGraph();
     graphs_["subevents_vs_ewt"]->SetTitle(";EWT;Subevents / EWT;");
 
-    // Format and draw
-    int canvasIdx = 1;
-    for (auto& hist : hists_) {
-        // Get pad 
-        canvas_->cd(canvasIdx);
-        ++canvasIdx;
-        // Consistent formatting
-        CrvDQMStyle::FormatHist(hist.second, histColor_);
-        // Draw
-        hist.second->Draw("HIST");
-    }
+	// Format and draw
+	int canvasIdx = 1;
+	for(auto& hist : hists_)
+	{
+		// Get pad
+		canvas_->cd(canvasIdx);
+		++canvasIdx;
+		// Consistent formatting
+		CrvDQMStyle::FormatHist(hist.second, histColor_);
+		// Draw
+		hist.second->Draw("HIST");
+	}
 
-    for (auto& graph : graphs_) {
-        // Get pad 
-        canvas_->cd(canvasIdx);
-        ++canvasIdx;
-        // Consistent formatting
-        CrvDQMStyle::FormatGraph(graph.second, histColor_);
-        // Draw
-        graph.second->Draw("APL");
-    }
+	for(auto& graph : graphs_)
+	{
+		// Get pad
+		canvas_->cd(canvasIdx);
+		++canvasIdx;
+		// Consistent formatting
+		CrvDQMStyle::FormatGraph(graph.second, histColor_);
+		// Draw
+		graph.second->Draw("APL");
+	}
 
 	// Register with server
 	server_->Register("/", canvas_);
@@ -266,12 +277,13 @@ void CrvDQM::analyze(art::Event const& e)
                 // Subevent
                 DTCLib::DTC_SubEvent& subevent = *(event->GetSubEvent(i));
 
-                // Subevent header
-                const DTCLib::DTC_SubEventHeader *subeventHeader = subevent.GetHeader();
-                //should you reference the pointer?
-                // const DTCLib::DTC_SubEventHeader& subeventHeader = *(subevent.GetHeader()); 
-                // // Subevent info
-                uint64_t link0_latency = subeventHeader->link0_drp_rx_latency;
+				// Subevent header
+				const DTCLib::DTC_SubEventHeader* subeventHeader = subevent.GetHeader();
+				// should you reference the pointer?
+				//  const DTCLib::DTC_SubEventHeader& subeventHeader =
+				//  *(subevent.GetHeader());
+				//  // Subevent info
+				uint64_t link0_latency = subeventHeader->link0_drp_rx_latency;
 
                 // Fill graph
                 // Little bit confused about this.
@@ -286,8 +298,8 @@ void CrvDQM::analyze(art::Event const& e)
                 // // uint64_t link5_latency = subevtheader.link5_drp_rx_latency;
                 // link0_latency = 1;
 
-                // std::cout<<"link0_latency "<<link0_latency<<std::endl;
-                // std::cout<<"link1_latency "<<link1_latency<<std::endl;
+				// std::cout<<"link0_latency "<<link0_latency<<std::endl;
+				// std::cout<<"link1_latency "<<link1_latency<<std::endl;
 
                 if (diagLevel_ > 1) {
                     TLOG(TLVL_INFO) << "Subevent [" << i << "]:" << std::endl;
@@ -339,53 +351,61 @@ void CrvDQM::analyze(art::Event const& e)
                 }
             }
 
-            if(plotsUpdated) {
-                auto currentTime = std::chrono::steady_clock::now();
-                std::chrono::duration<double, std::milli> elapsed = currentTime - lastUpdate_;
-                if(elapsed.count() >= onlineRefreshPeriod_) {
-                    // Auto scale y-axis
-                    for (auto& hist : hists_) { 
-                        double maxContent =  hist.second->GetBinContent(hist.second->GetMaximumBin()); 
-                        hist.second->GetYaxis()->SetRangeUser(0, 1.15*maxContent);
-                    }
-                    for (auto& graph : graphs_) {
-                        // Get the number of points in the graph
-                        int nPoints = graph.second->GetN();
-                        // std::cout<<nPoints<<std::endl;
-                        // Get the x and y values of the graph
-                        double* xValues = graph.second->GetX();
-                        double* yValues = graph.second->GetY();
-                        
-                        // Find the min and max x and y values
-                        double xMin = *std::min_element(xValues, xValues + nPoints);
-                        double xMax = *std::max_element(xValues, xValues + nPoints);
-                        double yMin = *std::min_element(yValues, yValues + nPoints);
-                        double yMax = *std::max_element(yValues, yValues + nPoints);
-                        
-                        // Optionally add a margin to the y-axis for better visualization
-                        double yMargin = 0.1 * (yMax - yMin);
-                        
-                        // Set the range for both axes
-                        graph.second->GetXaxis()->SetRangeUser(xMin, xMax);
-                        graph.second->GetYaxis()->SetRangeUser(yMin - yMargin, yMax + yMargin);
-                    }
+			if(plotsUpdated)
+			{
+				auto currentTime = std::chrono::steady_clock::now();
+				std::chrono::duration<double, std::milli> elapsed =
+				    currentTime - lastUpdate_;
+				if(elapsed.count() >= onlineRefreshPeriod_)
+				{
+					// Auto scale y-axis
+					for(auto& hist : hists_)
+					{
+						double maxContent =
+						    hist.second->GetBinContent(hist.second->GetMaximumBin());
+						hist.second->GetYaxis()->SetRangeUser(0, 1.15 * maxContent);
+					}
+					for(auto& graph : graphs_)
+					{
+						// Get the number of points in the graph
+						int nPoints = graph.second->GetN();
+						// std::cout<<nPoints<<std::endl;
+						// Get the x and y values of the graph
+						double* xValues = graph.second->GetX();
+						double* yValues = graph.second->GetY();
 
-                    // Update the canvas
-                    canvas_->Modified();
-                    canvas_->Update();
-                    gSystem->ProcessEvents(); // Update display
-                    lastUpdate_ = currentTime; // Update the time
-                }
-            }
+						// Find the min and max x and y values
+						double xMin = *std::min_element(xValues, xValues + nPoints);
+						double xMax = *std::max_element(xValues, xValues + nPoints);
+						double yMin = *std::min_element(yValues, yValues + nPoints);
+						double yMax = *std::max_element(yValues, yValues + nPoints);
 
-        }
-        catch (const std::exception& e) {
-            if (diagLevel_ > 0) {
-                TLOG(TLVL_WARNING) << "Error processing fragment: " << e.what();
-            }
-            continue;
-        }
-    }
+						// Optionally add a margin to the y-axis for better visualization
+						double yMargin = 0.1 * (yMax - yMin);
+
+						// Set the range for both axes
+						graph.second->GetXaxis()->SetRangeUser(xMin, xMax);
+						graph.second->GetYaxis()->SetRangeUser(yMin - yMargin,
+						                                       yMax + yMargin);
+					}
+
+					// Update the canvas
+					canvas_->Modified();
+					canvas_->Update();
+					gSystem->ProcessEvents();   // Update display
+					lastUpdate_ = currentTime;  // Update the time
+				}
+			}
+		}
+		catch(const std::exception& e)
+		{
+			if(diagLevel_ > 0)
+			{
+				TLOG(TLVL_WARNING) << "Error processing fragment: " << e.what();
+			}
+			continue;
+		}
+	}
 }
 
 // End job printouts

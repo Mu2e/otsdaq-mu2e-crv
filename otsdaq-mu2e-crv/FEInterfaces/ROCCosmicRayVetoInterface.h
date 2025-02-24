@@ -38,7 +38,7 @@ public:
 
 	// FEB realted functions
 	uint32_t GetActivePorts();
-	void SetActivePort(uint16_t port, bool check = true); // starts at 1, max 24                     
+	void SetActivePort(uint16_t port, bool check = true); // starts at 1, max 24
 
 	//virtual void 							readROCBlock			(std::vector<uint16_t>& data, uint16_t address, uint16_t numberOfReads, bool incrementAddress) override { }
 	//virtual void 							readEmulatorBlock		(std::vector<uint16_t>& data, uint16_t address, uint16_t numberOfReads, bool incrementAddress) override { }
@@ -52,15 +52,15 @@ public:
 	//virtual int  							readDTCLinkLossCounter	(void) override;
 	//virtual void 							resetDTCLinkLossCounter	(void) override;
 
-    // CRV ROC specific functions
-    void Reset();
+	// CRV ROC specific functions
+	void Reset();
 	void RocConfigure(bool gr=false, uint16_t grn=0, uint16_t uBoffset = 0x0);
     void FebConfigure(bool useOtsConfig = true);
     void ResetRxBuffers();	
     void SetMarkerSync(bool enable=true);
 
-    // CRV FEB specific functions
-    //void FebTakePedestral();
+	// CRV FEB specific functions
+	//void FebTakePedestral();
 
     void DoTheCRV_Dance 	(__ARGS__);
     void DoTheCRV_Dance2 	(__ARGS__);
