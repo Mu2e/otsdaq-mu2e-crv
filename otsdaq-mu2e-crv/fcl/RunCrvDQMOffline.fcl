@@ -20,6 +20,18 @@ services : {
 }
 
 physics : {
+  
+  producers: { 
+    genFrags : {
+      module_type : ArtFragmentsFromDTCEvents
+      diagLevel : 1
+      makeCaloFrag : 0
+      makeTrkFrag : 0
+      makeCRVFrag : 1
+      makeSTMFrag : 0
+    }
+  }
+
   analyzers : {
     crvdqm: {
       module_type: CrvDQM
@@ -28,23 +40,28 @@ physics : {
       onlineRefreshPeriod: 250
       keepAlive: 1
       keepAliveDuration: 1
-      histColor: "red"
+      plotCol: "blue"
+      decoderTag : "genFrags"
     }
     crvdump: {
       module_type : CrvDumper
     }
   }
 
-  a1 : [crvdump, crvdqm]
-  e1 : [out1]
-  end_paths : [a1, e1]
+  t1 : [genFrags]
+  a1 : [crvdqm]
+  e1 : [fileDump]
+
+  trigger_paths : [t1]
+  end_paths : [a1] # , e1]
 }
 
 outputs: { 
-  out1: { # Debugging
+  fileDump: { # Debugging
     module_type: FileDumperOutput
     wantProductFriendlyClassName: true   # Print class names
     onlyIfPresent: true # Only print products if they're present
   } 
 }
+
 

@@ -1,8 +1,12 @@
 // ROOT-based DQM and viewer for the CRV
-// Authors: Sam Grant and Simon Corrodi
+// Author: Sam Grant
 // Data: Feb 2025
 
 // C++ includes
+#include <atomic>
+#include <condition_variable>
+#include <csignal>
+#include <mutex>
 #include <thread>
 
 // art includes
@@ -30,7 +34,35 @@
 #include "CrvDQMStyle.hh"
 
 namespace ots
-{ 
+{
+
+// Globals, needed to exit the server thread safely
+std::atomic<bool>       g_interrupted(false);
+std::condition_variable g_cv;
+std::mutex              g_cv_m;
+
+// Signal handler function
+void signalHandler(int signum)
+{
+	std::cout << "Interrupt signal (" << signum << ") received.\n";
+	g_interrupted.store(true);
+	g_cv.notify_all();  // Wake up any waiting threads
+
+	// Force exit after a short delay if normal shutdown doesn't work
+	std::thread([]{
+		std::this_thread::sleep_for(std::chrono::seconds(2));
+		std::cerr << "\nForced exit after timeout.\n";
+		_exit(1); // Emergency forced exit
+	}).detach();
+
+}
+
+// Helper function for interruptible sleep
+bool interruptibleSleep(std::chrono::seconds duration)
+{
+	std::unique_lock<std::mutex> lock(g_cv_m);
+	return !g_cv.wait_for(lock, duration, [] { return g_interrupted.load(); });
+}
 
 class CrvDQM : public art::EDAnalyzer
 {
@@ -46,25 +78,31 @@ class CrvDQM : public art::EDAnalyzer
 	void analyze(art::Event const& e) override;
 	void endJob() override;
 
+	void UpdatePlots();
+
 	// fcl parameters
-	int         port_;
-	int         diagLevel_;
-	float       onlineRefreshPeriod_;
-	bool        keepAlive_;
-	int         keepAliveDuration_;  // minutes
-	std::string histColor_;          // "red"/"blue"/"green"
+	int           port_;
+	int           diagLevel_;
+	float         onlineRefreshPeriod_;
+	bool          keepAlive_;
+	int           keepAliveDuration_;  // minutes
+	std::string   plotCol_;            // "red"/"blue"/"green"
+	art::InputTag decoderTag_;         // specify the module producing CRV decoder obects
 
-    // Member variables
-    TCanvas* canvas_;
-    std::unordered_map<std::string, TH1D*> hists_;
-    std::unordered_map<std::string, TGraph*> graphs_;
-    THttpServer* server_;
-    std::chrono::time_point<std::chrono::steady_clock> lastUpdate_;
-    std::size_t eventCounter_;
-    std::size_t fragmentCounter_;
-    std::thread keepAliveThread_;  
-    std::size_t ewtCounter_;
-
+	// Member variables
+	TCanvas*                                           canvas_;
+	std::unordered_map<std::string, TH1D*>             hists_;
+	std::unordered_map<std::string, TGraph*>           graphs_;
+	THttpServer*                                       server_;
+	std::chrono::time_point<std::chrono::steady_clock> lastUpdate_;
+	std::thread                                        keepAliveThread_;
+	std::size_t                                        eventCounter_;
+	std::size_t                                        subEventCounter_;
+	std::size_t                                        blockCounter_;
+	std::size_t                                        packetCounter_;
+	float                                              crvClockTick_;
+	float                                              rocClockTick_;
+	std::mutex                                         rootMutex_; // Protect ROOT operations
 };
 
 // Constructor implementation
@@ -75,17 +113,29 @@ CrvDQM::CrvDQM(fhicl::ParameterSet const& ps)
     , onlineRefreshPeriod_(ps.get<float>("onlineRefreshPeriod", 500))  // ms
     , keepAlive_(ps.get<int>("keepAlive", true))
     , keepAliveDuration_(ps.get<int>("keepAliveDuration", 5))  // minutes
-    , histColor_(ps.get<std::string>("histColor", "blue"))     // minutes
+    , plotCol_(ps.get<std::string>("plotCol", "blue"))
+    , decoderTag_(ps.get<art::InputTag>("decoderTag", "genFrags"))
 {
-    // Initialise non-fcl member variables
-    eventCounter_ = 0;
-    ewtCounter_ = 0;
-    // fragmentCounter_ = 0;
+	// Initialise non-fcl member variables
+	eventCounter_    = 0;
+	subEventCounter_ = 0;
+	blockCounter_    = 0;
+	packetCounter_   = 0;
+	crvClockTick_    = 12.5;  // ns
+	rocClockTick_    = 50;    // ns, based on the 20 MHz clock
+
+	// Register signal handler for clean shutdown
+	signal(SIGINT, signalHandler);
+	signal(SIGTERM, signalHandler);
 }
 
 // Destructor implementation
 CrvDQM::~CrvDQM()
 {
+	// Signal interruption to ensure any loops break
+	g_interrupted.store(true);
+	g_cv.notify_all();
+
 	// Make sure the server thread is stopped
 	if(keepAliveThread_.joinable())
 	{
@@ -128,22 +178,19 @@ void CrvDQM::beginJob()
 
 	// Create canvas
 	std::string canvasName = "WebDisplay";
-	canvas_                = new TCanvas(canvasName.c_str(), "CRV web display");
-	canvas_->Divide(2, 3);  // divide
+	canvas_ = new TCanvas(canvasName.c_str(), "CRV web display");
+	canvas_->Divide(2, 3);  // 2 columns 3 rows
 
 	// Create histograms
-	hists_["channels"] = new TH1D("Channels", ";Channel;Counts", 64, -0.5, 63.5);
-	hists_["timestamps"] =
-	    new TH1D("Timestamps", ";Timestamp;Counts", 256, 0, 255);  // 0-0xff
-	hists_["nhits"] = new TH1D("Hits", ";Hits / block;Counts", 61, 0, 60);
-	hists_["adc"]   = new TH1D("ADC", ";ADC;Counts", 201, -100, 100);
+	hists_["numSamples"] = new TH1D("numSamples", ";Samples / block;Entries", 8, 0.5, 8.5);
+	hists_["ADC"] = new TH1D("ADC", ";ADC;Entries", 201, -100, 100);  // Raw ADC waveform per hit
+	hists_["febChannel"] = new TH1D("febChannel", ";FEB channel;Entries", 64, -0.5, 63.5);  // 64 channels at the moment (single FEB)
+	hists_["nHits"] = new TH1D("nHits", ";CRV hits / block;Entries", 61, 0, 60);
+	hists_["hitTime"] = new TH1D("hitTime", ";Hit time [ns];Entries", 256, 0, 255 * crvClockTick_);
 
-    // Create graphs
-    graphs_["latency"] = new TGraph();
-    graphs_["latency"]->SetTitle(";EWT;Latency");
-
-    graphs_["subevents_vs_ewt"] = new TGraph();
-    graphs_["subevents_vs_ewt"]->SetTitle(";EWT;Subevents / EWT;");
+	// Graphs
+	graphs_["latency"] = new TGraph();
+	graphs_["latency"]->SetTitle(";Subevent;ROC latency [ns]");
 
 	// Format and draw
 	int canvasIdx = 1;
@@ -152,8 +199,8 @@ void CrvDQM::beginJob()
 		// Get pad
 		canvas_->cd(canvasIdx);
 		++canvasIdx;
-		// Consistent formatting
-		CrvDQMStyle::FormatHist(hist.second, histColor_);
+		// Histogram formatting
+		CrvDQMStyle::FormatHist(hist.second, plotCol_);
 		// Draw
 		hist.second->Draw("HIST");
 	}
@@ -163,8 +210,8 @@ void CrvDQM::beginJob()
 		// Get pad
 		canvas_->cd(canvasIdx);
 		++canvasIdx;
-		// Consistent formatting
-		CrvDQMStyle::FormatGraph(graph.second, histColor_);
+		// Graph formatting
+		CrvDQMStyle::FormatGraph(graph.second, plotCol_);
 		// Draw
 		graph.second->Draw("APL");
 	}
@@ -174,7 +221,7 @@ void CrvDQM::beginJob()
 
 	// Set item defaults
 	server_->SetItemField("/", "_monitoring", Form("%f", onlineRefreshPeriod_));  // Update period
-    server_->SetItemField("/", "_browser", "off"); // Turn off sidebar
+	server_->SetItemField("/", "_browser", "off"); // Turn off sidebar
 	server_->SetItemField("/", "_drawitem", canvasName.c_str()); // Set DQM canvas as default item
 	server_->SetItemField("/", "_http_cache", "0");  // Disable HTTP caching?
 
@@ -184,253 +231,239 @@ void CrvDQM::beginJob()
 	// Print URL
 	printf("Server running on http://localhost:%d/\n", port_);
 
-	// Start an independent thread for server
+	// Start an independent thread for server with interruptible sleep
 	keepAliveThread_ = std::thread([this]() {
-		while(keepAlive_)
+		while(!g_interrupted.load())
 		{
-			gSystem->ProcessEvents();  // Process events
-			std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Small sleep
+			{
+				std::lock_guard<std::mutex> lock(rootMutex_);
+				gSystem->ProcessEvents();  // Process events with mutex protection
+			}
+
+			// Check interrupt flag again
+			if(g_interrupted.load()) break;
+
+			// Sleep for a short time, but be able to wake up if interrupted
+			std::unique_lock<std::mutex> lock(g_cv_m);
+			g_cv.wait_for(lock, std::chrono::milliseconds(50), [] {
+				return g_interrupted.load();
+			});
+
+			// Check again 
+			if(g_interrupted.load()) break;
 		}
+
+		std::cout << "Keep-alive thread exiting..." << std::endl;
 	});
+}
+
+void CrvDQM::UpdatePlots()
+{
+	// Get time
+	auto currentTime = std::chrono::steady_clock::now();
+	std::chrono::duration<double, std::milli> elapsed = currentTime - lastUpdate_;
+
+	if(elapsed.count() >= onlineRefreshPeriod_)
+	{
+		// // Auto scale histogram y-axis
+		for(auto& hist : hists_)
+		{
+			double maxContent = hist.second->GetBinContent(hist.second->GetMaximumBin());
+			hist.second->GetYaxis()->SetRangeUser(0, 1.15 * maxContent);
+		}
+
+		for(auto& graph : graphs_)
+		{
+			// Get the number of points in the graph
+			int nPoints = graph.second->GetN();
+			// Get the x and y values of the graph
+			double* xValues = graph.second->GetX();
+			double* yValues = graph.second->GetY();
+
+			// Find the min and max x and y values
+			double xMin = *std::min_element(xValues, xValues + nPoints);
+			double xMax = *std::max_element(xValues, xValues + nPoints);
+			double yMin = *std::min_element(yValues, yValues + nPoints);
+			double yMax = *std::max_element(yValues, yValues + nPoints);
+
+			// Optionally add a margin to the y-axis for better visualization
+			double yMargin = 0.1 * (yMax - yMin);
+
+			// Set the range for both axes
+			graph.second->GetXaxis()->SetRangeUser(xMin, xMax);
+			graph.second->GetYaxis()->SetRangeUser(yMin - yMargin, yMax + yMargin);
+		}
+
+		// Update the canvas
+		canvas_->Modified();
+		canvas_->Update();
+		gSystem->ProcessEvents();   // Update display
+		lastUpdate_ = currentTime;  // Update the time
+	}
 }
 
 void CrvDQM::analyze(art::Event const& e)
 {
-	// Get fragments
-	std::vector<art::Handle<artdaq::Fragments> > fragmentHandles;
-	fragmentHandles = e.getMany<std::vector<artdaq::Fragment> >();
-	artdaq::FragmentPtrs containerFragments;
-	artdaq::Fragments    fragments;
+	// Iterate event counts
+	++eventCounter_;
 
-	// Iterate through fragment handles
-	for(const auto& handle : fragmentHandles)
-	{
-		// Catch invalid or empty handles
-		if(!handle.isValid() || handle->empty())
-		{
-			continue;
-		}
-		// Check if the first object is Container Fragment
-		// ContainerFragment
-		// ├── Fragment 1 (DTCEVT)
-		// └── Fragment n (DTCEVT)
-		if(handle->front().type() == artdaq::Fragment::ContainerFragmentType)
-		{
-			// Iterate through containers
-			for(const auto& cont : *handle)
-			{
-				artdaq::ContainerFragment contf(cont);
-				// Break if this is single fragment rather than a container
-				if(contf.fragment_type() != mu2e::FragmentType::DTCEVT)
-				{
-					break;
-				}
-				// Iterate through fragments in container and fill fragments vector
-				for(size_t i = 0; i < contf.block_count(); ++i)
-				{
-					containerFragments.push_back(contf[i]);
-					fragments.push_back(*containerFragments.back());
-				}
-			}
-		}
-		else
-		{  // If the first object in the handle a single fragment
-			if(handle->front().type() == mu2e::FragmentType::DTCEVT)
-			{
-				// Iterate through fragments and fill fragments vector
-				for(auto frag : *handle)
-				{
-					fragments.emplace_back(frag);
-				}
-			}
-		}
-	}
+	// Print run info
 	if(diagLevel_ > 1)
 	{
-		TLOG(TLVL_INFO) << "[CrvDQM::analyze] Found nFragments" << fragments.size();
+		TLOG(TLVL_INFO) << std::dec << "Run/Subrun/Event: " 
+						<< e.run() << "/"
+		                << e.subRun() << "/" 
+						<< e.event() << std::endl;
 	}
 
-    // Handle the fragments
-    for (const auto& frag : fragments) {
-        try {
-            mu2e::DTCEventFragment bb(frag); 
-            auto data = bb.getData(); 
-            auto event = &data; 
-            // DTCLib::DTC_EventWindowTag EWT = event->GetEventWindowTag(); // .GetEventWindowTag(true);
-            auto EWT = event->GetEventWindowTag().GetEventWindowTag(true); 
-            // std::cout<<EWT<<std::endl;
-            if (diagLevel_ > 1) { 
-                TLOG(TLVL_INFO) << "Event tag:\t" << "0x" << std::hex << std::setw(4) << std::setfill('0') << EWT;
-            }
-            // Event header
-            DTCLib::DTC_EventHeader* eventHeader = event->GetHeader();
-            
-            if (diagLevel_ > 1) {
-                TLOG(TLVL_INFO) << eventHeader->toJson() << std::endl
-                << "Subevents count: " << event->GetSubEventCount() << std::endl;
-            }
+	// Try getting CRV data
+	try
+	{
+		// Get CRV data decoders from the event, decoderTag is used to specify a CRV
+		// producer
+		auto decodersHandle = e.getValidHandle<std::vector<mu2e::CRVDataDecoder>>(decoderTag_);
+		size_t nSubEvents = decodersHandle->size();
 
-            graphs_["subevents_vs_ewt"]->SetPoint(ewtCounter_, EWT, event->GetSubEventCount()); 
-        
-            bool plotsUpdated = false;
-            for (unsigned int i = 0; i < event->GetSubEventCount(); ++i) { // In future, use GetSubsystemData to only get CRV subevents
-                // Subevent
-                DTCLib::DTC_SubEvent& subevent = *(event->GetSubEvent(i));
-
-				// Subevent header
-				const DTCLib::DTC_SubEventHeader* subeventHeader = subevent.GetHeader();
-				// should you reference the pointer?
-				//  const DTCLib::DTC_SubEventHeader& subeventHeader =
-				//  *(subevent.GetHeader());
-				//  // Subevent info
-				uint64_t link0_latency = subeventHeader->link0_drp_rx_latency;
-
-                // Fill graph
-                // Little bit confused about this.
-                // if 
-                graphs_["latency"]->SetPoint(ewtCounter_, EWT, link0_latency); 
-                ++ewtCounter_; // Um?
-
-                // graphs_["subevent_vs_ewt"]->SetPoint(ewtCounter_, EWT, i);
-                // graphs_["latency"]->SetPointX(i); 
-                // graphs_["latency"]->SetPointY(link0_latency);
-                // // ...
-                // // uint64_t link5_latency = subevtheader.link5_drp_rx_latency;
-                // link0_latency = 1;
-
-				// std::cout<<"link0_latency "<<link0_latency<<std::endl;
-				// std::cout<<"link1_latency "<<link1_latency<<std::endl;
-
-                if (diagLevel_ > 1) {
-                    TLOG(TLVL_INFO) << "Subevent [" << i << "]:" << std::endl;
-                    // TLOG(TLVL_INFO) << subevent.GetHeader()->toJson() << std::endl;
-                    TLOG(TLVL_INFO) << subeventHeader->toJson() << std::endl;
-                    TLOG(TLVL_INFO) << "Number of Data Block: " << subevent.GetDataBlockCount() << std::endl;
-                }
-                
-                for (size_t bl = 0; bl < subevent.GetDataBlockCount(); ++bl) {
-                    ++eventCounter_;
-                    auto block = subevent.GetDataBlock(bl);
-                    auto blockheader = block->GetHeader();
-                    if (diagLevel_ > 1) {
-                        TLOG(TLVL_INFO) << blockheader->toJSON() << std::endl;
-                        for (int ii = 0; ii < blockheader->GetPacketCount(); ++ii) {
-                            TLOG(TLVL_INFO) << DTCLib::DTC_DataPacket(((uint8_t*)block->blockPointer) + ((ii + 1) * 16)).toJSON() << std::endl;
-                        }
-                    }
-                    // Check if we want to decode this data block
-                    // Make sure we only process CRV data
-                    if(blockheader->GetSubsystem() == 0x2) { 
-                        if(blockheader->isValid()) {
-                            // DQM for version 0x0 data
-                            if( blockheader->GetVersion() == 0x0 ) {
-                                auto crvData = mu2e::CRVDataDecoder(subevent); // reference
-                                //const auto crvStatus = crvData.GetCRVROCStatusPacket(bl);
-                                auto hits = crvData.GetCRVHits(bl);
-                                // if (!crvData) { 
-                                //     TLOG(TLVL_ERROR) << "Unable to get CRV hits!";
-								//     continue;
-                                // }
-                                for (auto& hit : hits) {
-                                    // Fill histograms
-                                    hists_["channels"]->Fill(hit.first.febChannel);
-                                    hists_["timestamps"]->Fill(hit.first.HitTime);
-                                    for (auto& adc : hit.second) {
-                                        hists_["adc"]->Fill(adc.ADC);
-                                    }
-                                }
-                                hists_["nhits"]->Fill(hits.size());
-                                plotsUpdated = true;
-                            }
-                        } else {
-                            // Iterate invalid count?
-                            // ++invalidEventCounter_;
-                            continue;
-                        }
-                    }
-                }
-            }
-
-			if(plotsUpdated)
-			{
-				auto currentTime = std::chrono::steady_clock::now();
-				std::chrono::duration<double, std::milli> elapsed =
-				    currentTime - lastUpdate_;
-				if(elapsed.count() >= onlineRefreshPeriod_)
-				{
-					// Auto scale y-axis
-					for(auto& hist : hists_)
-					{
-						double maxContent =
-						    hist.second->GetBinContent(hist.second->GetMaximumBin());
-						hist.second->GetYaxis()->SetRangeUser(0, 1.15 * maxContent);
-					}
-					for(auto& graph : graphs_)
-					{
-						// Get the number of points in the graph
-						int nPoints = graph.second->GetN();
-						// std::cout<<nPoints<<std::endl;
-						// Get the x and y values of the graph
-						double* xValues = graph.second->GetX();
-						double* yValues = graph.second->GetY();
-
-						// Find the min and max x and y values
-						double xMin = *std::min_element(xValues, xValues + nPoints);
-						double xMax = *std::max_element(xValues, xValues + nPoints);
-						double yMin = *std::min_element(yValues, yValues + nPoints);
-						double yMax = *std::max_element(yValues, yValues + nPoints);
-
-						// Optionally add a margin to the y-axis for better visualization
-						double yMargin = 0.1 * (yMax - yMin);
-
-						// Set the range for both axes
-						graph.second->GetXaxis()->SetRangeUser(xMin, xMax);
-						graph.second->GetYaxis()->SetRangeUser(yMin - yMargin,
-						                                       yMax + yMargin);
-					}
-
-					// Update the canvas
-					canvas_->Modified();
-					canvas_->Update();
-					gSystem->ProcessEvents();   // Update display
-					lastUpdate_ = currentTime;  // Update the time
-				}
-			}
-		}
-		catch(const std::exception& e)
+		// Process the decoder objects, each contains data from one subevent (see
+		// DTCLib::DTC_SubEvent)
+		for(size_t iSubEvent = 0; iSubEvent < nSubEvents; ++iSubEvent)
 		{
-			if(diagLevel_ > 0)
+			const mu2e::CRVDataDecoder& decoder((*decodersHandle)[iSubEvent]);
+			decoder.setup_event();
+
+			// Access the SubEventHeader through the internal event_ member
+			// Why so weird? Can we add a GetSubEventHeader() method to the
+			// CRVDataDecoder?
+			auto subEventHeader = decoder.event_.GetHeader();
+
+			// ROC latency
+			auto link0_latency = subEventHeader->link0_drp_rx_latency * rocClockTick_;
+
+			// Get EWT from first block
+			auto EWT0 = decoder.dataAtBlockIndex(0)->GetHeader()->GetEventWindowTag().GetEventWindowTag(true);
+
+			// Fill ROC latency graph
+			graphs_["latency"]->SetPoint(subEventCounter_, EWT0, link0_latency);
+
+			// Iterate subevent counts
+			++subEventCounter_;
+
+			// For each subevent, process the blocks (see DTCLib::DTC_DataBlock)
+			for(size_t bl = 0; bl < decoder.block_count(); ++bl)
 			{
-				TLOG(TLVL_WARNING) << "Error processing fragment: " << e.what();
-			}
-			continue;
+				// Iterate block counts
+				++blockCounter_;
+
+				// Get block at this index
+				auto block = decoder.dataAtBlockIndex(bl);
+				if(!block)
+					continue;  // Skip empty blocks
+
+				// Get block header (DTCLib::DTC_DataHeaderPacket)
+				auto blockHeader = block->GetHeader();  //
+
+				if(diagLevel_ > 1)
+				{  // Print the block header
+					TLOG(TLVL_INFO) << blockHeader->toJSON() << std::endl;
+				}
+
+				if(!blockHeader->isValid())
+				{
+					if(diagLevel_ > 1)
+						TLOG(TLVL_INFO) << "Block header is invalid..." << std::endl;
+					continue;  // skip this block
+				}
+
+				// Get CRV hits / packets
+				auto hits = decoder.GetCRVHits(bl);
+
+				// Fill nHits histogram
+				hists_["nHits"]->Fill(hits.size());
+
+				// Process CRV hits
+				for(auto& hit : hits)
+				{
+					// Iterate packet counter
+					++packetCounter_;
+
+					// Fill hit info level histograms
+					hists_["febChannel"]->Fill(hit.first.febChannel);
+					hists_["hitTime"]->Fill(hit.first.HitTime * crvClockTick_);  // ns
+					hists_["numSamples"]->Fill(hit.first.NumSamples);
+
+					// Process waveforms
+					for(auto& waveforms : hit.second)
+					{
+						hists_["ADC"]->Fill(waveforms.ADC);
+					}
+				}
+
+			}  // blocks
+
+		}  // subevents
+	}
+	catch(const std::exception& e)  // Catch errors on subevent level
+	{
+		if(diagLevel_ > 0)
+		{
+			TLOG(TLVL_WARNING) << "Error processing subevent!" << e.what();
 		}
 	}
-}
+
+	// Update plots
+	CrvDQM::UpdatePlots();
+
+}  // analyze
 
 // End job printouts
 void CrvDQM::endJob()
 {
-	// What am we defining as an "event"? Need to think about it.
-	printf("========================================\n");
-	printf("Processed Events  : %zu\n", eventCounter_);
-	// printf("Invalid Events    : %zu\n", invalidEventCounter_);
-	// printf("Valid Events      : %zu\n", eventCounter_ - invalidEventCounter_);
-	// printf("Error Rate        : %.2f%%\n",
-	//      (eventCounter_ > 0) ? (100.0 * invalidEventCounter_ / eventCounter_) : 0.0);
-	if(keepAlive_)
+	printf("\n**************************************************\n");
+	printf("Processed:");
+	printf("\n---> %zu events", eventCounter_);
+	printf("\n---> %zu subevents", subEventCounter_);
+	printf("\n---> %zu blocks", blockCounter_);
+	printf("\n---> %zu packets", packetCounter_);
+
+	if(keepAlive_ && !g_interrupted.load())
 	{
-		printf("Keeping server alive for %i minutes", keepAliveDuration_);
-		printf("\n========================================\n");
-		std::this_thread::sleep_for(std::chrono::minutes(keepAliveDuration_));
+		printf("\nKeeping server alive for %i minutes (or until Ctrl+C)",
+		       keepAliveDuration_);
+		printf("\n**************************************************\n");
+
+		// Use the interruptible sleep function
+		for(int i = 0; i < keepAliveDuration_ && !g_interrupted.load(); i++)
+		{
+			if(!interruptibleSleep(std::chrono::seconds(60)))
+			{
+				// Sleep was interrupted
+				break;
+			}
+		}
+
+		if(g_interrupted.load())
+		{
+			printf("\nReceived interrupt signal, shutting down server...\n");
+		}
 	}
 	else
 	{
-		printf("Killing server");
-		printf("\n========================================\n");
+		if(g_interrupted.load())
+		{
+			printf("\nReceived interrupt signal, shutting down server...\n");
+		}
+		else
+		{
+			printf("\nKilling server\n");
+		}
+		printf("**************************************************\n");
 	}
-	// Server server thread is then stopped by the destructor
+
+	// Signal keepAliveThread to exit
+	g_interrupted.store(true);
+	g_cv.notify_all();
 }
 
 DEFINE_ART_MODULE(CrvDQM)
+
 }  // namespace ots
