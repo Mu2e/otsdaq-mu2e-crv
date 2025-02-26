@@ -1,5 +1,5 @@
 // ROOT-based DQM and viewer for the CRV
-// Author: Sam Grant
+// Author: Sam Grant, Simon Corrodi 
 // Data: Feb 2025
 
 // C++ includes
