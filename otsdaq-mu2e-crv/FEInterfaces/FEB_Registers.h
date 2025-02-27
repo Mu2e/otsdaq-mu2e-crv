@@ -42,7 +42,7 @@ enum Register : uint16_t
 	AllFPGA      = 0x1300,
 	CSRBroadCast = 0x1316,
 	// broadcast to all FEBs on ROC
-	AllFEB = 0x3000,
+	AllFEB = 0x1000, // TODO! 0x3000 doesn't seem to work. Needs to be fixed.
 	// uC functions
 	Reset  = 0x9001,
 	TRIG   = 0x900B,
