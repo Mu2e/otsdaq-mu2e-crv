@@ -556,14 +556,18 @@ void ROCCosmicRayVetoInterface::FebConfigure(bool useOtsConfig)
 	usleep(0);  // seems to work, 2025-01-03
 	this->writeRegister(FEB::AllFEB | FEB::TRIG, 0x0);
 
-	// Enable self-triggering on spill gate
+    //usleep(100000);
+    // Enable self-triggering on spill gate
 	// this->writeRegister(FEB::AllFEB|FEB::AllFPGA|FEB::IntTrgEn, 0x2); // doesn't seem
 	// to work yet? 2025-01-03
-	this->writeRegister(FEB::AllFPGA | FEB::IntTrgEn, 0x2);
+	this->writeRegister(FEB::AllFPGA | FEB::IntTrgEn, 0x2); 
 	// Set number of ADC samples to 8, will be 12 moving forward
 	this->writeRegister(FEB::AllFEB | FEB::AllFPGA | FEB::Samples, 0x8);
 
 	// Reset DDR write/read pointers
+    // THIS DOESN'T WORK, rd/wr pointers don't have 300 addresses!
+
+    /*
 	this->writeRegister(FEB::AllFEB | FEB::AllFPGA | FEB::RdPtrHi,
 	                    0x0);  // not really needed
 	this->writeRegister(FEB::AllFEB | FEB::AllFPGA | FEB::RdPtrLo,
@@ -572,6 +576,7 @@ void ROCCosmicRayVetoInterface::FebConfigure(bool useOtsConfig)
 	                    0x0);  // not really needed
 	this->writeRegister(FEB::AllFEB | FEB::AllFPGA | FEB::WrPtrLo,
 	                    0x0);  // not really needed
+    */
 
 	// Take Pedestrals
 	// moved to start
@@ -640,11 +645,11 @@ void ROCCosmicRayVetoInterface::FebConfigure(bool useOtsConfig)
 	}
 	else
 	{  // don't use the OTS config, for use in Macro Maker Mode
-		this->writeRegister((FEB::AllFEB | FEB::AllFPGA | FEB::OnSpillGate) & TEMPFIX,
+		this->writeRegister((FEB::AllFEB | FEB::AllFPGA | FEB::OnSpillGate),
 		                    0x0ff);  // WARNING, at 0xfff things seem to go wrong!
-		this->writeRegister((FEB::AllFEB | FEB::AllFPGA | FEB::OffSpillGate) & TEMPFIX,
+		this->writeRegister((FEB::AllFEB | FEB::AllFPGA | FEB::OffSpillGate),
 		                    0x0ff);
-		this->writeRegister((FEB::AllFEB | FEB::AllFPGA | FEB::Pipeline) & TEMPFIX, 0x5);
+		this->writeRegister((FEB::AllFEB | FEB::AllFPGA | FEB::Pipeline), 0x5);
 
 		this->writeRegister(FEB::AllFPGA | FEB::Port, 0x1);
 	}
@@ -771,17 +776,17 @@ void ROCCosmicRayVetoInterface::RocConfigure(bool gr, uint16_t grn, uint16_t uBo
 	// bit 5: DDR Write Sequencer Enable
 	// bit 7: DDR read sequencer Enable
 
-    // Reset PHY CRS registers 
-    // Write 1 to first bit to 0x400 0x800 0xC00 (0x300)
-    // https://github.com/Mu2e/CRVFirmware/blob/main/ROC/uC/source/ver_help.h#L303
-    // Set to 4A8, flip bit 1 with 4A9 mask
+	// Reset PHY CRS registers 
+	// Write 1 to first bit to 0x400 0x800 0xC00 (0x300)
+	// https://github.com/Mu2e/CRVFirmware/blob/main/ROC/uC/source/ver_help.h#L303
+	// Set to 4A8, flip bit 1 with 4A9 mask
 
 	this->writeRegister(ROC::Data_Broadcast | ROC::Data_CRC, 0xA9);  //
     
 	// Reset input buffers
 	ResetRxBuffers();
 
-    // this->writeRegister(ROC::Data_Broadcast, 0x4A9);
+	// this->writeRegister(ROC::Data_Broadcast, 0x4A9);
 
 	// Reset DDR on Data FPGAs
 	for(int i = 0; i < 3; ++i)
@@ -841,6 +846,7 @@ void ROCCosmicRayVetoInterface::Configure(__ARGS__)
 	ostr << "ROC Configure with a uB offset of 0xa" << std::endl;
 	RocConfigure(false, 0, 0xa);
 
+    sleep(1);
 	ostr << "FEB Configure" << std::endl;
 	FebConfigure(false);
 	ostr << "Set Biases to 0x" << std::hex << bias << std::endl;
@@ -863,6 +869,9 @@ void ROCCosmicRayVetoInterface::Configure(__ARGS__)
 	ostr << "Set the gate length to 0x" << std::hex << spillLengh << " (" << std::dec
 	     << (spillLengh * 0.0125) << "us)" << std::endl;
 	this->writeRegister(FEB::AllFPGA | FEB::OffSpillGate, spillLengh);
+    ostr << "Reset PHY" << std::endl;
+    sleep(0.1);
+    ResetPHY();
 	ostr << "Ready" << std::endl;
 	__SET_ARG_OUT__("response", ostr.str());
 }
@@ -1592,6 +1601,13 @@ void ROCCosmicRayVetoInterface::SetMarkerSync(bool enable)
 	uint32_t cr = this->readRegister(ROC::CR);
 	cr          = enable ? (cr | (1u << 5)) : (cr & ~(1u << 5));
 	this->writeRegister(ROC::CR, cr);
+}
+
+void ROCCosmicRayVetoInterface::ResetPHY()
+{
+	uint32_t cr = this->readRegister(ROC::Data[0] | ROC::Data_CRC);
+	cr          = (cr | (1u));
+	this->writeRegister(ROC::Data_Broadcast | ROC::Data_CRC, cr);
 }
 
 DEFINE_OTS_INTERFACE(ROCCosmicRayVetoInterface)

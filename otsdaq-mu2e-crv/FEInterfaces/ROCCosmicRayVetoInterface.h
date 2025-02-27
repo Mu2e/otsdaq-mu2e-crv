@@ -58,6 +58,7 @@ public:
     void FebConfigure(bool useOtsConfig = true);
     void ResetRxBuffers();	
     void SetMarkerSync(bool enable=true);
+    void ResetPHY();
 
 	// CRV FEB specific functions
 	//void FebTakePedestral();
