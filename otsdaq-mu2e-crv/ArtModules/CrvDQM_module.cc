@@ -1,6 +1,6 @@
 // ROOT-based DQM and viewer for the CRV
 // Author: Sam Grant, Simon Corrodi 
-// Data: Feb 2025
+// Date: Feb 2025
 
 // C++ includes
 #include <atomic>
@@ -41,29 +41,6 @@ std::atomic<bool>       g_interrupted(false);
 std::condition_variable g_cv;
 std::mutex              g_cv_m;
 
-// Signal handler function
-void signalHandler(int signum)
-{
-	std::cout << "Interrupt signal (" << signum << ") received.\n";
-	g_interrupted.store(true);
-	g_cv.notify_all();  // Wake up any waiting threads
-
-	// Force exit after a short delay if normal shutdown doesn't work
-	std::thread([]{
-		std::this_thread::sleep_for(std::chrono::seconds(2));
-		std::cerr << "\nForced exit after timeout.\n";
-		_exit(1); // Emergency forced exit
-	}).detach();
-
-}
-
-// Helper function for interruptible sleep
-bool interruptibleSleep(std::chrono::seconds duration)
-{
-	std::unique_lock<std::mutex> lock(g_cv_m);
-	return !g_cv.wait_for(lock, duration, [] { return g_interrupted.load(); });
-}
-
 class CrvDQM : public art::EDAnalyzer
 {
   public:
@@ -96,13 +73,13 @@ class CrvDQM : public art::EDAnalyzer
 	THttpServer*                                       server_;
 	std::chrono::time_point<std::chrono::steady_clock> lastUpdate_;
 	std::thread                                        keepAliveThread_;
+	std::thread                                        exitThread_;
 	std::size_t                                        eventCounter_;
 	std::size_t                                        subEventCounter_;
 	std::size_t                                        blockCounter_;
 	std::size_t                                        packetCounter_;
 	float                                              crvClockTick_;
 	float                                              rocClockTick_;
-	std::mutex                                         rootMutex_; // Protect ROOT operations
 };
 
 // Constructor implementation
@@ -123,10 +100,6 @@ CrvDQM::CrvDQM(fhicl::ParameterSet const& ps)
 	packetCounter_   = 0;
 	crvClockTick_    = 12.5;  // ns
 	rocClockTick_    = 50;    // ns, based on the 20 MHz clock
-
-	// Register signal handler for clean shutdown
-	signal(SIGINT, signalHandler);
-	signal(SIGTERM, signalHandler);
 }
 
 // Destructor implementation
@@ -140,6 +113,11 @@ CrvDQM::~CrvDQM()
 	if(keepAliveThread_.joinable())
 	{
 		keepAliveThread_.join();
+	}
+	// Make sure the exit thread is stopped
+	if(exitThread_.joinable())
+	{
+		exitThread_.join();
 	}
 	// Then clean up ROOT objects
 	if(server_)
@@ -219,46 +197,56 @@ void CrvDQM::beginJob()
 	// Register with server
 	server_->Register("/", canvas_);
 
-	// Set item defaults
+	// Set display options
 	server_->SetItemField("/", "_monitoring", Form("%f", onlineRefreshPeriod_));  // Update period
 	server_->SetItemField("/", "_browser", "off"); // Turn off sidebar
 	server_->SetItemField("/", "_drawitem", canvasName.c_str()); // Set DQM canvas as default item
-	server_->SetItemField("/", "_http_cache", "0");  // Disable HTTP caching?
+	server_->SetItemField("/", "_http_cache", "0");  // Disable HTTP caching
 
 	// Last update variable
 	lastUpdate_ = std::chrono::steady_clock::now();
 
-	// Print URL
-	printf("Server running on http://localhost:%d/\n", port_);
+	// Print info
+	std::cout << "Server running on http://localhost:" << port_
+			<< " /\nPress Enter to exit...\n" 
+			<< std::endl; 
 
-	// Start an independent thread for server with interruptible sleep
+	// Start an independent thread for server
+	// This is really just for running on files
+	// We want the page to stay alive after EOF 
 	keepAliveThread_ = std::thread([this]() {
 		while(!g_interrupted.load())
 		{
-			{
-				std::lock_guard<std::mutex> lock(rootMutex_);
-				gSystem->ProcessEvents();  // Process events with mutex protection
-			}
-
-			// Check interrupt flag again
-			if(g_interrupted.load()) break;
-
-			// Sleep for a short time, but be able to wake up if interrupted
-			std::unique_lock<std::mutex> lock(g_cv_m);
-			g_cv.wait_for(lock, std::chrono::milliseconds(50), [] {
-				return g_interrupted.load();
-			});
-
-			// Check again 
-			if(g_interrupted.load()) break;
+			gSystem->ProcessEvents();
+			// Small sleep between process events
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));  
 		}
-
 		std::cout << "Keep-alive thread exiting..." << std::endl;
+	});
+
+	// Ensure that we can exit the process
+	exitThread_ = std::thread([this]() {
+		std::cin.get();  // Wait for Enter key
+		std::cout << "Enter pressed, shutting down...\n";
+		
+		// Clean signal shutdown
+		g_interrupted.store(true);
+		g_cv.notify_all();
+		
+		// Timeout as a last resort
+		std::this_thread::sleep_for(std::chrono::seconds(5));
+		if (!g_interrupted.load()) {
+		    std::cerr << "Shutdown timeout, forcing exit\n";
+		    _exit(0);
+		}
 	});
 }
 
 void CrvDQM::UpdatePlots()
 {
+	// Check interrupt flag first
+	if(g_interrupted.load()) return;
+
 	// Get time
 	auto currentTime = std::chrono::steady_clock::now();
 	std::chrono::duration<double, std::milli> elapsed = currentTime - lastUpdate_;
@@ -307,42 +295,34 @@ void CrvDQM::analyze(art::Event const& e)
 	// Iterate event counts
 	++eventCounter_;
 
-	// Print run info
-	if(diagLevel_ > 1)
-	{
-		TLOG(TLVL_INFO) << std::dec << "Run/Subrun/Event: " 
-						<< e.run() << "/"
-		                << e.subRun() << "/" 
-						<< e.event() << std::endl;
-	}
-
 	// Try getting CRV data
 	try
 	{
-		// Get CRV data decoders from the event, decoderTag is used to specify a CRV
-		// producer
+		// Get CRV data decoders from the event 
+		// decoderTag is used to specify a CRV producer
 		auto decodersHandle = e.getValidHandle<std::vector<mu2e::CRVDataDecoder>>(decoderTag_);
 		size_t nSubEvents = decodersHandle->size();
 
-		// Process the decoder objects, each contains data from one subevent (see
-		// DTCLib::DTC_SubEvent)
+		// Process the decoder objects, each contains data from one subevent 
+		// (see DTCLib::DTC_SubEvent)
 		for(size_t iSubEvent = 0; iSubEvent < nSubEvents; ++iSubEvent)
 		{
 			const mu2e::CRVDataDecoder& decoder((*decodersHandle)[iSubEvent]);
 			decoder.setup_event();
 
 			// Access the SubEventHeader through the internal event_ member
-			// Why so weird? Can we add a GetSubEventHeader() method to the
-			// CRVDataDecoder?
+			// Can we add a GetSubEventHeader() method to the CRVDataDecoder?
 			auto subEventHeader = decoder.event_.GetHeader();
 
 			// ROC latency
 			auto link0_latency = subEventHeader->link0_drp_rx_latency * rocClockTick_;
 
-			// Get EWT from first block
+			// Get EWT from first block, we should only have one EWT / subevent
 			auto EWT0 = decoder.dataAtBlockIndex(0)->GetHeader()->GetEventWindowTag().GetEventWindowTag(true);
 
 			// Fill ROC latency graph
+			// Is there a "subevent" product that i can use?
+			// I think we need to average the latency over each EWT to do this correctly and iterate an EWT counter
 			graphs_["latency"]->SetPoint(subEventCounter_, EWT0, link0_latency);
 
 			// Iterate subevent counts
@@ -418,50 +398,47 @@ void CrvDQM::analyze(art::Event const& e)
 // End job printouts
 void CrvDQM::endJob()
 {
-	printf("\n**************************************************\n");
-	printf("Processed:");
-	printf("\n---> %zu events", eventCounter_);
-	printf("\n---> %zu subevents", subEventCounter_);
-	printf("\n---> %zu blocks", blockCounter_);
-	printf("\n---> %zu packets", packetCounter_);
+	std::cout << "\n**************************************************";
+	std::cout << "\nProcessed:";
+	std::cout << "\n---> " << eventCounter_ 	<< " events"; 
+	std::cout << "\n---> " << subEventCounter_ << " subevents"; 
+	std::cout << "\n---> " << blockCounter_ 	<< " blocks"; 
+	std::cout << "\n---> " << packetCounter_ 	<< " packets";
+	std::cout << "\n**************************************************" << std::endl;
 
 	if(keepAlive_ && !g_interrupted.load())
 	{
-		printf("\nKeeping server alive for %i minutes (or until Ctrl+C)",
-		       keepAliveDuration_);
-		printf("\n**************************************************\n");
+		std::cout << "\nKeeping server alive for " << keepAliveDuration_ << " minute(s)" << std::endl;
 
-		// Use the interruptible sleep function
-		for(int i = 0; i < keepAliveDuration_ && !g_interrupted.load(); i++)
+		// Keep alive end time
+		auto endTime = std::chrono::steady_clock::now() + std::chrono::minutes(keepAliveDuration_);
+
+		// Loop until end time is reached, but allow for interrupt
+ 		while(std::chrono::steady_clock::now() < endTime && !g_interrupted.load())
 		{
-			if(!interruptibleSleep(std::chrono::seconds(60)))
-			{
-				// Sleep was interrupted
-				break;
-			}
+			// Check for interrupts in between small sleeps
+			std::unique_lock<std::mutex> lock(g_cv_m);
+			g_cv.wait_for(lock, std::chrono::milliseconds(100), [] {
+				return g_interrupted.load();
+			});
 		}
 
-		if(g_interrupted.load())
-		{
-			printf("\nReceived interrupt signal, shutting down server...\n");
-		}
+	} 
+
+	// No matter what, ensure we signal the thread to exit
+	g_interrupted.store(true);
+	g_cv.notify_all();
+
+	if(g_interrupted.load())
+	{
+	    std::cout << "\nReceived interrupt signal" << std::endl;
 	}
 	else
 	{
-		if(g_interrupted.load())
-		{
-			printf("\nReceived interrupt signal, shutting down server...\n");
-		}
-		else
-		{
-			printf("\nKilling server\n");
-		}
-		printf("**************************************************\n");
+		std::cout << "Keep-alive period ended" << std::endl;
+
 	}
 
-	// Signal keepAliveThread to exit
-	g_interrupted.store(true);
-	g_cv.notify_all();
 }
 
 DEFINE_ART_MODULE(CrvDQM)
