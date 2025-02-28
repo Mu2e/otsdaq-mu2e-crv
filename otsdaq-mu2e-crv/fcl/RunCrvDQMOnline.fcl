@@ -76,7 +76,7 @@ physics : {
   producers: { 
     genFrags : {
       module_type : ArtFragmentsFromDTCEvents
-      diagLevel : 1
+      diagLevel : 0
       makeCaloFrag : 0
       makeTrkFrag : 0
       makeCRVFrag : 1
