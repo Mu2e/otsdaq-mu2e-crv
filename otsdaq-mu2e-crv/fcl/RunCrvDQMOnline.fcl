@@ -1,5 +1,16 @@
 ###########################################################
 
+# Sam Grant 2025
+
+# To generate unique job labels, run in a script like this:
+
+# #!/bin/bash
+# TIMESTAMP=$(date +%s)
+# sed "s/@timestamp@/$TIMESTAMP/g" RunCrvDQMOnline.fcl > RunCrvDQMOnline_$TIMESTAMP.fcl
+# mu2e -c RunCrvDQMOnline_$TIMESTAMP.fcl
+
+###########################################################
+
 process_name: CrvDQM
 
 ###########################################################
@@ -29,14 +40,14 @@ source: {
         ]
         source_rank: 5
         destination_rank: 55 
-        unique_label: "CrvDQMTransfer000" # Must be unique in every instance 
+        unique_label: "CrvDQMTransfer@timestamp@" # Must be unique in every instance 
         port: 19555 # TCP port=base+offset+partition+rank (look at TRACE to figure this out)
     }
 
     # "Local" dispatcher art job
     dispatcher_config: {
         process_name: "DispatcherArtJob"
-        unique_label: "CrvDQMDispatcher000" # Must be unique in every instance 
+        unique_label: "CrvDQMDispatcher@timestamp@" # Must be unique in every instance 
         path: [ out ]
         outputs: {
             out: {
@@ -60,7 +71,7 @@ source: {
             ArtdaqSharedMemoryServiceInterface: {
                 resume_after_timeout: true
                 service_provider: "ArtdaqSharedMemoryService"
-                waiting_time: 10 # Probably too long
+                waiting_time: 1
             }
         }
         source: {
