@@ -4,7 +4,7 @@
 #$ source setup_ots.sh
 
 ##
-# CHANGE the following by HAND  !!!!!!!!!!!! (don't know how to get sed to handle 
+# CHANGE the following by HAND  !!!!!!!!!!!! (don't know how to get sed to handle
 ##
 subsystem="CRV"
 smallletters="crv"

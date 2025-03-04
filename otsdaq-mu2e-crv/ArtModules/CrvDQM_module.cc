@@ -21,6 +21,7 @@
 
 // ROOT includes
 #include "TCanvas.h"
+#include "TGraph.h"
 #include "TH1D.h"
 #include "THttpServer.h"
 #include "TSystem.h"
@@ -56,10 +57,12 @@ class CrvDQM : public art::EDAnalyzer
 	// Member variables
 	TCanvas*                                           canvas_;
 	std::unordered_map<std::string, TH1D*>             hists_;
+	std::unordered_map<std::string, TGraph*>           graphs_;
 	THttpServer*                                       server_;
 	std::chrono::time_point<std::chrono::steady_clock> lastUpdate_;
 	std::size_t                                        eventCounter_;
 	std::thread                                        keepAliveThread_;
+	std::size_t                                        ewtCounter_;
 };
 
 // Constructor implementation
@@ -74,6 +77,7 @@ CrvDQM::CrvDQM(fhicl::ParameterSet const& ps)
 {
 	// Initialise non-fcl member variables
 	eventCounter_ = 0;
+	ewtCounter_   = 0;
 }
 
 // Destructor implementation
@@ -102,6 +106,13 @@ CrvDQM::~CrvDQM()
 		hist.second = nullptr;
 	}
 	hists_.clear();
+	for(auto& graph : graphs_)
+	{
+		if(graph.second)
+			delete graph.second;
+		graph.second = nullptr;
+	}
+	graphs_.clear();
 }
 
 void CrvDQM::beginJob()
@@ -115,7 +126,7 @@ void CrvDQM::beginJob()
 	// Create canvas
 	std::string canvasName = "WebDisplay";
 	canvas_                = new TCanvas(canvasName.c_str(), "CRV web display");
-	canvas_->Divide(2, 2);  // divide into 4x4 grid
+	canvas_->Divide(2, 3);  // divide
 
 	// Create histograms
 	hists_["channels"] = new TH1D("Channels", ";Channel;Counts", 64, -0.5, 63.5);
@@ -123,6 +134,10 @@ void CrvDQM::beginJob()
 	    new TH1D("Timestamps", ";Timestamp;Counts", 256, 0, 255);  // 0-0xff
 	hists_["nhits"] = new TH1D("Hits", ";Hits / block;Counts", 61, 0, 60);
 	hists_["adc"]   = new TH1D("ADC", ";ADC;Counts", 201, -100, 100);
+
+	// Create graphs
+	graphs_["latency"] = new TGraph();
+	graphs_["latency"]->SetTitle(";EWT;Latency");
 
 	// Format and draw
 	int canvasIdx = 1;
@@ -134,7 +149,18 @@ void CrvDQM::beginJob()
 		// Consistent formatting
 		CrvDQMStyle::FormatHist(hist.second, histColor_);
 		// Draw
-		hist.second->Draw();
+		hist.second->Draw("HIST");
+	}
+
+	for(auto& graph : graphs_)
+	{
+		// Get pad
+		canvas_->cd(canvasIdx);
+		++canvasIdx;
+		// Consistent formatting
+		CrvDQMStyle::FormatGraph(graph.second, histColor_);
+		// Draw
+		graph.second->Draw("APL");
 	}
 
 	// Register with server
@@ -228,12 +254,17 @@ void CrvDQM::analyze(art::Event const& e)
 			mu2e::DTCEventFragment bb(frag);
 			auto                   data  = bb.getData();
 			auto                   event = &data;
+			// DTCLib::DTC_EventWindowTag EWT = event->GetEventWindowTag(); //
+			// .GetEventWindowTag(true);
+			auto EWT = event->GetEventWindowTag().GetEventWindowTag(true);
+			// std::cout<<EWT<<std::endl;
 			if(diagLevel_ > 1)
 			{
-				TLOG(TLVL_INFO) << "Event tag:\t" << "0x" << std::hex << std::setw(4)
-				                << std::setfill('0')
+				TLOG(TLVL_INFO) << "Event tag:\t"
+				                << "0x" << std::hex << std::setw(4) << std::setfill('0')
 				                << event->GetEventWindowTag().GetEventWindowTag(true);
 			}
+			// Event header
 			DTCLib::DTC_EventHeader* eventHeader = event->GetHeader();
 
 			if(diagLevel_ > 1)
@@ -243,14 +274,42 @@ void CrvDQM::analyze(art::Event const& e)
 				    << "Subevents count: " << event->GetSubEventCount() << std::endl;
 			}
 
+			// std::cout<< "Event tag:\t" << "0x" << std::hex << std::setw(4) <<
+			// std::setfill('0') <<
+			// event->GetEventWindowTag().GetEventWindowTag(true)<<std::endl;
+
 			bool plotsUpdated = false;
 			for(unsigned int i = 0; i < event->GetSubEventCount(); ++i)
 			{  // In future, use GetSubsystemData to only get CRV subevents
+				// Subevent
 				DTCLib::DTC_SubEvent& subevent = *(event->GetSubEvent(i));
+
+				// Subevent header
+				const DTCLib::DTC_SubEventHeader* subeventHeader = subevent.GetHeader();
+				// should you reference the pointer?
+				//  const DTCLib::DTC_SubEventHeader& subeventHeader =
+				//  *(subevent.GetHeader());
+				//  // Subevent info
+				uint64_t link0_latency = subeventHeader->link0_drp_rx_latency;
+
+				// Fill graph
+				// Little bit confused about this.
+				graphs_["latency"]->SetPoint(ewtCounter_, EWT, link0_latency);
+				++ewtCounter_;
+				// graphs_["latency"]->SetPointX(i);
+				// graphs_["latency"]->SetPointY(link0_latency);
+				// // ...
+				// // uint64_t link5_latency = subevtheader.link5_drp_rx_latency;
+				// link0_latency = 1;
+
+				// std::cout<<"link0_latency "<<link0_latency<<std::endl;
+				// std::cout<<"link1_latency "<<link1_latency<<std::endl;
+
 				if(diagLevel_ > 1)
 				{
 					TLOG(TLVL_INFO) << "Subevent [" << i << "]:" << std::endl;
-					TLOG(TLVL_INFO) << subevent.GetHeader()->toJson() << std::endl;
+					// TLOG(TLVL_INFO) << subevent.GetHeader()->toJson() << std::endl;
+					TLOG(TLVL_INFO) << subeventHeader->toJson() << std::endl;
 					TLOG(TLVL_INFO)
 					    << "Number of Data Block: " << subevent.GetDataBlockCount()
 					    << std::endl;
@@ -286,14 +345,11 @@ void CrvDQM::analyze(art::Event const& e)
 								    mu2e::CRVDataDecoder(subevent);  // reference
 								// const auto crvStatus =
 								// crvData.GetCRVROCStatusPacket(bl);
-
 								std::vector<mu2e::CRVDataDecoder::CRVHit> hits;
 								auto res = crvData.GetCRVHits(bl, hits);
 								if(!res)
 								{
 									TLOG(TLVL_ERROR) << "Unable to get CRV hist!";
-									// Iterate invalid count?
-									// ++invalidEventCounter_;
 									continue;
 								}
 
@@ -335,6 +391,30 @@ void CrvDQM::analyze(art::Event const& e)
 						    hist.second->GetBinContent(hist.second->GetMaximumBin());
 						hist.second->GetYaxis()->SetRangeUser(0, 1.15 * maxContent);
 					}
+					for(auto& graph : graphs_)
+					{
+						// Get the number of points in the graph
+						int nPoints = graph.second->GetN();
+						// std::cout<<nPoints<<std::endl;
+						// Get the x and y values of the graph
+						double* xValues = graph.second->GetX();
+						double* yValues = graph.second->GetY();
+
+						// Find the min and max x and y values
+						double xMin = *std::min_element(xValues, xValues + nPoints);
+						double xMax = *std::max_element(xValues, xValues + nPoints);
+						double yMin = *std::min_element(yValues, yValues + nPoints);
+						double yMax = *std::max_element(yValues, yValues + nPoints);
+
+						// Optionally add a margin to the y-axis for better visualization
+						double yMargin = 0.1 * (yMax - yMin);
+
+						// Set the range for both axes
+						graph.second->GetXaxis()->SetRangeUser(xMin, xMax);
+						graph.second->GetYaxis()->SetRangeUser(yMin - yMargin,
+						                                       yMax + yMargin);
+					}
+
 					// Update the canvas
 					canvas_->Modified();
 					canvas_->Update();
