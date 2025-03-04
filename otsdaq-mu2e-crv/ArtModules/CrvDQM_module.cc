@@ -405,7 +405,7 @@ void CrvDQM::analyze(art::Event const& e)
 		for(size_t iSubEvent = 0; iSubEvent < nSubEvents; ++iSubEvent)
 		{
 			const mu2e::CRVDataDecoder& decoder((*decodersHandle)[iSubEvent]);
-			decoder.setup_event();
+			// decoder.setup_event(); // not required
 
 			// Access the SubEventHeader through the internal event_ member
 			// Can we add a GetSubEventHeader() method to the CRVDataDecoder?
