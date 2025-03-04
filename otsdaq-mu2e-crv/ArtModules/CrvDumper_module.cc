@@ -52,21 +52,22 @@ private:
     uint32_t subRunNum_;   // art::SubRunNumber_t
     uint64_t eventNum_;    // art::EventNumber_t
     
-    // SubEvent information (one entry per subevent in the event)
-    std::vector<float> link0Latency_;       // Latency for each subevent
-    std::vector<uint64_t> EWT_;             // Event Window Tag for each subevent
-    std::vector<uint32_t> nHits_;           // Number of hits per block in each subevent
+    // // SubEvent information (one entry per subevent in the event)
+    // std::vector<float> link0Latency_;       // Latency for each subevent
+    std::vector<uint64_t> ewtDataHeader_;      // Event Window Tag for each subevent, from data packet header
+    std::vector<uint32_t> ewtRocHeader_;      // Event Window Tag for each subevent, from ROC status header
+    // std::vector<uint32_t> nHits_;           // Number of hits per block in each subevent
 
-    // Hit information (flattened, with indices to track relationships)
-    std::vector<int> hitSubEventIdx_;       // The subevent each hit belongs to
-    std::vector<int> hitBlockIdx_;          // The block each hit belongs to
-    std::vector<int> febChannel_;           // FEB channel for each hit
-    std::vector<float> hitTime_;            // Time for each hit (ns)
-    std::vector<int> nSamples_;             // Number of samples in each hit
+    // // Hit information (flattened, with indices to track relationships)
+    // std::vector<int> hitSubEventIdx_;       // The subevent each hit belongs to
+    // std::vector<int> hitBlockIdx_;          // The block each hit belongs to
+    // std::vector<int> febChannel_;           // FEB channel for each hit
+    // std::vector<float> hitTime_;            // Time for each hit (ns)
+    // std::vector<int> nSamples_;             // Number of samples in each hit
 
-    // Waveform information (partially flattened)
-    std::vector<int> waveformHitIdx_;       // Which hit this waveform belongs to
-    std::vector<std::vector<int>> ADC_;     // ADC values for each hit's waveform
+    // // Waveform information (partially flattened)
+    // std::vector<int> waveformHitIdx_;       // Which hit this waveform belongs to
+    // std::vector<std::vector<int>> ADC_;     // ADC values for each hit's waveform
 };
 
 // Constructor implementation
@@ -95,38 +96,42 @@ void CrvDumper::beginJob()
     tree_->Branch("subRunNum", &subRunNum_); 
     tree_->Branch("eventNum", &eventNum_); 
     
-    // SubEvent-level branches
-    tree_->Branch("link0Latency", &link0Latency_);
-    tree_->Branch("EWT", &EWT_);
-    tree_->Branch("nHits", &nHits_); // per block
+    // // SubEvent-level branches
+    // tree_->Branch("link0Latency", &link0Latency_);
+    // tree_->Branch("EWT", &EWT_);
+
+    tree_->Branch("ewtDataHeader", &ewtDataHeader_);
+    tree_->Branch("ewtRocHeader", &ewtRocHeader_);
+    // tree_->Branch("nHits", &nHits_); // per block
     
-    // Hit-level branches
-    tree_->Branch("hitSubEventIdx", &hitSubEventIdx_);
-    tree_->Branch("hitBlockIdx", &hitBlockIdx_);
-    tree_->Branch("febChannel", &febChannel_);
-    tree_->Branch("hitTime", &hitTime_);
-    tree_->Branch("nSamples", &nSamples_);
+    // // Hit-level branches
+    // tree_->Branch("hitSubEventIdx", &hitSubEventIdx_);
+    // tree_->Branch("hitBlockIdx", &hitBlockIdx_);
+    // tree_->Branch("febChannel", &febChannel_);
+    // tree_->Branch("hitTime", &hitTime_);
+    // tree_->Branch("nSamples", &nSamples_);
     
-    // Waveform-level branches
-    tree_->Branch("waveformHitIdx", &waveformHitIdx_);
-    tree_->Branch("ADC", &ADC_);
+    // // Waveform-level branches
+    // tree_->Branch("waveformHitIdx", &waveformHitIdx_);
+    // tree_->Branch("ADC", &ADC_);
 }
 
 void CrvDumper::analyze(art::Event const& e)
 {
     // Clear vectors for new event
-    link0Latency_.clear();
-    EWT_.clear();
-    nHits_.clear();
+    // link0Latency_.clear();
+    ewtDataHeader_.clear();
+    ewtRocHeader_.clear();
+    // nHits_.clear();
     
-    hitSubEventIdx_.clear();
-    hitBlockIdx_.clear();
-    febChannel_.clear();
-    hitTime_.clear();
-    nSamples_.clear();
+    // hitSubEventIdx_.clear();
+    // hitBlockIdx_.clear();
+    // febChannel_.clear();
+    // hitTime_.clear();
+    // nSamples_.clear();
     
-    waveformHitIdx_.clear();
-    ADC_.clear();
+    // waveformHitIdx_.clear();
+    // ADC_.clear();
     
     // Set event info
     eventNum_ = e.event();
@@ -143,110 +148,113 @@ void CrvDumper::analyze(art::Event const& e)
         // Process the decoder objects, each contains data from one subevent
         for(size_t iSubEvent = 0; iSubEvent < nSubEvents; ++iSubEvent)
         {
+            std::cout<<"\n********\niSubEvent: "<<iSubEvent<<std::endl;
             const mu2e::CRVDataDecoder& decoder((*decodersHandle)[iSubEvent]);
-            decoder.setup_event();
+            // decoder.setup_event();
 
             // Access the SubEventHeader
-            auto subEventHeader = decoder.event_.GetHeader();
+            // auto subEventHeader = decoder.event_.GetHeader();
 
             // Record subevent info
-            link0Latency_.push_back(subEventHeader->link0_drp_rx_latency * rocClockTick_);
+            // link0Latency_.push_back(subEventHeader->link0_drp_rx_latency * rocClockTick_);
             
             // Get EWT from first block in this subevent
             // Should we actually check every block? 
-            uint64_t ewt = 0;
+            uint64_t ewtDataHeader = 0;
+            uint32_t ewtRocHeader = 0;
+            
             if (decoder.block_count() > 0) {
                 auto block = decoder.dataAtBlockIndex(0);
-                if (block && block->GetHeader()) {
-                    ewt = block->GetHeader()->GetEventWindowTag().GetEventWindowTag(true);
-                }
-            }
-            EWT_.push_back(ewt);
-            
-            // For each subevent, process the blocks
-            for(size_t bl = 0; bl < decoder.block_count(); ++bl)
-            {
-                // Get block at this index
-                auto block = decoder.dataAtBlockIndex(bl);
-                if(!block) continue; // Skip empty blocks
-
-                // Get block header
-                auto blockHeader = block->GetHeader();
-
-                if(diagLevel_ > 1) {
-                    std::cout << blockHeader->toJSON() << std::endl;
-                }
-
-                if(!blockHeader->isValid()) {
-                    if(diagLevel_ > 1)
-                        std::cout << "Block header is invalid..." << std::endl;
-                    continue;  // skip this block
-                }
-
-                // // Get CRV ROC header for this block
-                // std::unique_ptr<mu2e::CRVDataDecoder::CRVROCStatusPacket> crvRocHeader = decoder.GetCRVROCStatusPacket(bl);
-                // if (crvRocHeader==nullptr)
-                // { 
-                //     continue;
-                // } else {
-                //     std::cout << "**** ROC Status Header ****" << std::endl;
-                //     std::cout << "ROCID (ROC Status): "<< (uint16_t)crvRocHeader->ControllerID << std::endl;
-                // }
-
-                // Try to get hits 
-                try 
-                { 
-                    // Get CRV hits for this block
-                    auto hits = decoder.GetCRVHits(bl);
-                    
-                    // Store hits in this subevent
-                    nHits_.push_back(hits.size());
-                    
-                    // Process each hit in this block
-                    for(auto &hit : hits)
-                    {
-                        // Store hit information with references to subevent and block
-                        hitSubEventIdx_.push_back(iSubEvent);
-                        hitBlockIdx_.push_back(bl);
-                        febChannel_.push_back(hit.first.febChannel);
-                        hitTime_.push_back(hit.first.HitTime * crvClockTick_);  // Convert to ns
-                        nSamples_.push_back(hit.first.NumSamples);
-                        
-                        // Current hit index in the full event
-                        int currentHitIdx = hitSubEventIdx_.size() - 1;
-                        
-                        // Store waveform reference and samples
-                        waveformHitIdx_.push_back(currentHitIdx);
-                        
-                        // Create vector for this waveform's samples
-                        std::vector<int> samples;
-                        samples.reserve(hit.first.NumSamples); // Reserve indices
-                        
-                        // Process waveform samples
-                        for(auto& sample : hit.second)
-                        {
-                            samples.push_back(sample.ADC);
-                        }
-                        
-                        // Add this waveform to the collection
-                        ADC_.push_back(samples);
-                    }
-                }
-                catch(const std::exception& e) 
-                {
-                    if(diagLevel_ > 0) {
-                        std::cout << "Error processing block: " << e.what() << std::endl;
-                    }
-                }
-
                 
+                if (block) {
+                    ewtDataHeader = block->GetHeader()->GetEventWindowTag().GetEventWindowTag(true);
+                    ewtRocHeader = decoder.GetCRVROCStatusPacket(0)->GetEventWindowTag();
+                }
             }
+            ewtDataHeader_.push_back(ewtDataHeader);
+            ewtRocHeader_.push_back(ewtRocHeader);
+
+            std::cout<<"ewtDataHeader: "<<ewtDataHeader<<std::endl;
+            std::cout<<"ewtRocHeader: "<<ewtRocHeader<<std::endl;
+            
+            // // Print how many ROC status packets exist
+            // std::cout << "ROC status packet count: " << decoder.GetROCStatusPacketCount() << std::endl;
+
+            // // Try different indices if there are multiple
+            // if (decoder.block_count() > 0) {
+                
+            // }
+    //         // For each subevent, process the blocks
+    //         for(size_t bl = 0; bl < decoder.block_count(); ++bl)
+    //         {
+    //             // Get block at this index
+    //             auto block = decoder.dataAtBlockIndex(bl);
+    //             if(!block) continue; // Skip empty blocks
+
+    //             // Get block header
+    //             auto blockHeader = block->GetHeader();
+
+    //             if(diagLevel_ > 1) {
+    //                 std::cout << blockHeader->toJSON() << std::endl;
+    //             }
+
+    //             if(!blockHeader->isValid()) {
+    //                 if(diagLevel_ > 1)
+    //                     std::cout << "Block header is invalid..." << std::endl;
+    //                 continue;  // skip this block
+    //             }
+
+    //             // // Get CRV ROC header for this block
+    //             // std::unique_ptr<mu2e::CRVDataDecoder::CRVROCStatusPacket> crvRocHeader = decoder.GetCRVROCStatusPacket(bl);
+    //             // if (crvRocHeader==nullptr)
+    //             // { 
+    //             //     continue;
+    //             // } else {
+    //             //     std::cout << "**** ROC Status Header ****" << std::endl;
+    //             //     std::cout << "ROCID (ROC Status): "<< (uint16_t)crvRocHeader->ControllerID << std::endl;
+    //             // }
+    //             // Get CRV hits for this block
+    //             auto hits = decoder.GetCRVHits(bl);
+                
+    //             // Store hits in this subevent
+    //             nHits_.push_back(hits.size());
+                
+    //             // Process each hit in this block
+    //             for(auto &hit : hits)
+    //             {
+    //                 // Store hit information with references to subevent and block
+    //                 hitSubEventIdx_.push_back(iSubEvent);
+    //                 hitBlockIdx_.push_back(bl);
+    //                 febChannel_.push_back(hit.first.febChannel);
+    //                 hitTime_.push_back(hit.first.HitTime * crvClockTick_);  // Convert to ns
+    //                 nSamples_.push_back(hit.first.NumSamples);
+                    
+    //                 // Current hit index in the full event
+    //                 int currentHitIdx = hitSubEventIdx_.size() - 1;
+                    
+    //                 // Store waveform reference and samples
+    //                 waveformHitIdx_.push_back(currentHitIdx);
+                    
+    //                 // Create vector for this waveform's samples
+    //                 std::vector<int> samples;
+    //                 samples.reserve(hit.first.NumSamples); // Reserve indices
+                    
+    //                 // Process waveform samples
+    //                 for(auto& sample : hit.second)
+    //                 {
+    //                     samples.push_back(sample.ADC);
+    //                 }
+                    
+    //                 // Add this waveform to the collection
+    //                 ADC_.push_back(samples);
+    //             }
+    //         }
         }
     }
     catch(const std::exception& e)
     {
         if(diagLevel_ > 0) {
-            std::cout << "Error processing event: " << e.what() << std::endl;
+            std::cerr << "Error processing event: " << e.what() << std::endl;
         }
     }
     
@@ -258,7 +266,7 @@ void CrvDumper::analyze(art::Event const& e)
 void CrvDumper::endJob()
 {
     std::cout << "\n**************************************************" << std::endl;
-    std::cout << "CrvDumper job completed." << std::endl;
+    std::cout << "CrvDumper endJob called" << std::endl;
     std::cout << "Total events processed: " << tree_->GetEntries() << std::endl;
     std::cout << "**************************************************" << std::endl;
 }
