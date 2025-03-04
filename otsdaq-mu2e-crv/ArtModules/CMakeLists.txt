@@ -5,9 +5,9 @@ cet_build_plugin(CrvVstDemoViewer art::module LIBRARIES
     TRACE::TRACE 
     ROOT::Core 
     ROOT::Gui
-    artdaq_core_mu2e::artdaq-core-mu2e_Data_dict
-    artdaq_core_mu2e::artdaq-core-mu2e_Overlays
-    artdaq_core_mu2e::artdaq-core-mu2e_Data
+    artdaq-core-mu2e::Data_dict
+    artdaq-core-mu2e::Overlays
+    artdaq-core-mu2e::Data
     artdaq::DAQdata
 )
 
