@@ -259,6 +259,28 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                        std::vector<std::string>{},
 	                        std::vector<std::string>{"response"},
 	                        1);  // requiredUserPermissions
+
+	registerFEMacroFunction("FEB Reset Channels",
+		static_cast<FEVInterface::frontEndMacroFunction_t>(
+									&ROCCosmicRayVetoInterface::FebResetChannels),
+									std::vector<std::string>{},
+									std::vector<std::string>{},
+									1);  // requiredUserPermissions
+
+	registerFEMacroFunction("FEB Mask Channels",
+		static_cast<FEVInterface::frontEndMacroFunction_t>(
+									&ROCCosmicRayVetoInterface::FebMaskChannels),
+									std::vector<std::string>{"Mask (Default: 0x0000, mask all)",
+															"FPGA (Default: -1, all FPGAs)"},
+									std::vector<std::string>{},
+									1);  // requiredUserPermissions
+
+	registerFEMacroFunction("FEB Read Channel Masks",
+		static_cast<FEVInterface::frontEndMacroFunction_t>(
+									&ROCCosmicRayVetoInterface::FebReadChannelMasks),
+									std::vector<std::string>{},
+									std::vector<std::string>{"Masks"},
+									1);  // requiredUserPermissions
 }
 
 //==========================================================================================
@@ -846,7 +868,7 @@ void ROCCosmicRayVetoInterface::Configure(__ARGS__)
 	ostr << "ROC Configure with a uB offset of 0xa" << std::endl;
 	RocConfigure(false, 0, 0xa);
 
-    sleep(1);
+    	sleep(1);
 	ostr << "FEB Configure" << std::endl;
 	FebConfigure(false);
 	ostr << "Set Biases to 0x" << std::hex << bias << std::endl;
@@ -1608,6 +1630,60 @@ void ROCCosmicRayVetoInterface::ResetPHY()
 	uint32_t cr = this->readRegister(ROC::Data[0] | ROC::Data_CRC);
 	cr          = (cr | (1u));
 	this->writeRegister(ROC::Data_Broadcast | ROC::Data_CRC, cr);
+}
+
+// Reset FEB FPGA channels
+void ROCCosmicRayVetoInterface::FebResetChannels(__ARGS__) {
+	__FE_COUT__ << "\n---> Resetting FEB FPGA channels" << __E__;
+
+	// Write 0xFFFF to all FGPA input registers
+	for (int i = 0; i < 4; i++) { 
+		this->writeRegister(
+			(FEB::AllFEB | FEB::FPGA[i] | FEB::InputMaskReg),
+			0xFFFF
+		);
+	}
+}
+
+// Mask FEB FPGA channels
+void ROCCosmicRayVetoInterface::FebMaskChannels(__ARGS__) {
+	// Get defaults
+    uint16_t mask = __GET_ARG_IN__("Mask (Default: 0x0000, mask all)", uint16_t, 0x0000);
+    int16_t fpga = __GET_ARG_IN__("FPGA (Default: -1, all FPGAs)", int16_t, -1);
+    
+    __FE_COUT__ << "\n---> Setting FEB FPGA channels with mask: 0x" << std::hex << mask << __E__;
+    
+    if (fpga < 0) { // Do all FPGAs
+        for (int i = 0; i < 4; i++) { 
+            this->writeRegister(
+            	(FEB::AllFEB | FEB::FPGA[i] | FEB::InputMaskReg),
+                mask
+            );
+        }
+    } else { // Do the specified FPGA
+        if (fpga >= 0 && fpga <= 3) {
+            this->writeRegister(
+                (FEB::AllFEB | FEB::FPGA[fpga] | FEB::InputMaskReg),
+                mask
+            );
+        } else {
+            __FE_COUT__ << "Invalid FPGA index: " << fpga << " (must be between 0 and 3)" << __E__;
+        }
+    }
+}
+
+// Read FEB FPGA channel masks
+void ROCCosmicRayVetoInterface::FebReadChannelMasks(__ARGS__) {
+    std::stringstream ostr;
+    
+    ostr << "Channel masks per FPGA:" << std::endl;
+    
+    for (int i = 0; i < 4; i++) {
+        uint16_t mask = this->readRegister(FEB::AllFEB | FEB::FPGA[i] | FEB::InputMaskReg);
+        ostr << "FPGA " << i << ": 0x" << std::setfill('0') << std::setw(4) << std::hex << mask << std::endl;
+    }
+    
+    __SET_ARG_OUT__("Masks", ostr.str());
 }
 
 DEFINE_OTS_INTERFACE(ROCCosmicRayVetoInterface)

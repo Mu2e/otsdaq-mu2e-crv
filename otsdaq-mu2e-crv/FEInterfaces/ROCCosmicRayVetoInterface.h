@@ -92,7 +92,10 @@ public:
     void PWRRST             (__ARGS__);
     void GetHistograms      (__ARGS__);
     void RegDump            (__ARGS__);
-	// clang-format on
+    void FebResetChannels   (__ARGS__);
+    void FebMaskChannels    (__ARGS__);
+    void FebReadChannelMasks(__ARGS__);
+    // clang-format on
 };
 
 }  // namespace ots
