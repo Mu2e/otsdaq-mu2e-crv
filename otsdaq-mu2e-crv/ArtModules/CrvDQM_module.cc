@@ -76,6 +76,19 @@ void SignalHandler(int signal) {
     }
 }
 
+// Utility to convert enum values to strings for better logging
+std::string subsystemToString(uint8_t subsystem) {
+    switch(subsystem) {
+        case 0: return "Tracker";
+        case 1: return "Calorimeter";
+        case 2: return "CRV";
+        case 3: return "Other";
+        case 4: return "STM";
+        case 5: return "ExtMon";
+        default: return "Unknown (" + std::to_string(subsystem) + ")";
+    }
+}
+
 class CrvDQM : public art::EDAnalyzer
 {
   public:
@@ -102,6 +115,7 @@ class CrvDQM : public art::EDAnalyzer
 	int           keepAliveDuration_;  // minutes
 	std::string   plotCol_;            // "red"/"blue"/"green"
 	art::InputTag decoderTag_;         // specify the module producing CRV decoder obects
+	// bool	      printRawData_;
 
 	// Member variables
 	TCanvas*                                           canvas_;
@@ -111,41 +125,46 @@ class CrvDQM : public art::EDAnalyzer
 	std::chrono::time_point<std::chrono::steady_clock> lastUpdate_;
 	std::thread                                        keepAliveThread_;
 	std::thread                                        exitThread_;
-	std::size_t                                        eventCounter_;
-	std::size_t                                        subEventCounter_;
-	std::size_t                                        blockCounter_;
-	std::size_t                                        packetCounter_;
 	float                                              crvClockTick_;
 	float                                              rocClockTick_;
 	bool                                               shuttingDown_;
+	std::string                                        outputPrefix_;
+	std::size_t                                        eventCounts_{0};
+    std::size_t                                        subEventCounts_{0};
+    std::size_t                                        blockCounts_{0};
+    std::size_t                                        eventWindowTagCounts_{0};
+    std::size_t                                        packetCounts_{0};
+    std::size_t                                        crvBlockCounts_{0};
+    std::size_t                                        crvHitCounts_{0};
+	
 };
 
 // Constructor implementation
 CrvDQM::CrvDQM(fhicl::ParameterSet const& ps)
     : art::EDAnalyzer(ps)
     , port_(ps.get<int>("port", 8877))
-    , diagLevel_(ps.get<int>("diagLevel", 1))
+    , diagLevel_(ps.get<int>("diagLevel", 0))
     , onlineRefreshPeriod_(ps.get<float>("onlineRefreshPeriod", 500))  // ms
     , keepAlive_(ps.get<int>("keepAlive", true))
     , keepAliveDuration_(ps.get<int>("keepAliveDuration", 5))  // minutes
-    , plotCol_(ps.get<std::string>("plotCol", "blue"))
+    , plotCol_(ps.get<std::string>("plotCol", "red"))
     , decoderTag_(ps.get<art::InputTag>("decoderTag", "genFrags"))
 {
 	// Initialise non-fcl member variables
-	eventCounter_    = 0;
-	subEventCounter_ = 0;
-	blockCounter_    = 0;
-	packetCounter_   = 0;
 	crvClockTick_    = 12.5;  // ns
 	rocClockTick_    = 50;    // ns, based on the 20 MHz clock (a guess)
 	shuttingDown_    = false;
+	outputPrefix_    = "[CrvDQM] ";
 }
 
 // Destructor implementation
 CrvDQM::~CrvDQM()
 {
-	std::cout << "*** CrvDQM destructor called ***" << std::endl;
-
+	if (diagLevel_ > 0) 
+	{
+		std::cout << outputPrefix_ << "Destructor called" << std::endl;
+	}
+	
 	shuttingDown_ = true;
 
 	// Signal interruption
@@ -154,12 +173,20 @@ CrvDQM::~CrvDQM()
 
 	// Join keepAliveThread if using
     if (keepAliveThread_.joinable()) {
-        std::cout << "---> Joining keepAliveThread..." << std::endl;
+
+		if (diagLevel_ > 1) 
+		{
+			std::cout << outputPrefix_ <<  "---> Joining keepAliveThread..." << std::endl;
+		}
+        
         
         // Create a joining thread so I can use timeouts
         std::thread joiner([this]() { 
             keepAliveThread_.join(); 
-            std::cout << "---> keepAliveThread joined successfully" << std::endl;
+			if (diagLevel_ > 1) 
+			{
+            	std::cout << outputPrefix_ <<  "---> keepAliveThread joined successfully" << std::endl;
+			}
         });
         
         // Detacher joiner thread
@@ -170,29 +197,35 @@ CrvDQM::~CrvDQM()
         
         // If thread is still joinable, detach it
         if (keepAliveThread_.joinable()) {
-            std::cerr << "---> keepAliveThread did not exit in time, detaching" << std::endl;
+            std::cerr << outputPrefix_ <<  "---> keepAliveThread did not exit in time, detaching" << std::endl;
             keepAliveThread_.detach();
         }
     }
 
 	// Then clean up ROOT objects
 	if (server_) {
-        std::cout << "---> Disabling server updates..." << std::endl;
+		if (diagLevel_ > 1) 
+		{
+        	std::cout << outputPrefix_ <<  "---> Disabling server updates..." << std::endl;
+		}
         try {
             server_->SetItemField("/", "_monitoring", "0");
             gSystem->ProcessEvents();  // Ensure the change propagates
             // Give it a moment 
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
         } catch (const std::exception& e) {
-            std::cerr << "Error disabling server updates: " << e.what() << std::endl;
+            std::cerr << outputPrefix_ <<  "Error disabling server updates: " << e.what() << std::endl;
         }
         
         // Now delete the server
         try {
-            std::cout << "---> Destroying HTTP server..." << std::endl;
+			if (diagLevel_ > 1) 
+			{
+            	std::cout << outputPrefix_ << "---> Destroying HTTP server..." << std::endl;
+			}
             delete server_;
         } catch (const std::exception& e) {
-            std::cerr << "Error destroying server: " << e.what() << std::endl;
+            std::cerr << outputPrefix_ << "Error destroying server: " << e.what() << std::endl;
         }
         server_ = nullptr;
 	}
@@ -201,7 +234,7 @@ CrvDQM::~CrvDQM()
         try {
             delete canvas_;
         } catch (const std::exception& e) {
-            std::cerr << "Error destroying canvas: " << e.what() << std::endl;
+            std::cerr << outputPrefix_ << "Error destroying canvas: " << e.what() << std::endl;
         }
         canvas_ = nullptr;
     }
@@ -212,7 +245,7 @@ CrvDQM::~CrvDQM()
                 delete hist.second;
             }
         } catch (const std::exception& e) {
-            std::cerr << "Error destroying histogram: " << e.what() << std::endl;
+            std::cerr << outputPrefix_ <<  "Error destroying histogram: " << e.what() << std::endl;
         }
         hist.second = nullptr;
     }
@@ -225,20 +258,26 @@ CrvDQM::~CrvDQM()
                 delete graph.second;
             }
         } catch (const std::exception& e) {
-            std::cerr << "Error destroying graph: " << e.what() << std::endl;
+            std::cerr << outputPrefix_ << "Error destroying graph: " << e.what() << std::endl;
         }
         graph.second = nullptr;
     }
     graphs_.clear();
 
-	std::cout << "*** CrvDQM destructor complete! ***" << std::endl;
+	if (diagLevel_ > 0) 
+	{
+		std::cout << outputPrefix_ << "Destructor complete" << std::endl;
+	}
+	
 }
 
 void CrvDQM::beginJob()
 {
-
-	std::cout << "*** CrvDQM::beginJob called ***" << std::endl;
-
+	if (diagLevel_ > 0) 
+	{
+		std::cout << outputPrefix_ << "beginJob called" << std::endl;
+	}
+	
     // Install signal handlers for shutdown
     std::signal(SIGINT, SignalHandler);
     std::signal(SIGTERM, SignalHandler);
@@ -302,33 +341,39 @@ void CrvDQM::beginJob()
 	lastUpdate_ = std::chrono::steady_clock::now();
 
 	// Print info
-	std::cout << "---> Server running on http://localhost:" << port_
-			<< "\nUse Ctrl+C to exit...\n" << std::endl;
-			 
+	std::cout << outputPrefix_ << "*** Server running on http://localhost:" << port_ << " ***"  << std::endl;
 
 	// Start an independent thread for server...
-	// this is really just for running on files
-	// we want the page to stay alive after EOF 
+	// This is really just for running on a closed file
+	// We want the page to stay alive after EOF 
 	keepAliveThread_ = std::thread([this]() {
 		while (!g_interrupted.load() && !shuttingDown_) {
-		try {
-			gSystem->ProcessEvents();
-			
-			// Check for interruption more frequently
-			std::unique_lock<std::mutex> lock(g_cv_m);
-			g_cv.wait_for(lock, std::chrono::milliseconds(100), [] {
-			return g_interrupted.load();
-			});
-		} catch (const std::exception& e) {
-			std::cerr << "Error in keepAliveThread: " << e.what() << std::endl;
-			// Break on exception to avoid tight error loop
-			break;
+			try {
+				gSystem->ProcessEvents();
+				
+				// Check for interruption more frequently
+				std::unique_lock<std::mutex> lock(g_cv_m);
+				g_cv.wait_for(lock, std::chrono::milliseconds(100), [] {
+				return g_interrupted.load();
+				});
+			} catch (const std::exception& e) {
+				std::cerr << outputPrefix_ << "Error in keepAliveThread: " << e.what() << std::endl;
+				// Break on exception to avoid tight error loop
+				break;
+			}
 		}
+		if (diagLevel_ > 1)
+		{
+			std::cout << outputPrefix_ << "---> Keep-alive thread exiting..." << std::endl;
 		}
-		std::cout << "---> Keep-alive thread exiting..." << std::endl;
+		
 	});
 	
-	std::cout << "\n*** CrvDQM beginJob completed! ***\n" << std::endl;
+	if (diagLevel_ > 0)
+	{ 
+		std::cout << outputPrefix_ << "beginJob complete" << std::endl;
+	}
+	
 }
 
 void CrvDQM::UpdatePlots()
@@ -379,7 +424,7 @@ void CrvDQM::UpdatePlots()
 			gSystem->ProcessEvents();   // Update display
 			lastUpdate_ = currentTime;  // Update the time
 		} catch (const std::exception& e) {
-        	std::cerr << "Error updating plots: " << e.what() << std::endl;
+        	std::cerr << outputPrefix_ << "Error updating plots: " << e.what() << std::endl;
         }
 	}
 }
@@ -389,90 +434,191 @@ void CrvDQM::analyze(art::Event const& e)
     // Check if we're interrupted
     if (g_interrupted.load() || shuttingDown_) return;
 
-	// Iterate event counts
-	++eventCounter_;
+	if(diagLevel_ > 1) {
+        std::cout << outputPrefix_ << "=================== " << e.id() << " ===================" << std::endl;
+    }
 
-	// Try getting CRV data
+    // Summary counters for current event
+    size_t currentEventSubEvents = 0;
+    size_t currentEventBlocks = 0;
+    size_t currentEventPackets = 0;
+    size_t currentEventCrvBlocks = 0;
+    size_t currentEventCrvHits = 0;
+
+	// Try getting CRV decoder
 	try
 	{
 		// Get CRV data decoders from the event 
 		// decoderTag is used to specify a CRV producer
-		auto decodersHandle = e.getValidHandle<std::vector<mu2e::CRVDataDecoder>>(decoderTag_);
-		size_t nSubEvents = decodersHandle->size();
+		auto crvDecodersHandle = e.getValidHandle<std::vector<mu2e::CRVDataDecoder>>(decoderTag_);
+		currentEventSubEvents = crvDecodersHandle->size();
+		
+		if (diagLevel_ > 1) 
+		{
+			std::cout << outputPrefix_ << "Found CRV decoders for " << crvDecodersHandle->size() << " subevent(s)" << std::endl;
+		}
 
 		// Process the decoder objects, each contains data from one subevent 
 		// (see DTCLib::DTC_SubEvent)
-		for(size_t iSubEvent = 0; iSubEvent < nSubEvents; ++iSubEvent)
+		for(size_t iSubEvent = 0; iSubEvent < crvDecodersHandle->size(); ++iSubEvent)
 		{
-			const mu2e::CRVDataDecoder& decoder((*decodersHandle)[iSubEvent]);
-			// decoder.setup_event(); // not required
+			const mu2e::CRVDataDecoder& crvDecoder((*crvDecodersHandle)[iSubEvent]);
+			// crvDecoder.setup_event(); // not required
 
-			// Access the SubEventHeader through the internal event_ member
-			// Can we add a GetSubEventHeader() method to the CRVDataDecoder?
-			auto subEventHeader = decoder.event_.GetHeader();
+			// Access the SubEvent through the internal event_ member
+			auto subEvent = crvDecoder.event_;
+			auto subEventHeader = subEvent.GetHeader();
+			currentEventBlocks = subEvent.GetDataBlockCount();
 
-			// ROC latency
-			auto link0_latency = subEventHeader->link0_drp_rx_latency * rocClockTick_;
+			// Get EWT from first block
+			auto EWT = crvDecoder.dataAtBlockIndex(0)->GetHeader()->GetEventWindowTag().GetEventWindowTag(true);
+			// auto EWT = crvDecoder.event_->GetEventWindowTag().GetEventWindowTag(true);
 
-			// Get EWT from first block, we should only have one EWT / subevent
-			auto EWT0 = decoder.dataAtBlockIndex(0)->GetHeader()->GetEventWindowTag().GetEventWindowTag(true);
-
-			// Fill ROC latency graph
-			// Is there a "subevent" product that i can use?
-			// I think we need to average the latency over each EWT to do this correctly and iterate an EWT counter
-			graphs_["latency"]->SetPoint(subEventCounter_, EWT0, link0_latency);
-
-			// Iterate subevent counts
-			++subEventCounter_;
-
-			// For each subevent, process the blocks (see DTCLib::DTC_DataBlock)
-			for(size_t bl = 0; bl < decoder.block_count(); ++bl)
+			if(diagLevel_ > 1)
 			{
-				// Iterate block counts
-				++blockCounter_;
+				std::cout << outputPrefix_ << "---> Subevent [" << iSubEvent << "]" << std::endl;
+                std::cout << outputPrefix_ << subEventHeader->toJson() << std::endl;
+				std::cout << outputPrefix_ << "EWT " << EWT <<std::endl;
+
+            }
+
+
+			// ROC0 latency
+			auto link0_latency = subEventHeader->link0_drp_rx_latency * rocClockTick_;
+			graphs_["latency"]->SetPoint(subEventCounts_, EWT, link0_latency);
+
+			// Process the blocks (DTCLib::DTC_DataBlock)
+			for(size_t iBlock = 0; iBlock < currentEventBlocks; ++iBlock)
+			{
 
 				// Get block at this index
-				auto block = decoder.dataAtBlockIndex(bl);
-				if(!block)
-					continue;  // Skip empty blocks
-
-				// Get block header (DTCLib::DTC_DataHeaderPacket)
-				auto blockHeader = block->GetHeader();  //
+				auto block = crvDecoder.dataAtBlockIndex(iBlock);
+				auto blockheader = block->GetHeader();
+				auto subsystem = blockheader->GetSubsystem();
+				currentEventPackets += blockheader->GetPacketCount();
 
 				if(diagLevel_ > 1)
-				{  // Print the block header
-					TLOG(TLVL_INFO) << blockHeader->toJSON() << std::endl;
-				}
-
-				if(!blockHeader->isValid())
 				{
-					if(diagLevel_ > 1)
-						TLOG(TLVL_INFO) << "Block header is invalid..." << std::endl;
-					continue;  // skip this block
+					std::cout << outputPrefix_ << "---> Block [" << iBlock << "]:" << std::endl;
+					std::cout << outputPrefix_ << "Packet Count: " << blockheader->GetPacketCount() << std::endl;
+					std::cout << outputPrefix_ << blockheader->toJSON() << std::endl;
+					std::cout << outputPrefix_ << "Block details:" << std::endl
+								<< outputPrefix_ << "  Subsystem: " << subsystemToString(subsystem) << std::endl
+								<< outputPrefix_ << "  Valid: " << (blockheader->isValid() ? "Yes" : "No") << std::endl
+								<< outputPrefix_ << "  Version: 0x" << std::hex << (int)blockheader->GetVersion() << std::dec << std::endl
+								<< outputPrefix_ << "  DTC ID: " << (int)blockheader->GetID() << std::endl
+								<< outputPrefix_ << "  Byte Count: " << block->byteSize << std::endl
+								<< outputPrefix_ << "  Event Window Tag: " << blockheader->GetEventWindowTag().GetEventWindowTag(true) << std::endl; // " (0x" 
+					
+					if (diagLevel_ > 2)
+					{
+						for(int iPacket = 0; iPacket < blockheader->GetPacketCount(); ++iPacket)
+						{
+							std::cout << outputPrefix_ << "---> Packet [" << iPacket << "]: " << 
+								DTCLib::DTC_DataPacket(((uint8_t*)block->blockPointer) + ((iPacket + 1) * 16)).toJSON() << std::endl;
+						}
+					}
 				}
 
-				// Get CRV hits for this block
-				auto hits = decoder.GetCRVHits(bl);
-			
-				// Fill nHits histogram
-				hists_["nHits"]->Fill(hits.size());
-
-				// Process CRV hits in this block	
-				for(auto &hit : hits)
-				{ 
-					// Iterate packet counter
-					++packetCounter_;
-
-					// Fill hit info level histograms
-					hists_["febChannel"]->Fill(hit.first.febChannel);
-					hists_["hitTime"]->Fill(hit.first.HitTime * crvClockTick_);  // ns
-					hists_["numSamples"]->Fill(hit.first.NumSamples);
-
-					// Process waveforms
-					for(auto& waveforms : hit.second)
+				// Make sure we only process CRV data
+				if(blockheader->GetSubsystem() == DTCLib::DTC_Subsystem_CRV) // && blockheader->isValid() && blockheader->GetVersion() == 0x0) 
+				{
+					++currentEventCrvBlocks;
+				
+					if(diagLevel_ > 0) 
 					{
-						hists_["ADC"]->Fill(waveforms.ADC);
+						std::cout << outputPrefix_ << "*** CRV BLOCK FOUND ***" << std::endl;
+						std::cout << outputPrefix_ << "CRV Block Status: " << (int)blockheader->GetStatus() << std::endl;
 					}
+
+					if(blockheader->isValid())
+					{
+						if(blockheader->GetVersion() == 0x0)
+						{
+
+							// Get ROC status packet
+							auto crvRocStatus = crvDecoder.GetCRVROCStatusPacket(iBlock);
+
+							if(crvRocStatus != nullptr && diagLevel_ > 0)
+							{
+								std::cout << outputPrefix_ << "CRV ROC Status Packet:" << std::endl
+											<< outputPrefix_ << "  Controller ID: " << (int)crvRocStatus->ControllerID << std::endl
+											<< outputPrefix_ << "  Active FEB Flags: " << crvRocStatus->GetActiveFEBFlags().to_string() << std::endl
+											<< outputPrefix_ << "  Trigger Count: " << crvRocStatus->TriggerCount << std::endl
+											<< outputPrefix_ << "  Event Window Tag: " << crvRocStatus->GetEventWindowTag() << std::endl;
+							}
+
+							// Get CRV hits for this block
+							auto crvHits = crvDecoder.GetCRVHits(iBlock);
+							currentEventCrvHits += crvHits.size();
+
+							if(diagLevel_ > 0)
+							{
+								std::cout << outputPrefix_ << "Found " << crvHits.size() << " CRV hits" << std::endl;
+							}
+			
+							// Output detailed hit information
+							if(diagLevel_ > 1 && !crvHits.empty())
+							{
+								std::cout << "---> First CRV Hit Details:" << std::endl;
+								auto& firstHit = crvHits.front();
+								std::cout << outputPrefix_ << "  FEB Channel: " << firstHit.first.febChannel << std::endl
+											<< outputPrefix_ << "  Port Number: " << firstHit.first.portNumber << std::endl
+											<< outputPrefix_ << "  Controller Number: " << firstHit.first.controllerNumber << std::endl
+											<< outputPrefix_ << "  Hit Time: " << firstHit.first.HitTime << std::endl
+											<< outputPrefix_ << "  Num Samples: " << firstHit.first.NumSamples << std::endl;
+								
+								if(!firstHit.second.empty())
+								{
+									std::cout << outputPrefix_ << "  First Sample ADC: " << firstHit.second.front().ADC << std::endl;
+								}
+							}
+
+							// Deeper waveform details for even higher diagnostic levels
+							if(diagLevel_ > 2 && !crvHits.empty())
+							{
+								auto& firstHit = crvHits.front();
+								std::cout << outputPrefix_ << "Waveform for first hit:" << std::endl;
+								for(size_t i = 0; i < firstHit.second.size(); i++)
+								{
+									if(i % 8 == 0) std::cout << "  ";
+									std::cout << std::setw(5) << firstHit.second[i].ADC;
+									if(i % 8 == 7 || i == firstHit.second.size() - 1) std::cout << std::endl;
+								}
+							}
+
+							// Fill nHits histogram
+							hists_["nHits"]->Fill(crvHits.size());
+
+							// Process CRV hits in this block	
+							for(auto &crvHit : crvHits)
+							{
+
+								// Fill hit info level histograms
+								hists_["febChannel"]->Fill(crvHit.first.febChannel);
+								hists_["hitTime"]->Fill(crvHit.first.HitTime * crvClockTick_);  // ns
+								hists_["numSamples"]->Fill(crvHit.first.NumSamples);
+
+								// Process waveforms
+								for(auto& waveforms : crvHit.second)
+								{
+									hists_["ADC"]->Fill(waveforms.ADC);
+								}
+							} 
+						}
+						else
+						{
+							if(diagLevel_ > 0)
+							{
+								std::cout << outputPrefix_ << "CRV block with unsupported version: 0x" 
+											<< std::hex << (int)blockheader->GetVersion() << std::dec << std::endl;
+							}
+						}
+					}
+					else if(diagLevel_ > 0)
+                    {
+                            std::cout << outputPrefix_ << "Invalid CRV block header!" << std::endl;
+                    }
 				}
 
 			}  // blocks
@@ -483,12 +629,32 @@ void CrvDQM::analyze(art::Event const& e)
 	{
 		if(diagLevel_ > 0)
 		{
-			std::cerr << "Error processing event!" << e.what() << std::endl;
+			std::cerr << outputPrefix_ << "Error processing event!" << e.what() << std::endl;
 		}
 	}
 
 	// Update plots
 	CrvDQM::UpdatePlots();
+
+    // Print summary for this event
+    if(diagLevel_ > 0)
+    {
+        std::cout << outputPrefix_ << "Event Summary: " 
+                << currentEventSubEvents << " SubEvents; "
+                << currentEventBlocks << " Blocks; "
+                << currentEventPackets << " Packets; "
+                << currentEventCrvBlocks << " CRV Blocks; "
+                << currentEventCrvHits << " CRV Hits."
+                << std::endl;
+    }
+
+	// Iterate  counts
+	++eventCounts_;
+	subEventCounts_ += currentEventSubEvents;
+	blockCounts_ += currentEventBlocks;
+	packetCounts_ += currentEventPackets;
+	crvBlockCounts_ += currentEventCrvBlocks;
+	crvHitCounts_ += currentEventCrvHits;
 
 }  // analyze
 
@@ -496,15 +662,17 @@ void CrvDQM::analyze(art::Event const& e)
 void CrvDQM::endJob()
 {
 
-	std::cout << "\n*** CrvDQM::endJob called ***\n" << std::endl;
-
-	std::cout << "\n**************************************************";
-	std::cout << "\nProcessed:";
-	std::cout << "\n---> " << eventCounter_ 	<< " events"; 
-	std::cout << "\n---> " << subEventCounter_ << " subevents"; 
-	std::cout << "\n---> " << blockCounter_ 	<< " blocks"; 
-	std::cout << "\n---> " << packetCounter_ 	<< " packets";
-	std::cout << "\n**************************************************" << std::endl;
+	if (diagLevel_ > 0) 
+	{
+		// Print job-level statistics
+		std::cout << outputPrefix_ << "================= End Job Summary =================" << std::endl;
+		std::cout << outputPrefix_ << "Total Events: " << eventCounts_ << std::endl;
+		std::cout << outputPrefix_ << "Total SubEvents: " << subEventCounts_ << std::endl;
+		std::cout << outputPrefix_ << "Total Blocks: "    << blockCounts_    << std::endl;
+		std::cout << outputPrefix_ << "Total CRV Blocks: " << crvBlockCounts_ << std::endl;
+		std::cout << outputPrefix_ << "Total CRV Hits: " << crvHitCounts_ << std::endl;
+		std::cout << outputPrefix_ << "===============================================" << std::endl;
+	}
 
 	// We're shutting down
 	shuttingDown_ = true;
@@ -512,8 +680,11 @@ void CrvDQM::endJob()
 	// Keep alive (if keeping alive) until timeout or signal interrupt 
 	if(keepAlive_ && !g_sigint_received.load())
 	{
-		std::cout << "\n---> Keeping server alive for " << keepAliveDuration_ << " minute(s)" << std::endl;
-
+		if (diagLevel_ > 0) 
+		{
+			std::cout << outputPrefix_ << "Keeping server alive for " << keepAliveDuration_ << " minute(s)" << std::endl;
+		}
+		
 		// Keep alive end time
 		auto endTime = std::chrono::steady_clock::now() + std::chrono::minutes(keepAliveDuration_);
 
@@ -538,15 +709,26 @@ void CrvDQM::endJob()
 	// Cleanup
 	if(g_interrupted.load() || g_sigint_received.load())
 	{
-	    std::cout << "\n---> Received interrupt signal" << std::endl;
+		if (diagLevel_ > 1)
+		{
+			std::cout <<  outputPrefix_ << "Received termination signal" << std::endl;
+		}
+	    
 	}
 	else
 	{
-		std::cout << "---> Keep-alive period ended" << std::endl;
+		if (diagLevel_ > 1)
+		{
+			std::cout <<  outputPrefix_ << "Keep-alive period ended" << std::endl;
+		}
 
 	}
 
-	std::cout << "\n*** CrvDQM endJob completed! ***\n" << std::endl;
+	if (diagLevel_ > 0) 
+	{
+		std::cout << outputPrefix_ << "endJob complete" << std::endl;
+	}
+	
 
 }
 
