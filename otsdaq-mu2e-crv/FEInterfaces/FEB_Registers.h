@@ -29,7 +29,8 @@ enum Register : uint16_t
 	HistRun      = 0x1010,
 	HistPointer  = 0x1014,  // to 0x15
 	HistMemory   = 0x1016,  // to 0x17
-
+	InputMaskReg = 0x1021,
+	
 	// registers that effect all FPGAs
 	Port         = 0x1314,
 	Pipeline     = 0x1304,
@@ -47,6 +48,9 @@ enum Register : uint16_t
 	Reset  = 0x9001,
 	TRIG   = 0x900B,
 	CMBENA = 0x9106
+
+	// Switch FGPAs on/off
+	
 };  // end ROC_Register enum
 
 uint16_t FPGA[] = {0x000, 0x400, 0x800, 0xC00};
