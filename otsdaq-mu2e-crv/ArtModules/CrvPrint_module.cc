@@ -87,7 +87,7 @@ CrvPrint::~CrvPrint()
 
 void CrvPrint::beginJob()
 {
-    std::cout << "Beginning job with diagLevel " << diagLevel_ << std::endl;
+    std::cout << outputPrefix_ <<"Beginning job with debug level (diagLevel_) " << diagLevel_ << std::endl;
 }
 
 void CrvPrint::analyze(art::Event const& e)
@@ -99,7 +99,7 @@ void CrvPrint::analyze(art::Event const& e)
 	artdaq::Fragments fragments;
 
     if(diagLevel_ > 0) {
-        std::cout << outputPrefix_ << "=================== Event " << e.id() << " ===================" << std::endl;
+        std::cout << outputPrefix_ << "=================== " << e.id() << " ===================" << std::endl;
         std::cout << outputPrefix_ << "Number of fragment handles: " << fragmentHandles.size() << std::endl;
     }
 
@@ -321,13 +321,7 @@ void CrvPrint::analyze(art::Event const& e)
                                         std::cout << std::setw(5) << firstHit.second[i].ADC;
                                         if(i % 8 == 7 || i == firstHit.second.size() - 1) std::cout << std::endl;
                                     }
-                                }
-                                
-                                else if(diagLevel_ > 0)
-                                {
-                                    std::cerr << "Failed to get CRV hits from block" << std::endl;
-                                }
-                    
+                                }                    
                             }
                             else
                             {
@@ -350,7 +344,7 @@ void CrvPrint::analyze(art::Event const& e)
 		{
 			if(diagLevel_ > 0)
 			{
-				std::cerr << "Error processing fragment: " << e.what() << std::endl;
+				std::cerr << outputPrefix_ << "Error processing fragment: " << e.what() << std::endl;
 			}
 			continue;
 		}
