@@ -112,7 +112,7 @@ class CrvDQM : public art::EDAnalyzer {
 	float onlineRefreshPeriod_;
 	bool keepAlive_;
 	int keepAliveDuration_; // minutes
-	std::string plotCol_; // "red"/"blue"/"green"
+	std::string plotCol_; 
 	art::InputTag decoderTag_; // specify the module producing CRV decoder obects
 	int spillLength_;
 
@@ -149,7 +149,7 @@ CrvDQM::CrvDQM(fhicl::ParameterSet const &ps)
 	, onlineRefreshPeriod_(ps.get<float>("onlineRefreshPeriod", 500)) // ms
     , keepAlive_(ps.get<int>("keepAlive", true))
 	, keepAliveDuration_(ps.get<int>("keepAliveDuration", 5)) // minutes
-    , plotCol_(ps.get<std::string>("plotCol", "red"))
+    , plotCol_(ps.get<std::string>("plotCol", "black")) // "red"/"blue"/"green"
 	, decoderTag_(ps.get<art::InputTag>("decoderTag", "genFrags")) 
 	, spillLength_(ps.get<int>("spillLength", 0xff))
 	, webPath_(ps.get<std::string>("webPath", "/home/mu2ecrv/daq/ots_v3_03_01/srcs/otsdaq-mu2e-crv/otsdaq-mu2e-crv/Web/"))
@@ -284,6 +284,34 @@ void CrvDQM::beginJob() {
 	// Set global plot style
 	CrvDQMStyle::SetStyle();
 
+	// Events 
+
+
+
+	// graphs_["EwtVsCrvBlock"] = new TGraph(); graphs_["EwtVsCrvBlock"]->SetTitle(";EWT;CRV block");
+	// graphs_["BlockEwtVsCrvEwt"] = new TGraph(); graphs_["BlockEwtVsCrvEwt"]->SetTitle(";Block EWT;CRV ROC EWT");
+	// // graphs_["BlockEwtVsCrvEwt"] = new TGraph(); graphs_["BlockEwtVsCrvEwt"]->SetTitle(";Block EWT;CRV ROC EWT");
+	// graphs_["EwtVsSubEvent"] = new TGraph(); 
+	// graphs_["EwtVsSubEvent"]->SetTitle(";EWT;Subevent");
+
+	// canvases_["Events"] = new TCanvas("Events", "CRV Events");
+	// // canvases_["Events"]->Divide(2, 1);
+
+	// // canvases_["Events"]->cd(1);
+	// CrvDQMStyle::FormatGraph(graphs_["EwtVsSubEvent"], plotCol_);
+    // graphs_["EwtVsSubEvent"]->Draw("APL");
+
+	// canvases_["Events"]->cd(2);
+	// CrvDQMStyle::FormatGraph(graphs_["EwtVsCrvBlock"], plotCol_);
+    // graphs_["EwtVsCrvBlock"]->Draw("APL");
+
+
+
+    
+
+	// graphs_["latency"]->SetTitle(";B;ROC latency [ns]");
+	
+
 	// Book histograms
 	hists_["febChannel"] = new TH1D("febChannel", ";FEB channel;Hits", 64, -0.5, 63.5);
     hists_["ADC"] = new TH1D("ADC", ";Sample ADC;Samples", 401, -200, 200);
@@ -313,7 +341,7 @@ void CrvDQM::beginJob() {
     hists_["nHits"]->Draw("HIST");
 
 	// ROC graphs
-	
+
 
 	// Set custom HTML 
 	server_->SetDefaultPage(webPath_ + "CrvDQM.html");
@@ -353,218 +381,6 @@ void CrvDQM::beginJob() {
 	}
 }
 
-/*
-void CrvDQM::SetupDisplayPages() {
-    
-    
-    // Create the main overview canvas
-    canvases_["overview"] = new TCanvas("overview", "CRV Overview");
-    canvases_["overview"]->Divide(2, 2);
-    
-    // Create additional canvases as placeholders for now
-    // canvases_["waveforms"] = new TCanvas("waveforms", "CRV Waveforms");
-    // canvases_["waveforms"]->Divide(2, 1);
-    
-    // canvases_["hits"] = new TCanvas("hits", "CRV Hit Details");
-    // canvases_["hits"]->Divide(2, 2);
-    
-    // canvases_["latency"] = new TCanvas("latency", "CRV Latency");
-    // canvases_["latency"]->Divide(1, 1);
-    
-    // Book histograms for the overview page (same as existing CreateMainPage)
-    hists_["febChannel"] = new TH1D("febChannel", ";FEB channel;Hits", 64, -0.5, 63.5);
-    hists_["ADC"] = new TH1D("ADC", ";Sample ADC;Samples", 401, -200, 200);
-    hists_["hitTime"] = new TH1D("hitTime", ";Hit time [ns];Entries", (spillLength_)+1, 0, (spillLength_) * crvClockTick_);
-    hists_["nHits"] = new TH1D("nHits", ";Hits / block;Blocks", 11, -.5, 10.5);
-    
-    // Add the missing numSamples histogram
-    // hists_["numSamples"] = new TH1D("numSamples", ";Samples / block;Entries", 16, 0.5, 15.5);
-    
-    // // Create the latency graph
-    // graphs_["latency"] = new TGraph();
-    // graphs_["latency"]->SetTitle(";Subevent;ROC latency [ns]");
-    
-    // Format and draw - overview canvas
-    canvases_["overview"]->cd(1);
-    CrvDQMStyle::FormatHist(hists_["febChannel"], plotCol_);
-    hists_["febChannel"]->Draw("HIST");
-    
-    canvases_["overview"]->cd(2);
-    CrvDQMStyle::FormatHist(hists_["ADC"], plotCol_);
-    hists_["ADC"]->Draw("HIST");
-    
-    canvases_["overview"]->cd(3);
-    CrvDQMStyle::FormatHist(hists_["hitTime"], plotCol_);
-    hists_["hitTime"]->Draw("HIST");
-    
-    canvases_["overview"]->cd(4);
-    CrvDQMStyle::FormatHist(hists_["nHits"], plotCol_);
-    hists_["nHits"]->Draw("HIST");
-    
-    // Create simple placeholder histograms for other pages
-    // // Waveforms page placeholders
-    // hists_["waveform_raw"] = new TH1D("waveform_raw", ";Sample index;ADC", 20, -0.5, 19.5);
-    // canvases_["waveforms"]->cd(1);
-    // CrvDQMStyle::FormatHist(hists_["waveform_raw"], plotCol_);
-    // hists_["waveform_raw"]->Draw("HIST");
-    
-    // canvases_["waveforms"]->cd(2);
-    // CrvDQMStyle::FormatHist(hists_["numSamples"], plotCol_);
-    // hists_["numSamples"]->Draw("HIST");
-    
-    // // Hits page placeholders - just use copies of histograms we already have
-    // canvases_["hits"]->cd(1);
-    // hists_["hitTime_detail"] = new TH1D("hitTime_detail", ";Hit time [ns];Entries", 
-    //                                  (spillLength_)+1, 0, (spillLength_) * crvClockTick_);
-    // CrvDQMStyle::FormatHist(hists_["hitTime_detail"], plotCol_);
-    // hists_["hitTime_detail"]->Draw("HIST");
-    
-    // canvases_["hits"]->cd(2);
-    // hists_["febChannel_detail"] = new TH1D("febChannel_detail", ";FEB channel;Hits", 64, -0.5, 63.5);
-    // CrvDQMStyle::FormatHist(hists_["febChannel_detail"], plotCol_);
-    // hists_["febChannel_detail"]->Draw("HIST");
-    
-    // canvases_["hits"]->cd(3);
-    // hists_["febDistribution"] = new TH1D("febDistribution", ";FEB ID;Hits", 20, 0.5, 20.5);
-    // CrvDQMStyle::FormatHist(hists_["febDistribution"], plotCol_);
-    // hists_["febDistribution"]->Draw("HIST");
-    
-    // canvases_["hits"]->cd(4);
-    // hists2D_["channelVsTime"] = new TH2D("channelVsTime", ";Hit time [ns];Channel", 
-    //                                    (spillLength_)+1, 0, (spillLength_) * crvClockTick_,
-    //                                    64, -0.5, 63.5);
-    // hists2D_["channelVsTime"]->Draw("COLZ");
-    
-    // // Format and draw - latency canvas
-    // canvases_["latency"]->cd(1);
-    // CrvDQMStyle::FormatGraph(graphs_["latency"], plotCol_);
-    // graphs_["latency"]->Draw("APL");
-    
-    // Register each canvas at a specific URL path
-    server_->Register("/overview", canvases_["overview"]);
-    // server_->Register("/waveforms", canvases_["waveforms"]);
-    // server_->Register("/hits", canvases_["hits"]);
-    // server_->Register("/latency", canvases_["latency"]);
-
-	server_->SetItemField("/", "_browser", "off"); // Sidebar off
-	server_->SetItemField("/", "_monitoring", Form("%f", onlineRefreshPeriod_)); // Update period
-	server_->SetItemField("/overview", "_drawitem", "overview"); // Set DQM canvas as default item
-	server_->SetItemField("/", "_http_cache", "0"); 
-	server_->SetItemField("/", "_toplevel", "overview");
-    
-    // Create a simple navigation page with a clean design
-	
-    std::string navPage = R"(
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>CRV Monitor</title>
-            <style>
-                body { 
-                    font-family: Arial, sans-serif; 
-                    max-width: 800px; 
-                    margin: 0 auto; 
-                    padding: 20px; 
-                    background-color: #f5f5f5; 
-                }
-                h1 { 
-                    color: #336699; 
-                    text-align: center;
-                    border-bottom: 2px solid #336699;
-                    padding-bottom: 10px;
-                }
-                .status-bar {
-                    background-color: #eee;
-                    padding: 10px;
-                    margin-bottom: 20px;
-                    border-radius: 5px;
-                    text-align: center;
-                }
-                .status-item {
-                    display: inline-block;
-                    margin: 0 15px;
-                    font-weight: bold;
-                }
-                .nav-grid { 
-                    display: grid; 
-                    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); 
-                    gap: 20px; 
-                    margin-top: 30px;
-                }
-                .nav-card { 
-                    padding: 20px;
-                    background: white; 
-                    border-radius: 8px;
-                    text-align: center;
-                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                    transition: transform 0.2s, box-shadow 0.2s;
-                }
-                .nav-card:hover {
-                    transform: translateY(-5px);
-                    box-shadow: 0 6px 8px rgba(0,0,0,0.15);
-                }
-                .nav-card a { 
-                    display: block;
-                    font-size: 20px;
-                    text-decoration: none;
-                    color: #336699;
-                    padding: 15px;
-                }
-                .nav-card p {
-                    color: #666;
-                    margin-top: 5px;
-                }
-            </style>
-        </head>
-        <body>
-            <h1>CRV Data Quality Monitor</h1>
-            
-            <div class="status-bar">
-                <div class="status-item">Events: <span id="event-count">0</span></div>
-                <div class="status-item">CRV Hits: <span id="hit-count">0</span></div>
-                <div class="status-item">Last Update: <span id="last-update">-</span></div>
-            </div>
-            
-            <div class="nav-grid">
-                <div class="nav-card">
-                    <a href="/overview" target="_blank">Overview</a>
-                    <p>Main monitoring dashboard with critical metrics</p>
-                </div>
-                <div class="nav-card">
-                    <a href="/waveforms" target="_blank">Waveforms</a>
-                    <p>Detailed waveform analysis and sample distributions</p>
-                </div>
-                <div class="nav-card">
-                    <a href="/hits" target="_blank">Hit Details</a>
-                    <p>Comprehensive information about hit patterns and timing</p>
-                </div>
-                <div class="nav-card">
-                    <a href="/latency" target="_blank">Latency</a>
-                    <p>ROC latency measurements and performance metrics</p>
-                </div>
-            </div>
-            
-            <script>
-                // Update the status display
-                document.getElementById('event-count').textContent = )" + std::to_string(eventCounts_) + R"(;
-                document.getElementById('hit-count').textContent = )" + std::to_string(crvHitCounts_) + R"(;
-                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
-            </script>
-        </body>
-        </html>
-    )";
-	
-    
-    // // Register the navigation page as the main page
-    // server_->CreateItem("/index.htm", navPage.c_str());
-    // server_->SetItemField("/", "_toplevel", "index.htm");
-    
-    if (diagLevel_ > 0) {
-        std::cout << outputPrefix_ << "Display pages configured" << std::endl;
-    }
-}
-*/
-
 void CrvDQM::UpdatePlots() {
 	// Check interrupt flag first
 	if (g_interrupted.load() || shuttingDown_) return;
@@ -581,27 +397,26 @@ void CrvDQM::UpdatePlots() {
 				hist.second->GetYaxis()->SetRangeUser(0, 1.15 * maxContent);
 			}
 
-			/*
-			for (auto &graph : graphs_) {
-				// Get the number of points in the graph
-				int nPoints = graph.second->GetN();
-				// Get the x and y values of the graph
-				double *xValues = graph.second->GetX();
-				double *yValues = graph.second->GetY();
+			// for (auto &graph : graphs_) {
+			// 	// Get the number of points in the graph
+			// 	int nPoints = graph.second->GetN();
+			// 	// Get the x and y values of the graph
+			// 	double *xValues = graph.second->GetX();
+			// 	double *yValues = graph.second->GetY();
 
-				// Find the min and max x and y values
-				double xMin = *std::min_element(xValues, xValues + nPoints);
-				double xMax = *std::max_element(xValues, xValues + nPoints);
-				double yMin = *std::min_element(yValues, yValues + nPoints);
-				double yMax = *std::max_element(yValues, yValues + nPoints);
+			// 	// Find the min and max x and y values
+			// 	double xMin = *std::min_element(xValues, xValues + nPoints);
+			// 	double xMax = *std::max_element(xValues, xValues + nPoints);
+			// 	double yMin = *std::min_element(yValues, yValues + nPoints);
+			// 	double yMax = *std::max_element(yValues, yValues + nPoints);
 
-				// Optionally add a margin to the y-axis for better visualization
-				double yMargin = 0.1 * (yMax - yMin);
+			// 	// Optionally add a margin to the y-axis for better visualization
+			// 	double yMargin = 0.1 * (yMax - yMin);
 
-				// Set the range for both axes
-				graph.second->GetXaxis()->SetRangeUser(xMin, xMax);
-				graph.second->GetYaxis()->SetRangeUser(yMin - yMargin, yMax + yMargin);
-			} */
+			// 	// Set the range for both axes
+			// 	graph.second->GetXaxis()->SetRangeUser(xMin, xMax);
+			// 	graph.second->GetYaxis()->SetRangeUser(yMin - yMargin, yMax + yMargin);
+			// } 
 
 		    // // Update counter information for the sidebar
             // std::string counterJson = Form("{ \"events\": %zu, \"hits\": %zu }", eventCounts_, crvHitCounts_);
@@ -671,6 +486,7 @@ void CrvDQM::analyze(art::Event const &e) {
 				std::cout << outputPrefix_ << "EWT " << EWT << std::endl;
 			}
 
+			// graphs_["EwtVsSubEvent"]->SetPoint(subEventCounts_+iSubEvent, subEventCounts_+iSubEvent, EWT);
 			// ROC0 latency
 			// auto link0_latency = subEventHeader->link0_drp_rx_latency * rocClockTick_;
 			//graphs_["latency"]->SetPoint(subEventCounts_, EWT, link0_latency);
@@ -682,7 +498,9 @@ void CrvDQM::analyze(art::Event const &e) {
 				auto block = crvDecoder.dataAtBlockIndex(iBlock);
 				auto blockheader = block->GetHeader();
 				auto subsystem = blockheader->GetSubsystem();
+				auto blockEWT = blockheader->GetEventWindowTag().GetEventWindowTag(true);
 				currentEventPackets += blockheader->GetPacketCount();
+				
 
 				if (diagLevel_ > 1) {
 					std::cout << outputPrefix_ << "---> Block [" << iBlock << "]:" << std::endl;
@@ -694,7 +512,7 @@ void CrvDQM::analyze(art::Event const &e) {
 					          << outputPrefix_ << "  Version: 0x" << std::hex << (int)blockheader->GetVersion() << std::dec << std::endl
 					          << outputPrefix_ << "  DTC ID: " << (int)blockheader->GetID() << std::endl
 					          << outputPrefix_ << "  Byte Count: " << block->byteSize << std::endl
-					          << outputPrefix_ << "  Event Window Tag: " << blockheader->GetEventWindowTag().GetEventWindowTag(true) << std::endl; // " (0x"
+					          << outputPrefix_ << "  Event Window Tag: " << blockEWT << std::endl; // " (0x"
 
 					if (diagLevel_ > 2) {
 						for (int iPacket = 0; iPacket < blockheader->GetPacketCount(); ++iPacket) {
@@ -702,6 +520,8 @@ void CrvDQM::analyze(art::Event const &e) {
 						}
 					}
 				}
+
+				
 
 				// Make sure we only process CRV data
 				if (blockheader->GetSubsystem() == DTCLib::DTC_Subsystem_CRV) // && blockheader->isValid() && blockheader->GetVersion() == 0x0)
@@ -763,6 +583,7 @@ void CrvDQM::analyze(art::Event const &e) {
 
 							// Fill nHits histogram
 							hists_["nHits"]->Fill(crvHits.size());
+							// graphs_["EwtVsCrvBlock"]->SetPoint(iBlock+blockCounts_, iBlock+blockCounts_, blockEWT); 
 
 							// Process CRV hits in this block
 							for (auto &crvHit : crvHits) {
