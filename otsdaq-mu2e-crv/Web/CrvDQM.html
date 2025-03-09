@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+        
+        .header {
+            background-color: #1c4587;
+            color: white;
+            padding: 15px 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+        
+        .container {
+            display: flex;
+            min-height: calc(100vh - 120px); /* Subtract header and footer height */
+        }
+        
+        .sidebar {
+            width: 250px;
+            background-color: #eee;
+            padding: 15px;
+            box-shadow: inset -2px 0 5px rgba(0,0,0,0.1);
+            overflow-y: auto;
+        }
+        
+        .main-content {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+        }
+        
+        .footer {
+            background-color: #1c4587;
+            color: white;
+            text-align: center;
+            padding: 10px;
+            font-size: 14px;
+            box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .nav-group {
+            margin-bottom: 15px;
+        }
+        
+        .nav-header {
+            font-weight: bold;
+            padding: 8px;
+            background-color: #ddd;
+            border-radius: 4px 4px 0 0;
+            margin-bottom: 5px;
+        }
+        
+        .nav-item {
+            padding: 8px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+            display: block;
+            text-decoration: none;
+            color: #333;
+        }
+        
+        .nav-item:hover, .nav-item.active {
+            background-color: #d0d0d0;
+        }
+        
+        .content-page {
+            display: none;
+            height: 100%;
+        }
+        
+        .content-page.active {
+            display: block;
+        }
+        
+        #drawing {
+            width: 100%;
+            height: 600px;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>CRV Online DQM</h1>
+    </div>
+    
+    <div class="container">
+        <div class="sidebar">
+            <div class="nav-group">
+                <div class="nav-header">Pages</div>
+                <a href="#" class="nav-item" data-page="canv1" data-object="/Canvases/Overview">Overview</a>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div id="drawing"></div>
+        </div>
+    </div>
+
+    <!--     
+    <div class="footer">
+    </div> -->
+    
+    <!-- Import JSROOT -->
+    <script type="text/javascript" src="jsrootsys/scripts/JSRoot.core.js"></script>
+    
+    <script type="text/javascript">
+        // Wait for JSROOT to be ready
+        JSROOT.require(['hierarchy']).then(initApp);
+        
+        function initApp() {
+            // Get all navigation items
+            const navItems = document.querySelectorAll('.nav-item');
+            
+            // Add click event to each navigation item
+            navItems.forEach(item => {
+                item.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    
+                    // Remove active class from all items
+                    navItems.forEach(item => item.classList.remove('active'));
+                    
+                    // Add active class to clicked item
+                    this.classList.add('active');
+                    
+                    // Get object path and drawing options
+                    const objectPath = this.getAttribute('data-object');
+                    const drawOpt = this.getAttribute('data-opt') || "";
+                    
+                    // Draw the selected object
+                    drawObject(objectPath, drawOpt);
+                });
+            });
+            
+            // Draw the first item by default
+            if (navItems.length > 0) {
+                navItems[0].click();
+            }
+        }
+        
+        // Function to draw a ROOT object
+        function drawObject(objectPath, drawOpt) {
+            // Clear previous drawing
+            document.getElementById('drawing').innerHTML = '';
+            
+            // Show loading indicator
+            const loadingDiv = document.createElement('div');
+            loadingDiv.textContent = 'Loading...';
+            loadingDiv.style.padding = '20px';
+            loadingDiv.style.textAlign = 'center';
+            document.getElementById('drawing').appendChild(loadingDiv);
+            
+            // Request the object from the server
+            JSROOT.httpRequest(objectPath + "/root.json.gz", 'object').then(obj => {
+                // Remove loading indicator
+                document.getElementById('drawing').innerHTML = '';
+                
+                // Draw the object
+                JSROOT.draw('drawing', obj, drawOpt);
+            }).catch(err => {
+                console.error('Error loading object:', err);
+                document.getElementById('drawing').innerHTML = 
+                    '<div style="padding:20px; color:red;">Error loading object: ' + err + '</div>';
+            });
+        }
+    </script>
+</body>
+</html>
