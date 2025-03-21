@@ -1,3 +1,8 @@
+<!-- 
+Samuel Grant 2025
+CRV DQM web page 
+-->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,17 +11,25 @@
     <title>CRV Online DQM</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
+
         :root {
-            --primary-color: #1a73e8;
-            --primary-dark: #0d47a1;
-            --accent-color: #4285f4;
-            --text-color: #202124;
-            --text-secondary: #5f6368;
-            --background-color: #f8f9fa;
-            --card-color: #ffffff;
-            --border-color: #dadce0;
-            --hover-color: #e8f0fe;
-            --active-color: #d2e3fc;
+            --primary-color: #3366CC;      
+            --primary-light: #99CCFF;      
+            --primary-dark: #0033AA;       
+            --accent-color: #4285f4;       
+            --azure-light: #99CCFF;        
+            --azure-medium: #66AAFF;        
+            --blue-medium: #3366CC;         
+            --text-color: #202124;          
+            --text-light: #ffffff;          
+            --text-secondary: #5f6368;      
+            --background-color: #f8f9fa;    
+            --sidebar-bg: #f0f6ff;          
+            --sidebar-active: #d2e3fc;      
+            --card-color: #ffffff;          
+            --border-color: #dadce0;        
+            --hover-color: #e8f0fe;         
+            --active-color: #d2e3fc;        
             --shadow-sm: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
             --shadow-md: 0 2px 6px 2px rgba(60, 64, 67, 0.15), 0 1px 2px 0 rgba(60, 64, 67, 0.3);
             --sidebar-width: 280px;
@@ -24,7 +37,7 @@
             --border-radius: 8px;
             --transition-speed: 0.2s;
         }
-
+            
         * {
             margin: 0;
             padding: 0;
@@ -89,7 +102,7 @@
         .header-actions {
             display: flex;
             gap: 8px;
-        }
+        } 
         
         .header-button {
             background: none;
@@ -346,20 +359,22 @@
                     Overview
                 </a>
                 <a href="#" class="nav-item" data-page="channels" data-object="/Canvases/Channels">
-                    <i class="fas fa-chart-bar"></i>
-                    Placeholder
+                    <i class="fas fa-th"></i>
+                    Channels
                 </a>
-                <a href="#" class="nav-item" data-page="events" data-object="/Canvases/Events">
-                    <i class="fas fa-bolt"></i>
-                    Placeholder
+                <a href="#" class="nav-item" data-page="tdaq" data-object="/Canvases/TDAQ">
+                    <i class="fas fa-stream"></i>
+                    TDAQ
                 </a>
-                <a href="#" class="nav-item" data-page="triggers" data-object="/Canvases/Triggers">
-                    <i class="fas fa-clock"></i>
-                    Placeholder
+                <a href="#" class="nav-item" data-page="waveforms" data-object="/Canvases/Waveforms">
+                    <i class="fas fa-wave-square"></i>
+                    Waveforms
                 </a>
             </div>
+        </div>
+        
             
-            <div class="nav-group">
+            <!-- <div class="nav-group">
                 <div class="nav-header">Analysis</div>
                 <a href="#" class="nav-item" data-page="quality" data-object="/Canvases/Quality">
                     <i class="fas fa-check-circle"></i>
@@ -381,8 +396,8 @@
                     <i class="fas fa-clipboard-list"></i>
                     Placeholder
                 </a>
-            </div>
-        </div>
+            </div> -->
+
         
         <div class="main-content">
             <div class="breadcrumbs">
@@ -393,7 +408,7 @@
             
             <div class="content-card">
                 <div class="card-header">
-                    <div class="card-title" id="card-title">Wideband VST overview</div>
+                    <div class="card-title" id="card-title">Overview</div>
                     <div class="card-actions">
                         <button class="card-action" title="Download" id="download-btn">
                             <i class="fas fa-download"></i>
@@ -401,9 +416,9 @@
                         <button class="card-action" title="Expand" id="expand-btn">
                             <i class="fas fa-expand"></i>
                         </button>
-                        <button class="card-action" title="More options">
+                        <!-- <button class="card-action" title="More options">
                             <i class="fas fa-ellipsis-v"></i>
-                        </button>
+                        </button> -->
                     </div>
                 </div>
                 <div class="card-body">
@@ -417,124 +432,230 @@
     <script type="text/javascript" src="jsrootsys/scripts/JSRoot.core.js"></script>
     
     <script type="text/javascript">
+
+    // Wait for JSROOT to be ready
+    JSROOT.require(['hierarchy']).then(function() {
+        // Initialize the app
+        initApp();
+        
+        // Polling interval in milliseconds
+        const POLL_INTERVAL = 250; 
+        
+        // Start polling after a delay to ensure initial drawing is complete
+        setTimeout(function() {
+            // Set up polling for updates
+            setInterval(function() {
+                const activeItem = document.querySelector('.nav-item.active');
+                if (!activeItem) return;
+                
+                const objectPath = activeItem.getAttribute('data-object');
+                const drawOpt = activeItem.getAttribute('data-opt') || "";
+                
+                // Cache-busting timestamp
+                const timestamp = new Date().getTime();
+                
+                // Request the object with cache busting
+                JSROOT.httpRequest(objectPath + "/root.json?_=" + timestamp, 'object')
+                    .then(function(obj) {
+                        // Only update if drawing element exists and has content
+                        const drawingDiv = document.getElementById('drawing');
+                        if (drawingDiv && drawingDiv.childElementCount > 0) {
+                            // Use redraw for safer updates
+                            JSROOT.redraw('drawing', obj, drawOpt);
+                        }
+                    })
+                    .catch(function(err) {
+                        console.log("Refresh error (can ignore if changing views):", err);
+                    });
+            }, POLL_INTERVAL);
+        }, POLL_INTERVAL); // Sleep before starting poll
+    });
+
+    function initApp() {
+        // Get all navigation items
+        const navItems = document.querySelectorAll('.nav-item');
+        
+        // Add click event to each navigation item
+        navItems.forEach(item => {
+            item.addEventListener('click', function(event) {
+                event.preventDefault();
+                
+                // Remove active class from all items
+                navItems.forEach(item => item.classList.remove('active'));
+                
+                // Add active class to clicked item
+                this.classList.add('active');
+                
+                // Get page name, object path and drawing options
+                const pageName = this.getAttribute('data-page');
+                const objectPath = this.getAttribute('data-object');
+                const drawOpt = this.getAttribute('data-opt') || "";
+                
+                // Update breadcrumb and card title
+                document.getElementById('current-page').textContent = 
+                    this.textContent.trim();
+                document.getElementById('card-title').textContent = 
+                    this.textContent.trim();
+                
+                // Draw the selected object
+                drawObject(objectPath, drawOpt);
+                
+                // Close sidebar on mobile
+                if (window.innerWidth <= 768) {
+                    document.getElementById('sidebar').classList.add('collapsed');
+                }
+            });
+        });
+        
         // Toggle sidebar
         document.getElementById('menu-toggle').addEventListener('click', function() {
             document.getElementById('sidebar').classList.toggle('collapsed');
         });
         
-        // Wait for JSROOT to be ready
-        JSROOT.require(['hierarchy']).then(initApp);
-        
-        function initApp() {
-            // Get all navigation items
-            const navItems = document.querySelectorAll('.nav-item');
-            
-            // Add click event to each navigation item
-            navItems.forEach(item => {
-                item.addEventListener('click', function(event) {
-                    event.preventDefault();
-                    
-                    // Remove active class from all items
-                    navItems.forEach(item => item.classList.remove('active'));
-                    
-                    // Add active class to clicked item
-                    this.classList.add('active');
-                    
-                    // Get page name, object path and drawing options
-                    const pageName = this.getAttribute('data-page');
-                    const objectPath = this.getAttribute('data-object');
-                    const drawOpt = this.getAttribute('data-opt') || "";
-                    
-                    // Update breadcrumb and card title
-                    document.getElementById('current-page').textContent = 
-                        this.textContent.trim();
-                    document.getElementById('card-title').textContent = 
-                        this.textContent.trim() + " Canvas";
-                    
-                    // Draw the selected object
-                    drawObject(objectPath, drawOpt);
-                    
-                    // Close sidebar on mobile
-                    if (window.innerWidth <= 768) {
-                        document.getElementById('sidebar').classList.add('collapsed');
-                    }
-                });
-            });
-            
-            // Add download functionality
-            document.getElementById('download-btn').addEventListener('click', function() {
-                JSROOT.makeSnapshot(document.getElementById('drawing'));
-            });
-            
-            // Add expand functionality
-            document.getElementById('expand-btn').addEventListener('click', function() {
-                const drawingDiv = document.getElementById('drawing');
-                if (!document.fullscreenElement) {
-                    if (drawingDiv.requestFullscreen) {
-                        drawingDiv.requestFullscreen();
-                    } else if (drawingDiv.webkitRequestFullscreen) {
-                        drawingDiv.webkitRequestFullscreen();
-                    } else if (drawingDiv.msRequestFullscreen) {
-                        drawingDiv.msRequestFullscreen();
-                    }
-                } else {
-                    if (document.exitFullscreen) {
-                        document.exitFullscreen();
-                    } else if (document.webkitExitFullscreen) {
-                        document.webkitExitFullscreen();
-                    } else if (document.msExitFullscreen) {
-                        document.msExitFullscreen();
-                    }
-                }
-            });
-            
-            // Draw the first item by default
-            if (navItems.length > 0) {
-                navItems[0].click();
+        // Add manual refresh button handler
+        document.querySelector('.header-button[title="Refresh"]').addEventListener('click', function() {
+            const activeItem = document.querySelector('.nav-item.active');
+            if (activeItem) {
+                // Show spinner during refresh
+                const icon = this.querySelector('i');
+                icon.className = "fas fa-spinner fa-spin";
+                
+                const objectPath = activeItem.getAttribute('data-object');
+                const drawOpt = activeItem.getAttribute('data-opt') || "";
+                
+                // Add cache busting
+                const cacheBuster = '?_=' + new Date().getTime();
+                
+                // Request the updated object
+                JSROOT.httpRequest(objectPath + "/root.json" + cacheBuster, 'object')
+                    .then(obj => {
+                        // Use redraw for safer updates
+                        JSROOT.redraw('drawing', obj, drawOpt);
+                        
+                        // Reset icon after a moment
+                        setTimeout(() => {
+                            icon.className = "fas fa-sync-alt";
+                        }, 1000);
+                    })
+                    .catch(err => {
+                        console.error('Error refreshing:', err);
+                        // Reset icon on error
+                        icon.className = "fas fa-sync-alt";
+                    });
             }
+        });
+        
+        // Add download functionality
+        // document.getElementById('download-btn').addEventListener('click', function() {
+        //     JSROOT.makeSnapshot(document.getElementById('drawing'));
+        // });
+
+        // Add download functionality
+        // Still doesn't work
+        document.getElementById('download-btn').addEventListener('click', function() {
+            // Get the current object being displayed
+            const currentObj = document.querySelector('.nav-item.active').getAttribute('data-object');
             
-            // Handle window resize
-            window.addEventListener('resize', function() {
+            // Generate a meaningful filename based on the current view
+            const pageName = document.getElementById('current-page').textContent;
+            const filename = `CRV_${pageName}_${new Date().toISOString().split('T')[0]}.png`;
+            
+            // Use JSROOT's snapshot functionality properly
+            JSROOT.NewHttpRequest(currentObj + "/root.png.json?more=2000&w=2000&h=1600", 'object', function(obj) {
+                if (obj) {
+                    // Create download link for the image
+                    let link = document.createElement('a');
+                    link.download = filename;
+                    link.href = obj.result;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                } else {
+                    console.error("Failed to create snapshot");
+                }
+            }).send();
+        });
+
+        // Add expand functionality
+        document.getElementById('expand-btn').addEventListener('click', function() {
+            const drawingDiv = document.getElementById('drawing');
+            if (!document.fullscreenElement) {
+                if (drawingDiv.requestFullscreen) {
+                    drawingDiv.requestFullscreen();
+                } else if (drawingDiv.webkitRequestFullscreen) {
+                    drawingDiv.webkitRequestFullscreen();
+                } else if (drawingDiv.msRequestFullscreen) {
+                    drawingDiv.msRequestFullscreen();
+                }
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                }
+            }
+        });
+        
+        // Handle ESC key to exit fullscreen
+        document.addEventListener('fullscreenchange', function() {
+            if (!document.fullscreenElement) {
+                // Resize the plot to fit the container again
                 JSROOT.resize(document.getElementById('drawing'));
-            });
+            }
+        });
+        
+        // Draw the first item by default
+        if (navItems.length > 0) {
+            navItems[0].click();
         }
         
-        // Function to draw a ROOT object
-        function drawObject(objectPath, drawOpt) {
-            // Clear previous drawing
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            JSROOT.resize(document.getElementById('drawing'));
+        });
+    }
+
+    // Function to draw a ROOT object
+    function drawObject(objectPath, drawOpt) {
+        // Clear previous drawing
+        document.getElementById('drawing').innerHTML = '';
+        
+        // Show loading indicator
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'loading';
+        const spinner = document.createElement('div');
+        spinner.className = 'loading-spinner';
+        loadingDiv.appendChild(spinner);
+        loadingDiv.appendChild(document.createTextNode('Loading data...'));
+        document.getElementById('drawing').appendChild(loadingDiv);
+        
+        // Add cache busting parameter
+        const cacheBuster = '?_=' + new Date().getTime();
+        
+        // Request the object from the server with cache busting
+        JSROOT.httpRequest(objectPath + "/root.json" + cacheBuster, 'object').then(obj => {
+            // Remove loading indicator
             document.getElementById('drawing').innerHTML = '';
             
-            // Show loading indicator
-            const loadingDiv = document.createElement('div');
-            loadingDiv.className = 'loading';
-            const spinner = document.createElement('div');
-            spinner.className = 'loading-spinner';
-            loadingDiv.appendChild(spinner);
-            loadingDiv.appendChild(document.createTextNode('Loading data...'));
-            document.getElementById('drawing').appendChild(loadingDiv);
+            // Draw the object
+            JSROOT.draw('drawing', obj, drawOpt);
+        }).catch(err => {
+            console.error('Error loading object:', err);
             
-            // Request the object from the server
-            JSROOT.httpRequest(objectPath + "/root.json.gz", 'object').then(obj => {
-                // Remove loading indicator
-                document.getElementById('drawing').innerHTML = '';
-                
-                // Draw the object
-                JSROOT.draw('drawing', obj, drawOpt);
-            }).catch(err => {
-                console.error('Error loading object:', err);
-                
-                // Show error message
-                const errorDiv = document.createElement('div');
-                errorDiv.className = 'error-message';
-                const errorIcon = document.createElement('i');
-                errorIcon.className = 'fas fa-exclamation-triangle';
-                errorDiv.appendChild(errorIcon);
-                errorDiv.appendChild(document.createTextNode('Error loading data: ' + err));
-                
-                document.getElementById('drawing').innerHTML = '';
-                document.getElementById('drawing').appendChild(errorDiv);
-            });
-        }
+            // Show error message
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            const errorIcon = document.createElement('i');
+            errorIcon.className = 'fas fa-exclamation-triangle';
+            errorDiv.appendChild(errorIcon);
+            errorDiv.appendChild(document.createTextNode('Error loading data: ' + err));
+            
+            document.getElementById('drawing').innerHTML = '';
+            document.getElementById('drawing').appendChild(errorDiv);
+        });
+    }
     </script>
 </body>
 </html>
