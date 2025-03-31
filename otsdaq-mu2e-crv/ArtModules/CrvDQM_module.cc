@@ -455,36 +455,16 @@ void CrvDQM::UpdatePlots() {
 
             // Auto scale graph axes
             for (auto &graph : graphs_) {
-            	// Get the number of points in the graph
-            	// int nPoints = graph.second->GetN();
-            	// Get the x and y values of the graph
-            	// double *xValues = graph.second->GetX();
-            	// double *yValues = graph.second->GetY();
-
-            	// // Find the min and max x and y values
-            	// double xMin = *std::min_element(xValues, xValues + nPoints);
-            	// double xMax = *std::max_element(xValues, xValues + nPoints);
-            	// double yMin = *std::min_element(yValues, yValues + nPoints);
-            	// double yMax = *std::max_element(yValues, yValues + nPoints);
 
                 // Get axis ranges directly from the graph
                 double xMin, xMax, yMin, yMax;
                 graph.second->ComputeRange(xMin, yMin, xMax, yMax);
-
-            	// Optionally add a margin to the y-axis for better visualization
-            	// double yMargin = 0.1 * (yMax - yMin);
                 // Set consistent margins
                 double xMargin = 0.05 * (xMax - xMin);
                 double yMargin = 0.05 * (yMax - yMin);
-                
-                // Set the ranges manually with margins
-                // graph.second->GetXaxis()->SetLimits(xMin - xMargin, xMax + xMargin);
-                // graph.second->GetYaxis()->SetLimits(yMin - yMargin, yMax + yMargin);
-
             	// Set the range for both axes
             	graph.second->GetXaxis()->SetRangeUser(xMin - xMargin, xMax + xMargin);
             	// graph.second->GetYaxis()->SetRangeUser(yMin - yMargin, yMax + yMargin);
-
                 graph.second->SetMinimum(yMin - yMargin);
                 graph.second->SetMaximum(yMax + yMargin);
             } 
