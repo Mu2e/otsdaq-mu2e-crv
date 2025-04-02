@@ -10,7 +10,7 @@ cmake_minimum_required (VERSION 3.19 FATAL_ERROR)
 
 find_package(cetmodules 3.16.00 REQUIRED)
 
-project(otsdaq_mu2e_crv VERSION 3.04.00)
+project(otsdaq-mu2e-crv VERSION 4.00.00)
 
 include(CetCMakeEnv)
 cet_cmake_env()
@@ -30,7 +30,7 @@ cet_set_compiler_flags(DIAGS VIGILANT
 #cet_report_compiler_flags()
 
 # these are minimum required versions, not the actual product versions
-find_package(otsdaq_mu2e 1.02.00 REQUIRED)
+find_package(otsdaq-mu2e 1.02.00 REQUIRED)
 
  # XDAQ Extra setup
  include_directories($ENV{XDAQ_ROOT}/include/linux $ENV{XDAQ_ROOT}/include)

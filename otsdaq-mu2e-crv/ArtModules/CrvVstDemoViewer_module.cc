@@ -452,7 +452,14 @@ void CrvVstDemoViewer::analyze(art::Event const& event)
 						{
 							auto crvData = mu2e::CRVDataDecoder(subevent);  // reference
 							// const auto crvStatus = crvData.GetCRVROCStatusPacket(bl);
-							auto hits = crvData.GetCRVHits(bl);
+							std::vector<mu2e::CRVDataDecoder::CRVHit> hits;
+							auto res = crvData.GetCRVHits(bl, hits);
+							if(!res)
+							{
+								TLOG(TLVL_ERROR) << "Unable to get CRV hist!";
+								continue;
+							}
+
 							for(auto& hit : hits)
 							{
 								// if (newCanvas_) {

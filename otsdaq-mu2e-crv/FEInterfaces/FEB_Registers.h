@@ -3,6 +3,7 @@
 
 #include <cstdint>
 // #include <functional>  // std::bind, std::function (if needed)
+#include <cstdint>  // uint16_t
 
 namespace FEB
 {
