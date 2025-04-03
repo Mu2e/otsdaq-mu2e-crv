@@ -58,6 +58,7 @@ public:
     void FebConfigure(bool useOtsConfig = true);
     void ResetRxBuffers();	
     void SetMarkerSync(bool enable=true);
+	std::string ConfigureImpl(bool reset, uint16_t bias, uint16_t th, uint16_t spillLength, uint16_t hitPipelineDelay);
     void ResetPHY();
 
 	// CRV FEB specific functions
@@ -73,6 +74,9 @@ public:
     void SoftReset          (__ARGS__);
     void GetUptime          (__ARGS__);
     void Configure          (__ARGS__);
+	void ConfigurePhysicsRun(__ARGS__);
+	void ConfigureNoiseRun  (__ARGS__);
+	void ConfigureLongPipelineRun(__ARGS__);
     void RocConfigure       (__ARGS__);
     void FebConfigure       (__ARGS__);
     void GetStatus          (__ARGS__);

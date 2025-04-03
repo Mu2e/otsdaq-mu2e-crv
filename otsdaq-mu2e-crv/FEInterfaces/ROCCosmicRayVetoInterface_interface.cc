@@ -67,16 +67,38 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                        std::vector<std::string>{},
 	                        1);  // requiredUserPermissions
 
-    registerFEMacroFunction("Configure CRV",
-    static_cast<FEVInterface::frontEndMacroFunction_t>(
-                &ROCCosmicRayVetoInterface::Configure),
-                std::vector<std::string>{"hard resets (Default: false)",
-                                            "bias (Default: 0xaac)",
-                                            "threshold (Default: 0xc)",
-                                            "spill length (Default: 0xff)"},
-                std::vector<std::string>{"response"},
-                1);  // requiredUserPermissions
+	registerFEMacroFunction("Configure CRV",
+	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
+	                            &ROCCosmicRayVetoInterface::Configure),
+	                        std::vector<std::string>{"hard resets (Default: false)",
+	                                                 "bias (Default: 0xaac)",
+	                                                 "threshold (Default: 0xc)",
+	                                                 "spill length (Default: 0xff)",
+													 "pipeline delay (Default: 0x5)"},
+	                        std::vector<std::string>{"response"},
+	                        1);  // requiredUserPermissions
 
+	registerFEMacroFunction("Configure CRV (physics run)",
+							static_cast<FEVInterface::frontEndMacroFunction_t>(
+								&ROCCosmicRayVetoInterface::ConfigurePhysicsRun),
+							std::vector<std::string>{}, // No inputs 
+							std::vector<std::string>{"response"},
+							1);  // requiredUserPermissions
+
+	registerFEMacroFunction("Configure CRV (noise run)",
+							static_cast<FEVInterface::frontEndMacroFunction_t>(
+								&ROCCosmicRayVetoInterface::ConfigureNoiseRun),
+							std::vector<std::string>{}, // No inputs 
+							std::vector<std::string>{"response"},
+							1);  // requiredUserPermissions
+
+	registerFEMacroFunction("Configure CRV (noise run w. long pipeline delay)",
+							static_cast<FEVInterface::frontEndMacroFunction_t>(
+								&ROCCosmicRayVetoInterface::ConfigureLongPipelineRun),
+							std::vector<std::string>{}, // No inputs 
+							std::vector<std::string>{"response"},
+							1);  // requiredUserPermissions
+		
 	registerFEMacroFunction(
 	    "Configure ROC",
 	    static_cast<FEVInterface::frontEndMacroFunction_t>(
@@ -223,7 +245,7 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	registerFEMacroFunction("FEBs Set Pipeline Delay",
 	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
 	                            &ROCCosmicRayVetoInterface::FebSetPipeline),
-	                        std::vector<std::string>{"pipeline delay (Default 5)"},
+	                        std::vector<std::string>{"Pipeline delay (Default 5)"},
 	                        std::vector<std::string>{},
 	                        1);  // requiredUserPermissions
 
@@ -850,21 +872,32 @@ void ROCCosmicRayVetoInterface::RocConfigure(bool gr, uint16_t grn, uint16_t uBo
 
 void ROCCosmicRayVetoInterface::Configure(__ARGS__)
 {
-	bool     reset      = __GET_ARG_IN__("hard resets (Default: false)", bool, false);
-	uint16_t bias       = __GET_ARG_IN__("bias (Default: 0xaac)", uint16_t, 0xaac);
-	uint16_t th         = __GET_ARG_IN__("threshold (Default: 0xc)", uint16_t, 0xc);
-	uint16_t spillLengh = __GET_ARG_IN__("spill length (Default: 0xff)", uint16_t, 0xff);
-	std::stringstream ostr;
-	// BusBiases
-	ostr << std::endl;
-	if(reset)
-	{
-		ostr << "Power cycle all FEB ports" << std::endl;
-		this->writeRegister(ROC::PWRRST, 25);
-		ostr << "Reset ROC uC, sleep 10s" << std::endl;
-		Reset();
-		sleep(10);
-	}
+    bool     reset            = __GET_ARG_IN__("hard resets (Default: false)", bool, false);
+    uint16_t bias             = __GET_ARG_IN__("bias (Default: 0xaac)", uint16_t, 0xaac);
+    uint16_t th               = __GET_ARG_IN__("threshold (Default: 0xc)", uint16_t, 0xc);
+    uint16_t spillLength      = __GET_ARG_IN__("spill length (Default: 0xff)", uint16_t, 0xff);
+    uint16_t hitPipelineDelay = __GET_ARG_IN__("pipeline delay (Default: 0x5)", uint16_t, 0x5);
+
+    std::string result = ConfigureImpl(reset, bias, th, spillLength, hitPipelineDelay);
+    __SET_ARG_OUT__("response", result);
+}
+
+// Implementation version of Configure that takes direct parameters
+std::string ROCCosmicRayVetoInterface::ConfigureImpl(
+    bool reset, uint16_t bias, uint16_t th,
+    uint16_t spillLength, uint16_t hitPipelineDelay)
+{
+    std::stringstream ostr;
+    // BusBiases
+    ostr << std::endl;
+    if(reset)
+    {
+        ostr << "Power cycle all FEB ports" << std::endl;
+        this->writeRegister(ROC::PWRRST, 25);
+        ostr << "Reset ROC uC, sleep 10s" << std::endl;
+        Reset();
+        sleep(10);
+    }
 	ostr << "ROC Configure with a uB offset of 0xa" << std::endl;
 	RocConfigure(false, 0, 0xa);
 
@@ -888,14 +921,69 @@ void ROCCosmicRayVetoInterface::Configure(__ARGS__)
 	sleep(6);
 	ostr << "Take Pedestals" << std::endl;
 	this->writeRegister(FEB::AllFPGA | FEB::CSRBroadCast, 0x100);
-	ostr << "Set the gate length to 0x" << std::hex << spillLengh << " (" << std::dec
-	     << (spillLengh * 0.0125) << "us)" << std::endl;
-	this->writeRegister(FEB::AllFPGA | FEB::OffSpillGate, spillLengh);
+	ostr << "Set the gate length to 0x" << std::hex << spillLength << " (" << std::dec
+	     << (spillLength * 0.0125) << "us)" << std::endl;
+	this->writeRegister(FEB::AllFPGA | FEB::OffSpillGate, spillLength);
+	ostr << "Set the pipeline delay to 0x" << std::hex << hitPipelineDelay << std::dec << std::endl;
+	this->writeRegister(FEB::AllFPGA | FEB::Pipeline, hitPipelineDelay);
+
+	// Readback the registers to be sure? 
+
     ostr << "Reset PHY" << std::endl;
     sleep(0.1);
     ResetPHY();
 	ostr << "Ready" << std::endl;
-	__SET_ARG_OUT__("response", ostr.str());
+	return ostr.str();
+}
+
+void ROCCosmicRayVetoInterface::ConfigurePhysicsRun(__ARGS__)
+{
+	// Standard physics data taking parameters for Wideband
+	bool reset = false;
+	uint16_t bias = 0xaac;
+	uint16_t th = 0x78;
+	uint16_t spillLength = 0xf00;
+	uint16_t hitPipelineDelay = 0x5;
+
+    // Call Configure fixed parameters
+	std::string result = ConfigureImpl(reset, bias, th, spillLength, hitPipelineDelay);
+	
+	// Return result 
+	__SET_ARG_OUT__("response", "Configure CRV (physics run): " + result);
+}
+
+
+void ROCCosmicRayVetoInterface::ConfigureNoiseRun(__ARGS__)
+{
+	// Standard noise data taking parameters for Wideband
+	bool reset = false;
+	uint16_t bias = 0xaac;
+	uint16_t th = 0xc;
+	uint16_t spillLength = 0xff;
+	uint16_t hitPipelineDelay = 0x5;
+
+    // Call Configure fixed parameters
+	std::string result = ConfigureImpl(reset, bias, th, spillLength, hitPipelineDelay);
+	
+	// Return result 
+	__SET_ARG_OUT__("response", "Configure CRV (noise run): " + result);
+}
+
+void ROCCosmicRayVetoInterface::ConfigureLongPipelineRun(__ARGS__)
+{
+	// Standard noise data taking parameters for Wideband
+	// Longer pipeline for calibration
+	bool reset = false;
+	uint16_t bias = 0xaac;
+	uint16_t th = 0xc;
+	uint16_t spillLength = 0xff;
+	uint16_t hitPipelineDelay = 0x11;
+
+    // Call Configure fixed parameters
+	std::string result = ConfigureImpl(reset, bias, th, spillLength, hitPipelineDelay);
+	
+	// Return result 
+	__SET_ARG_OUT__("response", "Configure CRV (noise run w. long pipeline delay): " + result);
 }
 
 void ROCCosmicRayVetoInterface::RocConfigure(__ARGS__)
@@ -1394,8 +1482,14 @@ void ROCCosmicRayVetoInterface::FebSetThreshold(__ARGS__)
 
 void ROCCosmicRayVetoInterface::FebSetPipeline(__ARGS__)
 {
-	uint16_t hitPipelineDelay = __GET_ARG_IN__("pipeline delay (Default 5)", uint16_t, 5);
-	this->writeRegister(FEB::AllFEB | FEB::AllFPGA | FEB::Pipeline, hitPipelineDelay);
+	// This macro does not work for some reason
+	uint16_t hitPipelineDelay = __GET_ARG_IN__("Pipeline delay (Default 0x5)", uint16_t, 0x5);
+	// this->writeRegister(FEB::AllFEB | FEB::AllFPGA | FEB::Pipeline, hitPipelineDelay);
+	this->writeRegister(FEB::AllFPGA | FEB::Pipeline, hitPipelineDelay);
+	std::stringstream ostr;
+	ostr << "Pipeline Delay:"
+	     << "  0x" << std::setfill('0') << std::setw(4) << std::hex
+	     << this->readRegister(FEB::Pipeline) << std::endl;
 }
 
 void ROCCosmicRayVetoInterface::SetLoopbackMode(__ARGS__)
