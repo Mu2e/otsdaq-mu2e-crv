@@ -26,8 +26,8 @@
 #include "artdaq-core/Data/ContainerFragment.hh"
 #include "artdaq-core/Data/Fragment.hh"
 
-#include "artdaq-core-mu2e/Data/CRVDataDecoder.hh"
 #include "artdaq-core-mu2e/Overlays/DTCEventFragment.hh"
+#include "artdaq-core-mu2e/Overlays/Decoders/CRVDataDecoder.hh"
 #include "artdaq-core-mu2e/Overlays/FragmentType.hh"
 
 // #include "artdaq-core-demo/Overlays/FragmentType.hh"
