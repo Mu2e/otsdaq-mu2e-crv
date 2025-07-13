@@ -1,2 +1,2 @@
 add_subdirectory(Ui)
-add_subdirectory(ArtModules)
+#add_subdirectory(ArtModules)

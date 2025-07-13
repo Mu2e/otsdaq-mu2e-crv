@@ -42,7 +42,7 @@ DtcInterface::DtcInterface(int PcieAddr, uint LinkMask, bool SkipInit, bool init
     fInitRocs(initRocs),
     fInitFebs(initFebs)
     {
-        fIsCrv = 1;
+        fSubsystem = mu2edaq::kCRV;  // set CRV subsystem
         if(fInitRocs) InitRocs();
     }
 
