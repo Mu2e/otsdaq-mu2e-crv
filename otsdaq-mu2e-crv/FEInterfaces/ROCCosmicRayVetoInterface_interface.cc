@@ -1718,7 +1718,7 @@ void ROCCosmicRayVetoInterface::FebIISetChannel(__ARGS__)
     uint16_t value = fake ? 0x1 : 0x0;
     this->writeRegister(FEBII::Status, value);
     std::stringstream ostr;
-    ostr << "Set channel with fake=" << fake << ", wrote to 0x" << std::hex << (FEBII::FPGA[fpga] | FEBII::ChannelMapBase) << " to 0x" << std::hex  << (FEBII::FPGA[fpga] | FEBII::ChannelMapBase + 16) <<  std::endl;
+    ostr << "Set channel with fake=" << fake << ", wrote to 0x" << std::hex << (FEBII::FPGA[fpga] | FEBII::ChannelMapBase) << " to 0x" << std::hex  << (FEBII::FPGA[fpga] | (FEBII::ChannelMapBase + 16)) <<  std::endl;
     __SET_ARG_OUT__("response", ostr.str());
 }
 
