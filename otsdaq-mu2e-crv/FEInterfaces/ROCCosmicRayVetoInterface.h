@@ -90,6 +90,14 @@ public:
 	void                                    PWRRST                  (__ARGS__);
 	void                                    GetHistograms           (__ARGS__);
 	void                                    RegDump                 (__ARGS__);
+	void                                    FebIIConfigure          (__ARGS__);
+	void                                    FebIISetThreshold       (__ARGS__);
+	void                                    FebIISetBias            (__ARGS__);
+	void                                    FebIISetBiasTrim        (__ARGS__);
+	void                                    FebIISetGateOnSpill     (__ARGS__);
+	void                                    FebIISetGateOffSpill    (__ARGS__);
+	void                                    FebIIGetStatus          (__ARGS__);
+	void                                    FebIISetChannel         (__ARGS__);
 	// clang-format on
 };
 

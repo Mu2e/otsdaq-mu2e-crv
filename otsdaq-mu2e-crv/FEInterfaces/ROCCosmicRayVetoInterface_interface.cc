@@ -1,5 +1,6 @@
 #include <bitset>
 #include "otsdaq-mu2e-crv/FEInterfaces/FEB_Registers.h"
+#include "otsdaq-mu2e-crv/FEInterfaces/FEBII_Registers.h"
 #include "otsdaq-mu2e-crv/FEInterfaces/ROCCosmicRayVetoInterface.h"
 #include "otsdaq-mu2e-crv/FEInterfaces/ROC_Registers.h"
 #
@@ -68,7 +69,7 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                        std::vector<std::string>{},
 	                        1);  // requiredUserPermissions
 
-	registerFEMacroFunction("Configure CRV",
+	registerFEMacroFunction("Configure CRV (FEBI)",
 	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
 	                            &ROCCosmicRayVetoInterface::Configure),
 	                        std::vector<std::string>{"hard resets (Default: false)",
@@ -246,6 +247,88 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                        std::vector<std::string>{},
 	                        std::vector<std::string>{"response"},
 	                        1);  // requiredUserPermissions
+
+    registerFEMacroFunction("FEB II Configure",
+                            static_cast<FEVInterface::frontEndMacroFunction_t>(
+                                &ROCCosmicRayVetoInterface::FebIIConfigure),
+                                std::vector<std::string>{
+                                    "port (Default: -1, current active)",
+                                    "bias (Default: 0xaac)",
+	                                "threshold (Default: 0xc)",
+                                },
+                                std::vector<std::string>{"response"},
+                                1);  // requiredUserPermissions
+    registerFEMacroFunction("FEB II Set Threshold",
+                            static_cast<FEVInterface::frontEndMacroFunction_t>(
+                                &ROCCosmicRayVetoInterface::FebIISetThreshold),
+                                std::vector<std::string>{
+                                    "port (Default: -1, current active)",
+                                    "fpga [0,1,2,3]",
+                                    "channel [0-15]",
+                                    "threshold",
+                                },
+                                std::vector<std::string>{},
+                                1);  // requiredUserPermissions
+    registerFEMacroFunction("FEB II Set Bias",
+                            static_cast<FEVInterface::frontEndMacroFunction_t>(
+                                &ROCCosmicRayVetoInterface::FebIISetBias),
+                                std::vector<std::string>{
+                                    "port (Default: -1, current active)",
+                                    "fpga [0,1,2,3]",
+                                    "number [0,1]",
+                                    "bias",
+                                },
+                                std::vector<std::string>{"response"},
+                                1);  // requiredUserPermissions
+    registerFEMacroFunction("FEB II Set Bias Trim",
+                                static_cast<FEVInterface::frontEndMacroFunction_t>(
+                                    &ROCCosmicRayVetoInterface::FebIISetBiasTrim),
+                                    std::vector<std::string>{
+                                        "port (Default: -1, current active)",
+                                        "fpga [0,1,2,3]",
+                                        "channel [0-15]",
+                                        "bias trim",
+                                    },
+                                    std::vector<std::string>{"response"},
+                                    1);  // requiredUserPermissions
+    registerFEMacroFunction("FEB II Set Gate OnSpill",
+                                    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                                    &ROCCosmicRayVetoInterface::FebIISetGateOnSpill),
+                                    std::vector<std::string>{
+                                        "port (Default: -1, current active)",
+                                        "gate start, 6.25ns (Default: 16)"
+                                        "gate end, 6.25ns (Default: 255)"
+                                    },
+                                    std::vector<std::string>{"response"},
+                                    1);  // requiredUserPermissions
+    registerFEMacroFunction("FEB II Set Gate OffSpill",
+                                    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                                    &ROCCosmicRayVetoInterface::FebIISetGateOffSpill),
+                                    std::vector<std::string>{
+                                        "port (Default: -1, current active)",
+                                        "gate start, 6.25ns (Default: 16)"
+                                        "gate end, 6.25ns (Default: 255)"
+                                    },
+                                    std::vector<std::string>{"response"},  
+                                    1);  // requiredUserPermissions    
+    registerFEMacroFunction("FEB II Set Channel",
+                                    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                                    &ROCCosmicRayVetoInterface::FebIISetChannel),
+                                    std::vector<std::string>{
+                                            "port (Default: -1, current active)",
+                                            "fpga [0,1,2,3]",
+                                            "fake (Default: false)"
+                                    },
+                                    std::vector<std::string>{"response"},  
+                                    1);  // requiredUserPermissions   
+    registerFEMacroFunction("FEB II Get Status",
+                                    static_cast<FEVInterface::frontEndMacroFunction_t>(
+                                    &ROCCosmicRayVetoInterface::FebIIGetStatus),
+                                    std::vector<std::string>{
+                                        "port (Default: -1, current active)",
+                                    },
+                                    std::vector<std::string>{"response"},
+                                    1);  // requiredUserPermissions  
 }
 
 //==========================================================================================
@@ -1491,6 +1574,152 @@ void ROCCosmicRayVetoInterface::SetMarkerSync(bool enable)
 	uint32_t cr = this->readRegister(ROC::CR);
 	cr          = enable ? (cr | (1u << 5)) : (cr & ~(1u << 5));
 	this->writeRegister(ROC::CR, cr);
+}
+
+void ROCCosmicRayVetoInterface::FebIIConfigure(__ARGS__)
+{
+    int port = __GET_ARG_IN__("port (Default: -1, current active)", int, -1);
+    uint16_t bias = __GET_ARG_IN__("bias (Default: 0xaac)", uint16_t, 0xaac);
+    uint16_t threshold = __GET_ARG_IN__("threshold (Default: 0xc)", uint16_t, 0xc);
+    if(port > 0) SetActivePort(port);
+    std::stringstream ostr;
+    for(unsigned int fpga = 0; fpga < 4; ++fpga) {
+        this->writeRegister(FEBII::FPGA[fpga] | FEBII::ThresholdGlobal, threshold);
+        for(unsigned int number = 0; number < 4; ++number) {
+            this->writeRegister(FEBII::FPGA[fpga] | (FEBII::BiasBase + (number & 0x1)), bias);
+        }
+        ostr << "FPGA " << fpga << ": Set ThresholdGlobal=0x" << std::hex << threshold << ", CR=0x" << bias << std::endl;
+    }
+    __SET_ARG_OUT__("response", ostr.str());
+}
+
+void ROCCosmicRayVetoInterface::FebIISetThreshold(__ARGS__)
+{
+    int port = __GET_ARG_IN__("port (Default: -1, current active)", int, -1);
+    uint16_t fpga = __GET_ARG_IN__("fpga [0,1,2,3]", uint16_t, 0);
+    uint16_t channel = __GET_ARG_IN__("channel [0-15]", uint16_t, 0);
+    uint16_t threshold = __GET_ARG_IN__("threshold", uint16_t, 0);
+    if(port > 0) SetActivePort(port);
+    this->writeRegister(FEBII::FPGA[fpga] | (FEBII::ThresholdBase + (channel & 0xF)), threshold);
+}
+
+void ROCCosmicRayVetoInterface::FebIISetBias(__ARGS__)
+{
+    int port = __GET_ARG_IN__("port (Default: -1, current active)", int, -1);
+    uint16_t fpga = __GET_ARG_IN__("fpga [0,1,2,3]", uint16_t, 0);
+    uint16_t number = __GET_ARG_IN__("number [0,1]", uint16_t, 0);
+    uint16_t bias = __GET_ARG_IN__("bias", uint16_t, 0);
+    if(port > 0) SetActivePort(port);
+    this->writeRegister(FEBII::FPGA[fpga] | (FEBII::BiasBase + (number & 0x1)), bias); // Adjust register if needed
+    std::stringstream ostr;
+    ostr << "FPGA " << fpga << ", number " << number << ": Set CR=0x" << std::hex << bias << std::endl;
+    __SET_ARG_OUT__("response", ostr.str());
+}
+
+void ROCCosmicRayVetoInterface::FebIISetBiasTrim(__ARGS__)
+{
+    int port = __GET_ARG_IN__("port (Default: -1, current active)", int, -1);
+    uint16_t fpga = __GET_ARG_IN__("fpga [0,1,2,3]", uint16_t, 0);
+    uint16_t channel = __GET_ARG_IN__("channel [0-15]", uint16_t, 0);
+    uint16_t biasTrim = __GET_ARG_IN__("bias trim", uint16_t, 0);
+    if(port > 0) SetActivePort(port);
+    this->writeRegister(FEBII::FPGA[fpga] | (FEBII::TrimBase + (channel & 0xF)), biasTrim);
+    std::stringstream ostr;
+    ostr << "FPGA " << fpga << ", channel " << channel << ": Set TrimBase=0x" << std::hex << biasTrim << std::endl;
+    __SET_ARG_OUT__("response", ostr.str());
+}
+
+void ROCCosmicRayVetoInterface::FebIISetGateOnSpill(__ARGS__)
+{
+    int port = __GET_ARG_IN__("port (Default: -1, current active)", int, -1);
+    uint16_t gateStart = __GET_ARG_IN__("gate start, 6.25ns (Default: 16)", uint16_t, 16);
+    uint16_t gateEnd = __GET_ARG_IN__("gate end, 6.25ns (Default: 255)", uint16_t, 255);
+    if(port > 0) SetActivePort(port);
+    this->writeRegister(FEBII::GateOnOnSpill, gateStart);
+    this->writeRegister(FEBII::GateOffOnSpill, gateEnd);
+    std::stringstream ostr;
+    ostr << "Set GateOnOnSpill=0x" << std::hex << gateStart << ", GateOffOnSpill=0x" << gateEnd << std::endl;
+    __SET_ARG_OUT__("response", ostr.str());
+}
+
+void ROCCosmicRayVetoInterface::FebIISetGateOffSpill(__ARGS__)
+{
+    int port = __GET_ARG_IN__("port (Default: -1, current active)", int, -1);
+    uint16_t gateStart = __GET_ARG_IN__("gate start, 6.25ns (Default: 16)", uint16_t, 16);
+    uint16_t gateEnd = __GET_ARG_IN__("gate end, 6.25ns (Default: 255)", uint16_t, 255);
+    if(port > 0) SetActivePort(port);
+    this->writeRegister(FEBII::GateOnOffSpill, gateStart);
+    this->writeRegister(FEBII::GateOffOffSpill, gateEnd);
+    std::stringstream ostr;
+    ostr << "Set GateOnOffSpill=0x" << std::hex << gateStart << ", GateOffOffSpill=0x" << gateEnd << std::endl;
+    __SET_ARG_OUT__("response", ostr.str());
+}
+
+void ROCCosmicRayVetoInterface::FebIIGetStatus(__ARGS__)
+{
+    int port = __GET_ARG_IN__("port (Default: -1, current active)", int, -1);
+    if(port > 0) SetActivePort(port);
+    std::stringstream ostr;
+    for(int n = 0; n < 4; n++)
+    {
+        ostr << std::endl;
+        ostr << "============ FPGA " << n << "============" << std::endl;
+        ostr << "Firmware Version: 0x"
+             << std::setfill('0') << std::setw(4) << std::hex
+             << this->readRegister(FEBII::FPGA[n] | FEBII::FirmwareHI) << " "
+             << std::setfill('0') << std::setw(4) << std::hex
+             << this->readRegister(FEBII::FPGA[n] | FEBII::FirmwareLO) << std::endl;
+        ostr << "Counters" << std::endl;
+        ostr << "    Uptime:         " << std::dec
+             << ((this->readRegister(FEBII::FPGA[n] | FEBII::UptimeHI) << 16) |
+                 this->readRegister(FEBII::FPGA[n] | FEBII::UptimeLo)) << std::endl;
+                 ostr << "    Counter:        0x" << std::setfill('0') << std::setw(4) << std::hex
+            << ((this->readRegister(FEBII::FPGA[n] | FEBII::CntHI) << 16) |
+                 this->readRegister(FEBII::FPGA[n] | FEBII::CntLO)) << std::endl;
+        ostr << "    last EWT:      "
+             << " 0x" << std::setfill('0') << std::setw(4) << std::hex
+             << this->readRegister(FEBII::FPGA[n] | FEBII::EWT) << std::endl;
+        ostr << "    EW Counter:    "
+             << " 0x" << std::setfill('0') << std::setw(4) << std::hex
+             << this->readRegister(FEBII::FPGA[n] | FEBII::EWTCount) << std::endl;
+        ostr << "Thresholds" << std::endl;
+        for(int j = 0; j < 16; j++)
+        {
+            ostr << "    Threshold " << j << ":  "
+                 << " 0x" << std::setfill('0') << std::setw(4) << std::hex
+                 << this->readRegister((FEBII::FPGA[n] | FEBII::ThresholdBase) + j) << std::endl;
+        }
+        ostr << "Channel Map" << std::endl;
+        for(int j = 0; j < 16; j++)
+        {
+            ostr << "    Channel Map " << j << ":  "
+                 << " 0x" << std::setfill('0') << std::setw(4) << std::hex
+                 << this->readRegister((FEBII::FPGA[n] | FEBII::ChannelMapBase) + j) << std::endl;
+        }
+    }
+    ostr << "===============================" << std::endl;
+    __SET_ARG_OUT__("response", ostr.str());
+}
+
+void ROCCosmicRayVetoInterface::FebIISetChannel(__ARGS__)
+{
+    int port = __GET_ARG_IN__("port (Default: -1, current active)", int, -1);
+    uint16_t fpga = __GET_ARG_IN__("fpga [0,1,2,3]", uint16_t, 0);
+    bool fake = __GET_ARG_IN__("fake (Default: false)", bool, false);
+    if(port > 0) SetActivePort(port);
+    // Example: Write to Status register to indicate channel set (replace with correct register if needed)
+    for(unsigned int channel = 0; channel < 16; ++channel) {
+        if(fake) {
+            this->writeRegister(FEBII::FPGA[fpga] | (FEBII::ChannelMapBase + (channel & 0xF)), 0x10);
+        } else {
+            this->writeRegister(FEBII::FPGA[fpga] | (FEBII::ChannelMapBase + (channel & 0xF)), channel);
+        }
+    }
+    uint16_t value = fake ? 0x1 : 0x0;
+    this->writeRegister(FEBII::Status, value);
+    std::stringstream ostr;
+    ostr << "Set channel with fake=" << fake << ", wrote to 0x" << std::hex << (FEBII::FPGA[fpga] | FEBII::ChannelMapBase) << " to 0x" << std::hex  << (FEBII::FPGA[fpga] | FEBII::ChannelMapBase + 16) <<  std::endl;
+    __SET_ARG_OUT__("response", ostr.str());
 }
 
 DEFINE_OTS_INTERFACE(ROCCosmicRayVetoInterface)
