@@ -58,7 +58,10 @@ public:
 	void FebConfigure(bool useOtsConfig = true);
 	void ResetRxBuffers();
 	void SetMarkerSync(bool enable=true);
+    int16_t Realign(int sleep_uc = 1000);
+    void ResetPLL(int sleep_us = 1000);
 
+    uint16_t ReadAFE(uint16_t fpga, uint16_t afe_no, uint16_t reg);
 	// CRV FEB specific functions
 	//void FebTakePedestral();
 
@@ -91,6 +94,7 @@ public:
 	void                                    GetHistograms           (__ARGS__);
 	void                                    RegDump                 (__ARGS__);
 	void                                    FebIIConfigure          (__ARGS__);
+    void                                    FebIIAlign              (__ARGS__);
 	void                                    FebIISetThreshold       (__ARGS__);
 	void                                    FebIISetBias            (__ARGS__);
 	void                                    FebIISetBiasTrim        (__ARGS__);
@@ -98,6 +102,10 @@ public:
 	void                                    FebIISetGateOffSpill    (__ARGS__);
 	void                                    FebIIGetStatus          (__ARGS__);
 	void                                    FebIISetChannel         (__ARGS__);
+    void                                    FebIISetAFEOffset       (__ARGS__);
+    void                                    FebIIGetBaselines       (__ARGS__);
+    void                                    FebIITrigBaselines      (__ARGS__);
+    void                                    SetInputMask            (__ARGS__);
 	// clang-format on
 };
 

@@ -27,6 +27,7 @@ enum Register : uint16_t
     CntHI            = 0x1022,
     CntLO            = 0x1023,
     ThresholdGlobal  = 0x1026,
+    Port             = 0x1029,
     UptimeHI         = 0x106C,
     UptimeLo         = 0x106D,
     EWT              = 0x106E,
@@ -34,10 +35,15 @@ enum Register : uint16_t
     ThresholdBase    = 0x1070, // to 0x107F
     ChannelMapBase   = 0x1080, // to 0x108F
     // implemented in uC
-    TrimBase         = 0x1090, // to 0x1090
+    BaselineBase     = 0x1090,
+    TrimBase         = 0x10b0, // to 0x1090
     LEDBias          = 0x10a0, // to 0x10a3
     BiasBase         = 0x10a4, // to 0x10a5
     VGABase          = 0x10a6, // to 0x10a7
+
+    // AFE reads
+    AFE0_base        = 0x1100,
+    AFE1_base        = 0x1200,
 
 	// registers that effect all FPGAs
     FlashGateEn     = 0x1300,
@@ -67,8 +73,22 @@ enum Register : uint16_t
 	CMBENA = 0x9106
 };  // end ROC_Register enum
 
+enum AFERegister : uint16_t
+{
+    // AFE registers, write only (read is a multi step process)
+    Offset_en   = 0x3, // bit 8
+    Offset_ch1  = 0x0D,
+    Offset_ch2  = 0x0F,
+    Offset_ch3  = 0x11,
+    Offset_ch4  = 0x13,
+    Offset_ch5  = 0x1F,
+    Offset_ch6  = 0x1D,
+    Offset_ch7  = 0x1B,
+    Offset_ch8  = 0x19,
+};
+
 uint16_t FPGA[] = {0x000, 0x400, 0x800, 0xC00};
 
-}  // namespace FEB
+}  // namespace FEBII
 
 #endif  // FEBII_REGISTERS_H
