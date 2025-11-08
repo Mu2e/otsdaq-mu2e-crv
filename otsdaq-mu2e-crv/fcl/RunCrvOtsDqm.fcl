@@ -34,9 +34,10 @@ physics : {
   }
   analyzers : {
     crvdqm : {
-      module_type           : CrvOtsDQM
-      diagLevel             : 3
+      module_type           : CrvOtsDqm
+      diagLevel             : 1
       sendHists             : false
+      dummyHist             : false
     }
     CrvDQMcollector: @local::CrvDQMcollector
   }
@@ -49,9 +50,17 @@ physics : {
 
 }
 
-outputs:{}
+outputs: { 
 
-services.TimeTracker.printSummary: true
-services.scheduler.wantSummary: true
-services.message.destinations.log.outputStatistics : true
+  # out1: {
+  #   module_type: FileDumperOutput
+  #   wantProductFriendlyClassName: true   # Print class names
+  #   onlyIfPresent: true # Only present products
+  # }
+      
+}
+
+services.TimeTracker.printSummary: false
+services.scheduler.wantSummary: false
+services.message.destinations.log.outputStatistics : false
 services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_common_extracted.txt"
