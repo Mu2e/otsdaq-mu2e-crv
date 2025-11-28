@@ -166,8 +166,10 @@ DtcInterface::DtcInterface(int PcieAddr, uint LinkMask, bool SkipInit, bool init
     }
 
     // RunBegin
-    void DtcInterface::InitRocReadoutMode()  {
+    int DtcInterface::InitRocReadoutMode()  {
+      int rc(0);
         // TODO
+      return rc;
     }
 
     std::vector<std::string> DtcInterface::GetRocRegistersNames     (           bool history) {

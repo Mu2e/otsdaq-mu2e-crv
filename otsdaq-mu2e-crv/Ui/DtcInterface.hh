@@ -37,7 +37,7 @@ namespace crvdaq {
         //}
 
         // all the virtual functions
-        void InitRocReadoutMode() override;
+        int InitRocReadoutMode() override;
 
         std::vector<std::string> GetRocRegistersNames     (           bool history = false) override;
         std::vector<uint32_t>    GetRocRegisters          (int ilink, bool history = false) override;
