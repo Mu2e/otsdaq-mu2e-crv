@@ -214,8 +214,8 @@ async function getAliasList() {
 
 
 // Returns all contexts, no inforamtion about active or not
-async function getContextMemberNames() {
-    try { const xml = await get('getContextMemberNames', lid=LID_GATEWAY);
+async function getContextNames() {
+    try { const xml = await get('getContextNames', lid=LID_GATEWAY);
         return xmlToJson(xml).DATA;
     } catch (error) { console.error("Error:", error); }
 }
@@ -428,7 +428,7 @@ async function getHardwareTree(context=null) {
             const hw = await getHardwareTree(context=context);
             hardware[context] = hw;
             return hardware;
-            //const contexts = getContextMemberNames()['ContextMember'];
+            //const contexts = getContextNames()['ContextMember'];
             //contexts.forEach(context => {
             //    
             //})
