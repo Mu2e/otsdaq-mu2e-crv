@@ -109,36 +109,31 @@
     color: #0000004e;
 }
 
-//.mu2e_container > div {
-    // float:left;
-    //
-}
+/*.mu2e_container > div {
+     float:left;
+}*/
 
-//.mu2e_container:after {
-    // display: table;
-    // clear: both;
-    //
-}
+/*.mu2e_container:after {
+     display: table;
+     clear: both;
+}*/
 
-//.mu2e_quarter {
-    // width:25%;
-    // min-width: 200px;
-    // float:left;
-    //
-}
+/*.mu2e_quarter {
+     width:25%;
+     min-width: 200px;
+     float:left;
+}*/
 
-//.mu2e_half {
-    // width:50%;
-    // min-width: 400px;
-    // float:left;
-    //
-}
+/*.mu2e_half {
+     width:50%;
+     min-width: 400px;
+     float:left;
+}*/
 
-//.mu2e_full {
-    // width:100%;
-    // min-width: 800px;
-    //
-}
+/*.mu2e_full {
+     width:100%;
+     min-width: 800px;
+}*/
 
 .mu2e_data {
     //border: 1px solid black;
