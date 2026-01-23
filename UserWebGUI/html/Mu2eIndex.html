@@ -4,29 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mu2e</title>
-    
-    <script type="text/JavaScript" src="/WebPath/js/Globals.js"></script>   
-    <script type="text/JavaScript" src="/WebPath/js/Debug.js"></script>     
+
+    <script type="text/JavaScript" src="/WebPath/js/Globals.js"></script>
+    <script type="text/JavaScript" src="/WebPath/js/Debug.js"></script>
     <script type="text/JavaScript" src="/WebPath/UserWebPath/js/mu2e.js"></script>
     <!--<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">-->
-    <link rel="stylesheet" href="/WebPath/UserWebPath/css/mu2e.css"> 
+    <link rel="stylesheet" href="/WebPath/UserWebPath/css/mu2e.css">
 </head>
 <body class="mu2e" onload="mu2e_init('Index')">
     <script>
-        function  showSaveButton() {
+        function showSaveButton() {
             console.log("showSaveButton")
             let button = document.querySelector('[id="saveConfig"]');
             console.log(button)
-            if(button) {
+            if (button) {
                 button.style.display = "block";
             }
         }
         async function getTriggers() {
             const freq = document.querySelector('[id="getTriggers_freq"]').value;
             const time = document.querySelector('[id="getTriggers_time"]').value;
-            const delay_us = (1e6/Number(freq)).toFixed(0);
-            const n = (time*60*1e6/Number(delay_us)).toFixed(0)
-            console.log("getTriggers: freq"+freq+"Hz ("+delay_us+"us) for "+time+"minute (n="+n+")")
+            const delay_us = (1e6 / Number(freq)).toFixed(0);
+            const n = (time * 60 * 1e6 / Number(delay_us)).toFixed(0)
+            console.log("getTriggers: freq" + freq + "Hz (" + delay_us + "us) for " + time + "minute (n=" + n + ")")
             res = await sendEventsDTC("daq08DTC", delay_us, n);
             //console.log(res)
         }
@@ -36,47 +36,46 @@
     </div>
     <div id="mu2e_main">
         <!--<div class="mu2e_container">-->
-            <div id="mu2e_status" class="mu2e_container">
-                <div class="mu2e_title"                                     style="grid-column: 1/5; grid-row: 1">Status</div>
-                <div name="mu2e_GatewaySupervisor_state" class="mu2e_data"  style="grid-column: 1; grid-row: 2;" id="state">State</div>
-                <div name="mu2e_state_time"  class="mu2e_list"              style="grid-column: 2; grid-row: 2;">Time in state: XX:XX:XX</div>
-                <div name="mu2e_last_config" class="mu2e_list"              style="grid-column: 3; grid-row: 2;">Config: </div>
-                <div class="mu2e_list" name="mu2e_alarms"                   style="grid-column: 4; grid-row: 2;"></div>
-                <div name="mu2e_transition"                                 style="grid-column: 1; grid-row: 4;"><button disabled="true">Transition</button></div>
-                <div class="mu2e_data" name="mu2e_run_number"               style="grid-column: 1; grid-row: 3;">Run: </div>
-                <div class="mu2e_list" name="mu2e_run_start"                style="grid-column: 2; grid-row: 3;">Run start </div>
-                <div class="mu2e_list" name="mu2e_run_config"               style="grid-column: 4; grid-row: 3/5;">Run Config</div>
-                <div class="mu2e_list" name="mu2e_run_type"                 style="grid-column: 3; grid-row: 3;">Run Type</div>
-                <div class="mu2e_list" name="mu2e_run_transition"           style="grid-column: 2/4; grid-row: 4;">Last Run Transition</div>
-                <div class="mu2e_data" id="mu2e_last_message"               style="grid-column: 1/5; grid-row: 5;">Last Message</div>
+        <div id="mu2e_status" class="mu2e_container">
+            <div class="mu2e_title" style="grid-column: 1/5; grid-row: 1">Status</div>
+            <div name="mu2e_GatewaySupervisor_state" class="mu2e_data" style="grid-column: 1; grid-row: 2;" id="state">State</div>
+            <div name="mu2e_state_time" class="mu2e_list" style="grid-column: 2; grid-row: 2;">Time in state: XX:XX:XX</div>
+            <div name="mu2e_last_config" class="mu2e_list" style="grid-column: 3; grid-row: 2;">Config: </div>
+            <div class="mu2e_list" name="mu2e_alarms" style="grid-column: 4; grid-row: 2;"></div>
+            <div name="mu2e_transition" style="grid-column: 1; grid-row: 4;"><button disabled="true">Transition</button></div>
+            <div class="mu2e_data" name="mu2e_run_number" style="grid-column: 1; grid-row: 3;">Run: </div>
+            <div class="mu2e_list" name="mu2e_run_start" style="grid-column: 2; grid-row: 3;">Run start </div>
+            <div class="mu2e_list" name="mu2e_run_config" style="grid-column: 4; grid-row: 3/5;">Run Config</div>
+            <div class="mu2e_list" name="mu2e_run_type" style="grid-column: 3; grid-row: 3;">Run Type</div>
+            <div class="mu2e_list" name="mu2e_run_transition" style="grid-column: 2/4; grid-row: 4;">Last Run Transition</div>
+            <div class="mu2e_data" id="mu2e_last_message" style="grid-column: 1/5; grid-row: 5;">Last Message</div>
+        </div>
+
+        <div id="mu2e_apps" class="mu2e_container">
+            <div class="mu2e_title" style="grid-column: 1/6; grid-row: 1">XDAQ</div>
+        </div>
+        <div id="mu2e_hardware" class="mu2e_container">
+            <div class="mu2e_title">Hardware</div>
+            <div class="">Other stuff</div>
+        </div>
+        <div id="mu2e_artdaq" class="mu2e_container">
+            <div class="mu2e_title">Artdaq</div>
+        </div>
+        <div class="mu2e_container mu2e_grid">
+            <div class="mu2e_title" id="mu2e_miscellanea" style="grid-column: 1/5; grid-row: 1">Miscellanea</div>
+            <div class="mu2e_data" style="grid-column: 1; grid-row: 2">
+                <button onclick="getTriggers()">send triggers</button> at
+                <input id="getTriggers_freq" type="text" size="5" value="200."></input> Hz for
+                <input id="getTriggers_time" type="text" size="5" value="1"></input> minutes
             </div>
 
-            <div id="mu2e_apps" class="mu2e_container">
-                <div class="mu2e_title"                       style="grid-column: 1/6; grid-row: 1">XDAQ</div>
-            </div>
-            <div id="mu2e_hardware" class="mu2e_container">
-                <div class="mu2e_title">Hardware</div>
-                <div class="">Other stuff</div>
-            </div>
-            <div id="mu2e_artdaq" class="mu2e_container">
-                <div class="mu2e_title">Artdaq</div>
-            </div>
-            <div class="mu2e_container mu2e_grid">
-                <div class="mu2e_title" id="mu2e_miscellanea" style="grid-column: 1/5; grid-row: 1">Miscellanea</div>
-                <div class="mu2e_data"   style="grid-column: 1; grid-row: 2">
-                    <button onclick="getTriggers()">send triggers</button> at 
-                    <input id="getTriggers_freq" type="text" size="5" value="200."></input> Hz for 
-                    <input id="getTriggers_time" type="text" size="5" value="1"></input> minutes
-                </div>
-
-            </div>
-                <div class="">Disk space</div>
-                <div class="">Graphite running?</div>
-                <div class="">EPICS running?</div>
-                <div class="">Slow controls enabled?</div>
-            </div>
-        <!--</div>-->
-
+        </div>
+        <div class="">Disk space</div>
+        <div class="">Graphite running?</div>
+        <div class="">EPICS running?</div>
+        <div class="">Slow controls enabled?</div>
+    </div>
+    <!--</div>-->
     </div>
 
 </body>

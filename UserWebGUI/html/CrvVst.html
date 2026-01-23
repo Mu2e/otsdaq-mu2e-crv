@@ -1,319 +1,325 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
+<head>
 
-        <link rel="stylesheet" type="text/css" href="/WebPath/css/ConfigurationGUI.css">
-        <link rel="stylesheet" type="text/css" href="/WebPath/css/ConfigurationAPI.css">
-        <script type="text/JavaScript" src="/WebPath/js/Globals.js"></script>   
-        <script type="text/JavaScript" src="/WebPath/js/Debug.js"></script>     
-        <script type="text/JavaScript" src="/WebPath/js/DesktopContent.js"></script>
-        <script type="text/JavaScript" src="/WebPath/js/js_lib/SimpleContextMenu.js"></script>
-        <script type="text/JavaScript" src="/WebPath/js/js_lib/ConfigurationAPI.js"></script>       
- 
-        <style type="text/css">
-		/*fix margin for this page in Multi-Select (must have changed because of font/font-size)*/
-		/*#groupSearchDiv input, textarea { 
-			margin: 			19px 5px 5px 12px;
-		}*/
+    <link rel="stylesheet" type="text/css" href="/WebPath/css/ConfigurationGUI.css">
+    <link rel="stylesheet" type="text/css" href="/WebPath/css/ConfigurationAPI.css">
+    <script type="text/JavaScript" src="/WebPath/js/Globals.js"></script>
+    <script type="text/JavaScript" src="/WebPath/js/Debug.js"></script>
+    <script type="text/JavaScript" src="/WebPath/js/DesktopContent.js"></script>
+    <script type="text/JavaScript" src="/WebPath/js/js_lib/SimpleContextMenu.js"></script>
+    <script type="text/JavaScript" src="/WebPath/js/js_lib/ConfigurationAPI.js"></script>
 
-		/* make buttons have a hand cursor */
-		input[type="button"],
-		button {
-			cursor: pointer;
-		}
+    <style type="text/css">
+        /*fix margin for this page in Multi-Select (must have changed because of font/font-size)*/
+        /*#groupSearchDiv input, textarea {
+            margin: 			19px 5px 5px 12px;
+        }*/
 
-		.treeNode {
-			margin-left: 30px;
-			float: left;
-			position: relative;
-		}
+        /* make buttons have a hand cursor */
+        input[type="button"],
+        button {
+            cursor: pointer;
+        }
 
-		.treeNode-Connection {
-			border-left: 1px solid rgb(44, 44, 187);
-			border-bottom: 1px solid rgb(44, 44, 187);
-			width: 24px;
-			height: 17px;
-			/* +1 for firefox */
-			margin-top: -7px;
-			position: absolute;
-		}
+        .treeNode {
+            margin-left: 30px;
+            float: left;
+            position: relative;
+        }
 
-		.treeNode-Expander {
-			background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-expandTree.png);
-			width: 11px;
-			height: 9px;
-			position: absolute;
-			margin: 5px 0 0 25px;
-			z-index: 1000;
-			/* make sure it is on top of connect lines */
-		}
+        .treeNode-Connection {
+            border-left: 1px solid rgb(44, 44, 187);
+            border-bottom: 1px solid rgb(44, 44, 187);
+            width: 24px;
+            height: 17px;
+            /* +1 for firefox */
+            margin-top: -7px;
+            position: absolute;
+        }
 
-		.treeNode-Expander:hover {
-			cursor: pointer;
-		}
+        .treeNode-Expander {
+            background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-expandTree.png);
+            width: 11px;
+            height: 9px;
+            position: absolute;
+            margin: 5px 0 0 25px;
+            z-index: 1000;
+            /* make sure it is on top of connect lines */
+        }
 
-		.treeNode-Value {
-			margin-left: 38px;
-			float: left;
-		}
+            .treeNode-Expander:hover {
+                cursor: pointer;
+            }
 
-		.treeNode-Value-nodeEditType-link {
-			white-space: 			 nowrap;
-		}
+        .treeNode-Value {
+            margin-left: 38px;
+            float: left;
+        }
 
-		/*
-		.treeNode-Value:hover {
-			background-color:	rgb(218, 194, 194);
-		}*/
+        .treeNode-Value-nodeEditType-link {
+            white-space: nowrap;
+        }
 
-		.treeNode-Value-nonLeafNode:hover,
-		.treeNode-Value-nonLeafNode label:hover {
-			cursor: pointer;
-		}
+        /*
+        .treeNode-Value:hover {
+            background-color:	rgb(218, 194, 194);
+        }*/
 
-		.treeNode-Value-editIcon {
-			background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-pencilEdit.png);
-			width: 24px;
-			height: 20px;
-			float: left;
-			border: 0;
-			margin: -2px 0 -7px 10px;
-			display: none;
-		}
+        .treeNode-Value-nonLeafNode:hover,
+        .treeNode-Value-nonLeafNode label:hover {
+            cursor: pointer;
+        }
 
-		.treeNode-Value-editIcon:hover {
-			background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-pencilEditHover.png);
-			cursor: pointer;
-		}
+        .treeNode-Value-editIcon {
+            background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-pencilEdit.png);
+            width: 24px;
+            height: 20px;
+            float: left;
+            border: 0;
+            margin: -2px 0 -7px 10px;
+            display: none;
+        }
 
-		.treeNode-deleteIcon {
-			background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-trashCan.png);
-			width: 16px;
-			height: 20px;
-			border: 0;
-			margin: -9px 0 -10px 10px;
-		}
+            .treeNode-Value-editIcon:hover {
+                background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-pencilEditHover.png);
+                cursor: pointer;
+            }
 
-		.treeNode-deleteIcon:hover {
-			background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-trashCanHover.png);
-			cursor: pointer;
-		}
+        .treeNode-deleteIcon {
+            background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-trashCan.png);
+            width: 16px;
+            height: 20px;
+            border: 0;
+            margin: -9px 0 -10px 10px;
+        }
 
-		.treeNode-copyIcon {
-			background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-copyTree.png);
-			width: 20px;
-			height: 20px;
-			border: 0;
-			margin: -9px 0 -10px 10px;
-		}
+            .treeNode-deleteIcon:hover {
+                background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-trashCanHover.png);
+                cursor: pointer;
+            }
 
-		.treeNode-copyIcon:hover {
-			background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-copyTreeHover.png);
-			cursor: pointer;
-		}
+        .treeNode-copyIcon {
+            background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-copyTree.png);
+            width: 20px;
+            height: 20px;
+            border: 0;
+            margin: -9px 0 -10px 10px;
+        }
 
-		.preloadImage {
-			width: 24px;
-			height: 20px;
-			position: absolute;
-			left: -100px;
-			top: 0;
-		}
+            .treeNode-copyIcon:hover {
+                background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-copyTreeHover.png);
+                cursor: pointer;
+            }
+
+        .preloadImage {
+            width: 24px;
+            height: 20px;
+            position: absolute;
+            left: -100px;
+            top: 0;
+        }
 
         .treeValue {
             width: 70px;
-            display:inline-block;
+            display: inline-block;
         }
 
-		#preloadImage-treeEditIconHover {
-			background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-pencilEditHover.png);
-		}
+        #preloadImage-treeEditIconHover {
+            background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-pencilEditHover.png);
+        }
 
-		#preloadImage-treeEditTrashIcon {
-			background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-trashCan.png);
-		}
+        #preloadImage-treeEditTrashIcon {
+            background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-trashCan.png);
+        }
 
-		#preloadImage-treeEditTrashIconHover {
-			background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-trashCanHover.png);
-		}
+        #preloadImage-treeEditTrashIconHover {
+            background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-trashCanHover.png);
+        }
 
-		#preloadImage-treeEditCopyIcon {
-			background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-copyTree.png);
-		}
+        #preloadImage-treeEditCopyIcon {
+            background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-copyTree.png);
+        }
 
-		#preloadImage-treeEditCopyIconHover {
-			background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-copyTreeHover.png);
-		}
-		.treeNode-Link {
-			float: left;
-			margin: -1px 0 -3px 10px;
-			padding: 3px 4px 3px 4px;
-			border-radius: 3px;
-		}
+        #preloadImage-treeEditCopyIconHover {
+            background-image: url(/WebPath/images/windowContentImages/ConfigurationGUI-copyTreeHover.png);
+        }
 
-		.treeNode-Link:hover {
-			background-color: rgb(218, 194, 194);
-			margin: -2px 0 -2px 10px;
-			cursor: pointer;
-		}
+        .treeNode-Link {
+            float: left;
+            margin: -1px 0 -3px 10px;
+            padding: 3px 4px 3px 4px;
+            border-radius: 3px;
+        }
 
-		.treeNode-Children {
-			border-left: 1px solid rgb(181, 170, 210);
-		}
+            .treeNode-Link:hover {
+                background-color: rgb(218, 194, 194);
+                margin: -2px 0 -2px 10px;
+                cursor: pointer;
+            }
 
-		.treeNode-LinkColumnNameLabel {
-			color: rgb(65, 86, 146);
-			font-weight: bold;
-		}
+        .treeNode-Children {
+            border-left: 1px solid rgb(181, 170, 210);
+        }
 
-		.treeNode-LinkDisconnectedLabel {
-			color: red;
-			font-weight: bold;
-		}
+        .treeNode-LinkColumnNameLabel {
+            color: rgb(65, 86, 146);
+            font-weight: bold;
+        }
 
-		#activateConfigWithWarnings {
-			margin-top: 10px;
-			font-size: 14px;
-		}
+        .treeNode-LinkDisconnectedLabel {
+            color: red;
+            font-weight: bold;
+        }
 
-		#tableDetails th,
-		#groupDetails th {
-			font-size: 14px;
-			text-align: right;
-			vertical-align: top;
-		}
+        #activateConfigWithWarnings {
+            margin-top: 10px;
+            font-size: 14px;
+        }
 
-		#tableDetails td,
-		#tableDetails a,
-		#tableDetails label,
-		#tableDetails div,
-		#tableDetails b,
-		#groupDetails td,
-		#groupDetails a,
-		#groupDetails label,
-		#groupDetails div,
-		#groupDetails b {
-			font-size: 14px;
-			text-align: left;
-			vertical-align: top;
-		}
+        #tableDetails th,
+        #groupDetails th {
+            font-size: 14px;
+            text-align: right;
+            vertical-align: top;
+        }
 
-		#tableDetails .underlineRow,
-		#groupDetails .underlineRow {
-			border-bottom: 1px solid #b9a3a3;
-		}
+        #tableDetails td,
+        #tableDetails a,
+        #tableDetails label,
+        #tableDetails div,
+        #tableDetails b,
+        #groupDetails td,
+        #groupDetails a,
+        #groupDetails label,
+        #groupDetails div,
+        #groupDetails b {
+            font-size: 14px;
+            text-align: left;
+            vertical-align: top;
+        }
 
-		#popUpDialog {
-			position: absolute;
-			z-index: 1000;
-			border: 1px solid #770000;
-			background-color: #efeaea;
-			text-align: center;
-			padding: 10px;
-		}
+        #tableDetails .underlineRow,
+        #groupDetails .underlineRow {
+            border-bottom: 1px solid #b9a3a3;
+        }
 
-		.popUpOkCancel:hover {
-			text-decoration: underline;
-			cursor: pointer;
-		}
-		
-		#groupAddRemoveTable {
-			margin-bottom: 		10px;
-		}
-		#groupAddRemoveTable tr:nth-child(even),
-		#systemViewActiveTable tr:nth-child(even),
-		#systemAliasTable tr:nth-child(even),
-		#tableViewTable tr:nth-child(even) {
-			background-color: 	rgb(218, 194, 194);
-		}
-		#systemViewActiveTable tr,
-		#systemAliasTable tr {
-			height: 			18px;
-		}
-		#systemViewActiveTable td,
- 	 	#tableViewTable td {
-			padding: 			0 5px 0 5px;
-		}
-		#systemAliasTable {
-			padding-right:		20px;
-		}
-		#systemAliasTable th {
-			color: 				rgb(65, 86, 146);
-			border-left: 		2px solid rgb(140, 86, 86);
-			padding-bottom:		5px;
-		}
+        #popUpDialog {
+            position: absolute;
+            z-index: 1000;
+            border: 1px solid #770000;
+            background-color: #efeaea;
+            text-align: center;
+            padding: 10px;
+        }
 
-		.noUserSelect {
-			-webkit-touch-callout: 	none;
-			-webkit-user-select: 	none;
-			-khtml-user-select: 	none;
-			-moz-user-select: 		none;
-			-ms-user-select: 		none;
-			user-select: 			none;
-		}
+        .popUpOkCancel:hover {
+            text-decoration: underline;
+            cursor: pointer;
+        }
 
-		#searchbar {
-			float: right;
-			width: 200px;
-			display: flex;
-			text-align: center;
-			border-radius: 3px;
-			background-color: white;
-			padding: 4px
-		}
+        #groupAddRemoveTable {
+            margin-bottom: 10px;
+        }
 
-		#searchbar input:focus {
-			outline: 0;
-		}
+            #groupAddRemoveTable tr:nth-child(even),
+            #systemViewActiveTable tr:nth-child(even),
+            #systemAliasTable tr:nth-child(even),
+            #tableViewTable tr:nth-child(even) {
+                background-color: rgb(218, 194, 194);
+            }
 
-		#searchbar input {
-			border: 0;
-		}
+        #systemViewActiveTable tr,
+        #systemAliasTable tr {
+            height: 18px;
+        }
 
-		#searchbar span {
-			display: inline-block;
-			width: 24px;
-			height: 24px;
-			background-image: url(/WebPath/images/windowContentImages/SlowControlsDashboardFileTree-magnifyingGlass.png);
-			background-size: 24px 24px;
-			margin-right: 2px;
-		}
-        </style>
-	
+        #systemViewActiveTable td,
+        #tableViewTable td {
+            padding: 0 5px 0 5px;
+        }
 
-        <meta charset="utf-8">
-        <title>CRV VST</title>
+        #systemAliasTable {
+            padding-right: 20px;
+        }
 
-        <script>
+            #systemAliasTable th {
+                color: rgb(65, 86, 146);
+                border-left: 2px solid rgb(140, 86, 86);
+                padding-bottom: 5px;
+            }
+
+        .noUserSelect {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -khtml-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        #searchbar {
+            float: right;
+            width: 200px;
+            display: flex;
+            text-align: center;
+            border-radius: 3px;
+            background-color: white;
+            padding: 4px
+        }
+
+            #searchbar input:focus {
+                outline: 0;
+            }
+
+            #searchbar input {
+                border: 0;
+            }
+
+            #searchbar span {
+                display: inline-block;
+                width: 24px;
+                height: 24px;
+                background-image: url(/WebPath/images/windowContentImages/SlowControlsDashboardFileTree-magnifyingGlass.png);
+                background-size: 24px 24px;
+                margin-right: 2px;
+            }
+    </style>
+
+
+    <meta charset="utf-8">
+    <title>CRV VST</title>
+
+    <script>
         var activeGroupName;
         var activeKey;
         function init() {
-            Debug.log("init CRV VST Page", {"DEBUG_PRIORITY": 4 })
+            Debug.log("init CRV VST Page", { "DEBUG_PRIORITY": 4 })
 
-            ConfigurationAPI.getVersionAliases(function(req) { console.log(req) })
+            ConfigurationAPI.getVersionAliases(function (req) { console.log(req) })
 
 
-            ConfigurationAPI.getAliasesAndGroups(responseHandler,false,false)
+            ConfigurationAPI.getAliasesAndGroups(responseHandler, false, false)
 
-            
+
             function responseHandler(req) {
                 let con = document.getElementById("configs")
                 let dropdown_label_ = document.createElement("label")
-                dropdown_label_.setAttribute("for","crvConfigs")
+                dropdown_label_.setAttribute("for", "crvConfigs")
                 dropdown_label_.innerHTML = "CRV configurations: "
                 let dopdown_ = document.createElement("select")
                 dopdown_.id = "crvConfigs"
-                activeKey  = req.activeGroups.Configuration.groupKey
+                activeKey = req.activeGroups.Configuration.groupKey
                 activeGroupName = req.activeGroups.Configuration.groupName
                 console.log(req)
                 req.aliases.Configuration.forEach(element => {
                     let name_ = element.alias.split("_")
                     console.log(name_)
-                    if(name_[0] == 'crv' && name_.slice(-1) == 'config') {
+                    if (name_[0] == 'crv' && name_.slice(-1) == 'config') {
                         let option_ = document.createElement("option")
                         option_.value = element.key
                         option_.innerHTML = element.alias
-                        if(element.key == activeKey) {
+                        if (element.key == activeKey) {
                             option_.setAttribute('selected', true)
                         }
                         dopdown_.appendChild(option_)
@@ -322,14 +328,14 @@
                 con.appendChild(dropdown_label_)
                 con.appendChild(dopdown_)
                 let a_ = document.createElement("a")
-                a_.setAttribute("onclick","activateSystemConfig();")
+                a_.setAttribute("onclick", "activateSystemConfig();")
                 a_.innerHTML = " activate"
                 con.appendChild(a_)
             }
-            
+
             crvConfig();
             var div0 = document.getElementById("demo")
-            Debug.logv({div0},{"DEBUG_PRIORITY": 4 })
+            Debug.logv({ div0 }, { "DEBUG_PRIORITY": 4 })
 
             /// Tooltip ///
             DesktopContent.setWindowTooltip("work in progress! ask a developer for help!")
@@ -341,63 +347,62 @@
             Debug.info("this is an info")
         }
 
-		function activateSystemConfig() 
-		{
-            let groupName   = activeGroupName
-            let groupKey    = document.getElementById("crvConfigs").value
-            let doneHandler = function(req) {
-                console.log("DONE,RELOAD!") 
+        function activateSystemConfig() {
+            let groupName = activeGroupName
+            let groupKey = document.getElementById("crvConfigs").value
+            let doneHandler = function (req) {
+                console.log("DONE,RELOAD!")
                 let element = document.getElementById("config")
                 while (element.firstChild) {
                     element.removeChild(element.firstChild);
                 }
                 document.getElementById("title").innerHTML = "Hardware Configuration"
-                crvConfig();}
-			
-			DesktopContent.XMLHttpRequest("Request?RequestType=activateTableGroup&groupName=" +
-				groupName + "&groupKey=" + groupKey +
-				"",
-				"",
+                crvConfig();
+            }
+
+            DesktopContent.XMLHttpRequest("Request?RequestType=activateTableGroup&groupName=" +
+                groupName + "&groupKey=" + groupKey +
+                "",
+                "",
                 doneHandler,
-				0, 0, true); //reqIndex, progressHandler, callHandlerOnErr					
-		} //end activateSystemConfig()
+                0, 0, true); //reqIndex, progressHandler, callHandlerOnErr
+        } //end activateSystemConfig()
 
 
-	var _contextMenuItems = [
-							 "Option A",
-							 "Option B",
-							 "Obtion C"];
-	var _contextMenuItemHandlers = [];
-	_contextMenuItemHandlers.push(crvMenuHandlerA);
-	_contextMenuItemHandlers.push(crvMenuHandlerB);
+        var _contextMenuItems = [
+            "Option A",
+            "Option B",
+            "Obtion C"];
+        var _contextMenuItemHandlers = [];
+        _contextMenuItemHandlers.push(crvMenuHandlerA);
+        _contextMenuItemHandlers.push(crvMenuHandlerB);
 
-	function crvCreateMenu(event) {
-		SimpleContextMenu.createMenu(
-				_contextMenuItems,
-				_contextMenuItemHandlers,
-				"mySimpleMenu",					//element ID
-				event.pageX-1,event.pageY-1, 	//top left position
-				"rgb(220, 187, 165)", 			//primary color
-				"rgb(130, 51, 51)"				//secondary color
-				);
-	}
-	
-	function crvMenuHandlerA(event,index) {
-		Debug.log("myHandler event=" + event,{"DEBUG_PRIORITY": 4 });
-		Debug.log("myHandler index=" + index,{"DEBUG_PRIORITY": 4 });
-		Debug.log("myHandler menuitem=" + _contextMenuItems[index],{"DEBUG_PRIORITY": 4 });
-	}
-	function crvMenuHandlerB(event,index) {
-		Debug.log("myHandler event=" + event,{"DEBUG_PRIORITY": 4 });
-		Debug.log("myHandler index=" + index,{"DEBUG_PRIORITY": 4 });
-		Debug.log("myHandler menuitem=" + _contextMenuItems[index],{"DEBUG_PRIORITY": 4 });
-	}
+        function crvCreateMenu(event) {
+            SimpleContextMenu.createMenu(
+                _contextMenuItems,
+                _contextMenuItemHandlers,
+                "mySimpleMenu",					//element ID
+                event.pageX - 1, event.pageY - 1, 	//top left position
+                "rgb(220, 187, 165)", 			//primary color
+                "rgb(130, 51, 51)"				//secondary color
+            );
+        }
 
-		function toggleChildren(el) 
-		{
+        function crvMenuHandlerA(event, index) {
+            Debug.log("myHandler event=" + event, { "DEBUG_PRIORITY": 4 });
+            Debug.log("myHandler index=" + index, { "DEBUG_PRIORITY": 4 });
+            Debug.log("myHandler menuitem=" + _contextMenuItems[index], { "DEBUG_PRIORITY": 4 });
+        }
+        function crvMenuHandlerB(event, index) {
+            Debug.log("myHandler event=" + event, { "DEBUG_PRIORITY": 4 });
+            Debug.log("myHandler index=" + index, { "DEBUG_PRIORITY": 4 });
+            Debug.log("myHandler menuitem=" + _contextMenuItems[index], { "DEBUG_PRIORITY": 4 });
+        }
+
+        function toggleChildren(el) {
             //console.log(el.id)
             var el_ = document.getElementById(el.id)
-			var nextSibling = el_.nextElementSibling;
+            var nextSibling = el_.nextElementSibling;
             while (nextSibling) {
                 //console.log(nextSibling)
                 if (nextSibling.classList.contains("treeNode-Children")) {
@@ -411,24 +416,24 @@
                 }
                 nextSibling = nextSibling.nextElementSibling;
             }
-		} //end toggleChildren()
+        } //end toggleChildren()
         var expanderCounter = 0;
 
-        function addValueNode(uid, name, vel, el, ) {
+        function addValueNode(uid, name, vel, el,) {
             var node_ = document.createElement('div')
             node_.className = "treeNode"
             node_.id = uid
             var connection_ = document.createElement('div')
             connection_.className = "treeNode-Connection"
-            var value_ =  document.createElement('div')
-            value_.className = "treeNode-Value" 
+            var value_ = document.createElement('div')
+            value_.className = "treeNode-Value"
             value_.stule = "background-color: transparent;"
-            var title_ =  document.createElement('div')
+            var title_ = document.createElement('div')
             title_.style = "float:left;"
-            var title_text_ =  document.createElement('b')
+            var title_text_ = document.createElement('b')
             title_text_.className = "treeNode-Value-leafNode-fieldName bold-header"
             title_text_.innerHTML = name
-            var separator_ =  document.createElement('div')
+            var separator_ = document.createElement('div')
             separator_.style = "float:left;"
             separator_.innerHTML = "&nbsp;:"
             //var value_ =  document.createElement('div')
@@ -453,19 +458,19 @@
         function addNode(content, uid, el) {
             var node_ = document.createElement('div')
             node_.className = "treeNode"
-            node_.id = "treeNode-"+uid
+            node_.id = "treeNode-" + uid
             var connection_ = document.createElement('div')
             connection_.className = "treeNode-Connection"
             var expander_ = document.createElement('div')
             expander_.className = "treeNode-Expander"
-            expander_.id = "treeNode-Expander"+(expanderCounter++).toString()
+            expander_.id = "treeNode-Expander" + (expanderCounter++).toString()
             expander_.setAttribute('onmouseup', "toggleChildren(this);")
-            var value_ =  document.createElement('div')
+            var value_ = document.createElement('div')
             value_.className = "treeNode-Value treeNode-Value-nonLeafNode"
             value_.innerHTML = content
             var clear_ = document.createElement('div')
             clear_.id = "clearDiv"
-            
+
 
             node_.appendChild(connection_)
             node_.appendChild(expander_)
@@ -474,7 +479,7 @@
             el.appendChild(node_)
         }
 
-        function creatListOfChildren(){
+        function creatListOfChildren() {
             var list_ = document.createElement('div')
             list_.className = "treeNode-Children"
             list_.style = "display:block;"
@@ -482,18 +487,18 @@
         }
 
         function addListOfChildrenToNode(listOfChildren, el, nodeId) {
-            el.querySelector("#treeNode-"+nodeId).appendChild(listOfChildren)
+            el.querySelector("#treeNode-" + nodeId).appendChild(listOfChildren)
         }
 
         function crvConfigMakeValue(path, uid, field, value) {
             var input_ = document.createElement('a')
             var input_label_ = document.createElement('label')
-            input_label_.for = uid+"-"+field
-            input_label_.textContent = field+" "
-            input_.id = uid+"-"+field
+            input_label_.for = uid + "-" + field
+            input_label_.textContent = field + " "
+            input_.id = uid + "-" + field
             //input_.type = "text"
             input_.className = "treeValue"
-            input_.innerHTML=value
+            input_.innerHTML = value
             input_.setAttribute("path", path)
             //input_.setAttribute("onchange", 'crvConfigUpdate(this);')
             input_.setAttribute("onclick", 'crvConfigValueToInput(this);')
@@ -508,7 +513,7 @@
             input_.value = el.innerHTML
             input_.setAttribute("path", el.getAttribute("path"))
             input_.setAttribute("onchange", 'crvConfigUpdate(this);')
-            input_.setAttribute("onfocusout","crvConfigInputToValue(this);")
+            input_.setAttribute("onfocusout", "crvConfigInputToValue(this);")
             el.replaceWith(input_)
             input_.focus()
         }
@@ -528,12 +533,12 @@
         function crvConfigMakeInput(path, uid, field, value) {
             var input_ = document.createElement('input')
             var input_label_ = document.createElement('label')
-            input_label_.for = uid+"-"+field
-            input_label_.textContent = field+" "
-            input_.id = uid+"-"+field
+            input_label_.for = uid + "-" + field
+            input_label_.textContent = field + " "
+            input_.id = uid + "-" + field
             input_.type = "text"
             input_.className = "treeValue"
-            input_.value=value
+            input_.value = value
             input_.setAttribute("path", path)
             input_.setAttribute("onchange", 'crvConfigUpdate(this);')
             return [input_, input_label_]
@@ -541,7 +546,7 @@
 
         var crvConfigUpdatedTables = {};
         function crvConfigUpdate(el) {
-            uid   = el.id.split("-").slice(0,-1)[0]
+            uid = el.id.split("-").slice(0, -1)[0]
             field = el.id.split("-").slice(-1)[0]
             value = el.value
             path = el.getAttribute("path")
@@ -551,10 +556,12 @@
 
         function crvConfigUpdateExpl(table, uid, field, value) {
             document.getElementById("update").style.display = "block";
-            if(!(table in crvConfigUpdatedTables)) {
-                crvConfigUpdatedTables[table] = {uids : [],
-                                        fields : [],
-                                        values : []}
+            if (!(table in crvConfigUpdatedTables)) {
+                crvConfigUpdatedTables[table] = {
+                    uids: [],
+                    fields: [],
+                    values: []
+                }
             }
             crvConfigUpdatedTables[table].uids.push(uid)
             crvConfigUpdatedTables[table].fields.push(field)
@@ -566,7 +573,7 @@
             var modifiedTables_ = []
             var numberOfModifiedTables_ = 0
             console.log(crvConfigUpdatedTables)
-            for(const table_ in crvConfigUpdatedTables) {
+            for (const table_ in crvConfigUpdatedTables) {
                 var updates_ = crvConfigUpdatedTables[table_]
                 console.log(updates_)
                 ConfigurationAPI.setFieldValuesForRecords(
@@ -574,32 +581,32 @@
                     updates_.uids,
                     updates_.fields,
                     updates_.values,
-					function(modifiedTables) {
+                    function (modifiedTables) {
                         modifiedTables[0].tableComment = "test comment"
                         //console.log(modifiedTables)
                         modifiedTables_.push(modifiedTables[0])
                         // check if that is the last response we are waiting for
-                        if(++numberOfModifiedTables_ == Object.keys(crvConfigUpdatedTables).length) {
-                            ConfigurationAPI.popUpSaveModifiedTablesForm(modifiedTables_, function(req) {console.log(req);})
+                        if (++numberOfModifiedTables_ == Object.keys(crvConfigUpdatedTables).length) {
+                            ConfigurationAPI.popUpSaveModifiedTablesForm(modifiedTables_, function (req) { console.log(req); })
                         }
                     });
             }
         }
-        
+
 
         function treeViewHandler(req, parentId, err) {
-             var tree = req.responseXML.getElementsByTagName("ROOT")[0].getElementsByTagName("DATA")[0].getElementsByTagName("tree")[0]
-             var fe   =  tree.querySelector('node[value="CRV08FESupervisor"]')
-             var dtcs = fe.querySelectorAll('node[value="LinkToSupervisorTable"] > node[value="LinkToFEInterfaceTable"] > node')
-             var out = document.createElement('div')
-             var title = document.getElementById("title")
-             if(title) {
-                title.innerHTML = title.innerHTML + " ("+req.responseXML.getElementsByTagName("Configuration-ActiveGroupAlias")[0].getAttribute('value')+")"
-             }
-             //var name = document.createElement('div')
-             //name.innerHTML = req.responseXML.getElementsByTagName("Configuration-ActiveGroupAlias")[0].getAttribute('value')
-             //out.appendChild(name)
-             addNode("CRV ", "crv", out)
+            var tree = req.responseXML.getElementsByTagName("ROOT")[0].getElementsByTagName("DATA")[0].getElementsByTagName("tree")[0]
+            var fe = tree.querySelector('node[value="CRV08FESupervisor"]')
+            var dtcs = fe.querySelectorAll('node[value="LinkToSupervisorTable"] > node[value="LinkToFEInterfaceTable"] > node')
+            var out = document.createElement('div')
+            var title = document.getElementById("title")
+            if (title) {
+                title.innerHTML = title.innerHTML + " (" + req.responseXML.getElementsByTagName("Configuration-ActiveGroupAlias")[0].getAttribute('value') + ")"
+            }
+            //var name = document.createElement('div')
+            //name.innerHTML = req.responseXML.getElementsByTagName("Configuration-ActiveGroupAlias")[0].getAttribute('value')
+            //out.appendChild(name)
+            addNode("CRV ", "crv", out)
 
             // loop over all DTCs
             var dtcs_ = creatListOfChildren()
@@ -607,13 +614,13 @@
             // general settings
             //console.log(dtcs[0])
             var settings = dtcs[0].querySelector('node[value="LinkToFETypeTable"]>\
-                                                  node[value="LinkToROCGroupTable"]>\
-                                                  node>\
-                                                  node[value="ROCTypeLinkTable"]>\
-                                                  node[value="LinkToSubsystemCRVGroupedParametersTable"]')
+                                                      node[value="LinkToROCGroupTable"]>\
+                                                      node>\
+                                                      node[value="ROCTypeLinkTable"]>\
+                                                      node[value="LinkToSubsystemCRVGroupedParametersTable"]')
             //console.log(settings)
-            var pipelineDelay  = settings.querySelector('node[value="HitPipelineDelayDefault"]')
-            var onSpillLength  = settings.querySelector('node[value="OnSpillGateLengthDefault"]')
+            var pipelineDelay = settings.querySelector('node[value="HitPipelineDelayDefault"]')
+            var onSpillLength = settings.querySelector('node[value="OnSpillGateLengthDefault"]')
             var offSpillLength = settings.querySelector('node[value="OffSpillGateLengthDefault"]')
             var rocGrModeEnable = settings.querySelector('node[value="RocGrModeEnable"]')
 
@@ -621,76 +628,76 @@
                 var setting_ = document.createElement('div')
                 var uid = xml.getAttribute('value')
                 settingValue_ = crvConfigMakeValue("SubsystemCRVGroupedParametersTable", // path
-                                                   uid,
-                                                   "Value", // field
-                                                   xml.querySelector('node[value="Value"]>value').getAttribute('value'));
+                    uid,
+                    "Value", // field
+                    xml.querySelector('node[value="Value"]>value').getAttribute('value'));
                 setting_.appendChild(settingValue_[1])
                 setting_.appendChild(settingValue_[0])
                 addValueNode(uid,  // uid
-                name, 
-                             setting_, 
-                             dtcs_)
+                    name,
+                    setting_,
+                    dtcs_)
             }
-            addGeneralSetting(pipelineDelay,  "HitPipelineDelay")
-            addGeneralSetting(onSpillLength,  "OnSpillGateLength")
+            addGeneralSetting(pipelineDelay, "HitPipelineDelay")
+            addGeneralSetting(onSpillLength, "OnSpillGateLength")
             addGeneralSetting(offSpillLength, "OffSpillGateLength")
             addGeneralSetting(rocGrModeEnable, "RocGrModeEnable")
- 
 
 
-            dtcs.forEach(function(dtc) {
+
+            dtcs.forEach(function (dtc) {
                 var status = dtc.querySelector('node[value="Status"]>value').getAttribute('value')
-                var uid    = dtc.getAttribute('value')
-                addNode(uid + " ("+status+")", uid, dtcs_)
+                var uid = dtc.getAttribute('value')
+                addNode(uid + " (" + status + ")", uid, dtcs_)
 
-                rocs = dtc.querySelectorAll('node[value="LinkToFETypeTable"]>node[value="LinkToROCGroupTable"] > node')    
+                rocs = dtc.querySelectorAll('node[value="LinkToFETypeTable"]>node[value="LinkToROCGroupTable"] > node')
                 var rocs_ = creatListOfChildren()
-                rocs.forEach(function(roc) {
+                rocs.forEach(function (roc) {
                     var status = roc.querySelector('node[value="Status"]>value').getAttribute('value')
-                    var uid    = roc.getAttribute('value')
+                    var uid = roc.getAttribute('value')
                     var linkid = roc.querySelector('node[value="linkID"]>value').getAttribute('value')
 
-                    addNode(uid + " on link "+linkid+" ("+status+")", uid, rocs_)
+                    addNode(uid + " on link " + linkid + " (" + status + ")", uid, rocs_)
 
                     var febs = roc.querySelectorAll('node[value="LinkToFEBInterfaceTable"] > node')
                     var febs_ = creatListOfChildren()
                     //console.log(febs)
                     //document.getElementById("debugDiv").innerHTML = febs[0].outerHTML
-                    febs.forEach(function(feb) {
+                    febs.forEach(function (feb) {
                         var status = feb.querySelector('node[value="Status"]>value').getAttribute('value')
-                        var uid    = feb.getAttribute('value')
+                        var uid = feb.getAttribute('value')
                         var port = feb.querySelector('node[value="Port"]>value').getAttribute('value')
                         var feb_ = document.createElement('div')
-                        addNode(uid + " on port "+port+" ("+status+")", uid, febs_)
-                        
+                        addNode(uid + " on port " + port + " (" + status + ")", uid, febs_)
+
                         var feb_ = creatListOfChildren()
-                        addNode("bias", uid+"-bias", feb_)
-                        addNode("channels", uid+"-channels", feb_)
+                        addNode("bias", uid + "-bias", feb_)
+                        addNode("channels", uid + "-channels", feb_)
 
                         var groups_ = creatListOfChildren()
                         var channels_ = creatListOfChildren()
 
                         var chGroups = roc.querySelectorAll('node[value="LinkToCRVChannelGroupTable"] > node')
-                        chGroups.forEach(function(group) {
-                            var uid    = group.getAttribute('value')
-                            var no     = group.querySelector('node[value="Number"]>value').getAttribute('value')
-                            var bias   = group.querySelector('node[value="Bias"]>value').getAttribute('value')
+                        chGroups.forEach(function (group) {
+                            var uid = group.getAttribute('value')
+                            var no = group.querySelector('node[value="Number"]>value').getAttribute('value')
+                            var bias = group.querySelector('node[value="Bias"]>value').getAttribute('value')
                             //addNode( "group "+no+" (ch "+(parseInt(no)*8).toString()+" to "+(parseInt(no)*8+7).toString()+")", uid, groups_)
 
                             // TODO
                             var div_ = document.createElement('div')
                             bias_ = crvConfigMakeValue("SubsystemCRVChannelGroupTable", // path
-                                                       uid,
-                                                       "Bias", // field
-                                                       bias)
+                                uid,
+                                "Bias", // field
+                                bias)
 
                             //bias_.setAttribute("readonly", "true")
                             div_.appendChild(bias_[1]) // bias_label_
                             div_.appendChild(bias_[0])
 
-                            addValueNode(uid, "group "+no+" (ch "+(parseInt(no)*8).toString().padStart(2,"0")+" to "+(parseInt(no)*8+7).toString().padStart(2,"0")+")", 
-                                         div_, 
-                                         groups_)
+                            addValueNode(uid, "group " + no + " (ch " + (parseInt(no) * 8).toString().padStart(2, "0") + " to " + (parseInt(no) * 8 + 7).toString().padStart(2, "0") + ")",
+                                div_,
+                                groups_)
                             //group_.appendChild(bias_)
 
                             //groups_.appendChild(group_)
@@ -699,36 +706,36 @@
 
                         //var chs_ = document.createElement('div')
                         var channels = roc.querySelectorAll('node[value="LinkToCRVChannelTable"] > node')
-                        channels.forEach(function(ch) {
-                            var uid  = ch.getAttribute('value')
-                            var no   = ch.querySelector('node[value="Channel"]>value').getAttribute('value')
+                        channels.forEach(function (ch) {
+                            var uid = ch.getAttribute('value')
+                            var no = ch.querySelector('node[value="Channel"]>value').getAttribute('value')
                             var trim = ch.querySelector('node[value="BiasTrim"]>value').getAttribute('value')
-                            var th   = ch.querySelector('node[value="Threshold"]>value').getAttribute('value')
+                            var th = ch.querySelector('node[value="Threshold"]>value').getAttribute('value')
                             //addNode( "channel "+no, uid, channels_)
-                            
-                            
+
+
                             var ch_ = document.createElement('div')
                             trim_ = crvConfigMakeValue("SubsystemCRVChannelTable", // path
-                                                       uid,
-                                                       "BiasTrim", // field
-                                                       trim)
+                                uid,
+                                "BiasTrim", // field
+                                trim)
                             ch_.appendChild(trim_[1]) // trim_label_
                             ch_.appendChild(trim_[0])
 
                             th_ = crvConfigMakeValue("SubsystemCRVChannelTable", // path
-                                                     uid,
-                                                     "Threshold", // field
-                                                     th)
+                                uid,
+                                "Threshold", // field
+                                th)
                             ch_.appendChild(th_[1]) // th_label_
                             ch_.appendChild(th_[0])
 
-                            addValueNode(uid, "channel "+no, 
-                                         ch_, 
-                                         channels_)
+                            addValueNode(uid, "channel " + no,
+                                ch_,
+                                channels_)
                         });
                         addListOfChildrenToNode(feb_, febs_, uid) // groups channels
-                        addListOfChildrenToNode(groups_, febs_, uid+"-bias")
-                        addListOfChildrenToNode(channels_, febs_, uid+"-channels")  
+                        addListOfChildrenToNode(groups_, febs_, uid + "-bias")
+                        addListOfChildrenToNode(channels_, febs_, uid + "-channels")
                     });
                     addListOfChildrenToNode(febs_, rocs_, uid)
                 });
@@ -739,83 +746,83 @@
         }
 
         function crvConfig() {
-             ConfigurationAPI.init()
-             var activeGroupeName = ""
-             var activeGroupKey   = "" 
-             ConfigurationAPI.getActiveGroups(function (activeGroups) {
-                 activeGroupeName = activeGroups.Configuration.groupName;
-                 activeGroupKey   = activeGroups.Configuration.groupKey;
-             })
+            ConfigurationAPI.init()
+            var activeGroupeName = ""
+            var activeGroupKey = ""
+            ConfigurationAPI.getActiveGroups(function (activeGroups) {
+                activeGroupeName = activeGroups.Configuration.groupName;
+                activeGroupKey = activeGroups.Configuration.groupKey;
+            })
 
-             DesktopContent.XMLHttpRequest("Request?RequestType=getTreeView" +
-				"&tableGroup=" + activeGroupeName +
-				"&tableGroupKey=" + activeGroupKey +
-				"&hideStatusFalse=0" + 
-				"&depth=100",
-				"startPath=//XDAQApplicationTable/", treeViewHandler,
-				0, 0, true);
+            DesktopContent.XMLHttpRequest("Request?RequestType=getTreeView" +
+                "&tableGroup=" + activeGroupeName +
+                "&tableGroupKey=" + activeGroupKey +
+                "&hideStatusFalse=0" +
+                "&depth=100",
+                "startPath=//XDAQApplicationTable/", treeViewHandler,
+                0, 0, true);
 
         }
 
-        </script>
+    </script>
 
 
-        <!--<link rel="stylesheet" href="style.css">
-        <script src="script.js"></script>-->
-    </head>
-    <body onload='//init() called by DesktopContent.js'>
-        <h1>CRV VST at Wideband</h1>
-        <!--
-        <button onclick="info()">Info pop up</button>
-        <div id="demo">Test Div </div>
-        <button onclick="init()">Init</button>
-        <button onmousedown="crvCreateMenu(event)">Menu</button>
-        <br />
-        <button onclick="crvConfig()">show crv config</button>-->
-        <!--<h2>Debug Outputs</h2>
-        <div id="debugDiv">
-        </div>-->
+    <!--<link rel="stylesheet" href="style.css">
+    <script src="script.js"></script>-->
+</head>
+<body onload='//init() called by DesktopContent.js'>
+    <h1>CRV VST at Wideband</h1>
+    <!--
+    <button onclick="info()">Info pop up</button>
+    <div id="demo">Test Div </div>
+    <button onclick="init()">Init</button>
+    <button onmousedown="crvCreateMenu(event)">Menu</button>
+    <br />
+    <button onclick="crvConfig()">show crv config</button>-->
+    <!--<h2>Debug Outputs</h2>
+    <div id="debugDiv">
+    </div>-->
 
-        <div id="configs"></div>
-        <h2 id="title">Hardware Configuration</h2>
-        <div id="clearDiv" style="height:100px">
+    <div id="configs"></div>
+    <h2 id="title">Hardware Configuration</h2>
+    <div id="clearDiv" style="height:100px">
         <div class="treeNode" id="config"></div>
         <div id="update" style="display:none">
-            Comments <br/>
-            <textarea id="updateComment" rows="4" cols="50"></textarea><br/>
+            Comments <br />
+            <textarea id="updateComment" rows="4" cols="50"></textarea><br />
             <button id="updateButton" onclick="crvConfigSave();">Save Changes</button>
         </div>
 
 
         <!--
         <div class="treeNode" id="treeNode-0-0">-->
-            <!--<div class="treeNode-Path" id="treeNode-path-0-0" style="display:none">/</div>-->
-            <!--<div class="treeNode-ParentId" id="treeNode-ParentId-0-0" style="display:none">0</div>-->
-            <!--<div class="treeNode-NodeName" id="treeNode-NodeName-0-0" style="display:none">Test Node A</div>-->
-            <!--<div class="treeNode-Connection"></div>
-            <div class="treeNode-Expander" id="treeNode-toggle-0-0" onmouseup="toggleChildren(this)" style="background-image: url(&quot;/WebPath/images/windowContentImages/ConfigurationGUI-expandTree.png&quot;);"></div>
-            <div class="treeNode-Value treeNode-Value-nonLeafNode" id="treeNode-Value-0-0">Node A</div>
-            <div id="clearDiv"></div>
-            <div class="treeNode-Children" id="treeNode-ChildrenOf-0-0" style="display:none;">
-                <div class="treeNode" id="treeNode-1-1">-->
-                    <!--<div class="treeNode-Path" id="treeNode-path-1-1" style="display:none">/</div>-->
-                    <!--<div class="treeNode-ParentId" id="treeNode-ParentId-1-1" style="display:none">0</div>-->
-                    <!--<div class="treeNode-NodeName" id="treeNode-NodeName-1-1" style="display:none">Test Node B</div>-->
-                    <!--<div class="treeNode-Connection"></div>
-                    <div class="treeNode-Expander" id="treeNode-toggle-1-1" onmouseup="toggleChildren(this)" style="background-image: url(&quot;/WebPath/images/windowContentImages/ConfigurationGUI-expandTree.png&quot;);"></div>
-                    <div class="treeNode-Value treeNode-Value-nonLeafNode" id="treeNode-Value-0-0">Node B</div>
-                </div>
-                <div id="clearDiv"></div>
-                <div class="treeNode" id="treeNode-1-2">-->
-                    <!--<div class="treeNode-Path" id="treeNode-path-1-2" style="display:none">/</div>-->
-                    <!--<div class="treeNode-ParentId" id="treeNode-ParentId-1-2" style="display:none">0</div>-->
-                    <!--<div class="treeNode-NodeName" id="treeNode-NodeName-1-2" style="display:none">Test Node C</div>-->
-                    <!--<div class="treeNode-Connection"></div>
+        <!--<div class="treeNode-Path" id="treeNode-path-0-0" style="display:none">/</div>-->
+        <!--<div class="treeNode-ParentId" id="treeNode-ParentId-0-0" style="display:none">0</div>-->
+        <!--<div class="treeNode-NodeName" id="treeNode-NodeName-0-0" style="display:none">Test Node A</div>-->
+        <!--<div class="treeNode-Connection"></div>
+        <div class="treeNode-Expander" id="treeNode-toggle-0-0" onmouseup="toggleChildren(this)" style="background-image: url(&quot;/WebPath/images/windowContentImages/ConfigurationGUI-expandTree.png&quot;);"></div>
+        <div class="treeNode-Value treeNode-Value-nonLeafNode" id="treeNode-Value-0-0">Node A</div>
+        <div id="clearDiv"></div>
+        <div class="treeNode-Children" id="treeNode-ChildrenOf-0-0" style="display:none;">
+            <div class="treeNode" id="treeNode-1-1">-->
+        <!--<div class="treeNode-Path" id="treeNode-path-1-1" style="display:none">/</div>-->
+        <!--<div class="treeNode-ParentId" id="treeNode-ParentId-1-1" style="display:none">0</div>-->
+        <!--<div class="treeNode-NodeName" id="treeNode-NodeName-1-1" style="display:none">Test Node B</div>-->
+        <!--<div class="treeNode-Connection"></div>
+            <div class="treeNode-Expander" id="treeNode-toggle-1-1" onmouseup="toggleChildren(this)" style="background-image: url(&quot;/WebPath/images/windowContentImages/ConfigurationGUI-expandTree.png&quot;);"></div>
+            <div class="treeNode-Value treeNode-Value-nonLeafNode" id="treeNode-Value-0-0">Node B</div>
+        </div>
+        <div id="clearDiv"></div>
+        <div class="treeNode" id="treeNode-1-2">-->
+        <!--<div class="treeNode-Path" id="treeNode-path-1-2" style="display:none">/</div>-->
+        <!--<div class="treeNode-ParentId" id="treeNode-ParentId-1-2" style="display:none">0</div>-->
+        <!--<div class="treeNode-NodeName" id="treeNode-NodeName-1-2" style="display:none">Test Node C</div>-->
+        <!--<div class="treeNode-Connection"></div>
                     <div class="treeNode-Expander" id="treeNode-toggle-1-2" onmouseup="toggleChildren(this)" style="background-image: url(&quot;/WebPath/images/windowContentImages/ConfigurationGUI-expandTree.png&quot;);"></div>
                     <div class="treeNode-Value treeNode-Value-nonLeafNode" id="treeNode-Value-0-0">Node C</div>
                 </div>
                 <div id="clearDiv"></div>
             </div>
         </div>-->
-    </body>
+</body>
 </html>

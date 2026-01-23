@@ -4,46 +4,46 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mu2e</title>
-    
-    <script type="text/JavaScript" src="/WebPath/js/Globals.js"></script>   
-    <script type="text/JavaScript" src="/WebPath/js/Debug.js"></script>     
+
+    <script type="text/JavaScript" src="/WebPath/js/Globals.js"></script>
+    <script type="text/JavaScript" src="/WebPath/js/Debug.js"></script>
     <script type="text/JavaScript" src="/WebPath/UserWebPath/js/mu2e.js"></script>
     <!--<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">-->
-    <link rel="stylesheet" href="/WebPath/UserWebPath/css/mu2e.css"> 
+    <link rel="stylesheet" href="/WebPath/UserWebPath/css/mu2e.css">
 </head>
 <body class="mu2e" onload="mu2e_init('RunLog')">
     <script>
         function msg(m) {
             let msg_div = document.querySelector('[id="load_config_msg"]');
-            if(msg_div) msg_div.innerHTML += m+"<br>"
+            if (msg_div) msg_div.innerHTML += m + "<br>"
         }
 
         async function loadConfig(group, key) {
             const alias = document.querySelector('[id="mu2e_config_list"]>select').value;
             console.log("activate", group, key, "as", alias)
-            try{
+            try {
                 activateTableGroup(group, key).then(res => {
-                    msg("activated "+group+"("+key+")");
-                    setAlias(alias,"",msg).then(res => {
+                    msg("activated " + group + "(" + key + ")");
+                    setAlias(alias, "", msg).then(res => {
                         handleConfig();
                         updateConfig();
                     });
                 });
 
-            } catch(error) {msg(error);};
+            } catch (error) { msg(error); };
         }
     </script>
     <div id="mu2e_header">mu2e</div>
     <div id="mu2e_nav"></div>
     <div id="mu2e_main">
-         <div id="mu2e_current_run" class="mu2e_container mu2e_grid">
-            <div class="mu2e_title" style="grid-column: 1/4; grid-row: 1;" >Current Run</div>
-            <div class="mu2e_list" name="mu2e_run_number"               style="grid-column: 1; grid-row: 2;">Run: </div>
-            <div class="mu2e_list" name="mu2e_run_start"                style="grid-column: 1; grid-row: 3;">Run start </div>
-            <div class="mu2e_list" name="mu2e_run_config"               style="grid-column: 3; grid-row: 2/4;">Run Config</div>
-            <div class="mu2e_list" name="mu2e_run_type"                 style="grid-column: 2; grid-row: 2;">Run Type</div>
-            <div class="mu2e_list" name="mu2e_run_host"                 style="grid-column: 2; grid-row: 3;">Run Host</div>
-            <div class="mu2e_list" name="mu2e_run_transitions"          style="grid-column: 1/4; grid-row: 4;">Last Run Transitions:</div>
+        <div id="mu2e_current_run" class="mu2e_container mu2e_grid">
+            <div class="mu2e_title" style="grid-column: 1/4; grid-row: 1;">Current Run</div>
+            <div class="mu2e_list" name="mu2e_run_number" style="grid-column: 1; grid-row: 2;">Run: </div>
+            <div class="mu2e_list" name="mu2e_run_start" style="grid-column: 1; grid-row: 3;">Run start </div>
+            <div class="mu2e_list" name="mu2e_run_config" style="grid-column: 3; grid-row: 2/4;">Run Config</div>
+            <div class="mu2e_list" name="mu2e_run_type" style="grid-column: 2; grid-row: 2;">Run Type</div>
+            <div class="mu2e_list" name="mu2e_run_host" style="grid-column: 2; grid-row: 3;">Run Host</div>
+            <div class="mu2e_list" name="mu2e_run_transitions" style="grid-column: 1/4; grid-row: 4;">Last Run Transitions:</div>
         </div>
         <div id="mu2e_runlog" class="mu2e_container mu2e_grid">
             <div class="mu2e_title" style="grid-column: 1/6; grid-row: 1;">Run Log</div>
@@ -59,7 +59,7 @@
             <div class="mu2e_list" style="grid-column: 2; grid-row: 2;" id="mu2e_config_list"></div>
             <div class="mu2e_list" style="grid-column: 3/6; grid-row: 2;" id="load_config_msg"></div>
         </div>
-   </div>
+    </div>
 
 </body>
 </html>

@@ -1,7 +1,7 @@
 .mu2e {
     font-family: Verdana, sans-serif;
-    font-size:12pt;
-    color:rgb(51, 51, 51);
+    font-size: 12pt;
+    color: rgb(51, 51, 51);
     box-sizing: border-box;
 }
 
@@ -20,34 +20,34 @@
     color: gray;
 }
 
-#mu2e_header div {
-    display: inline;
-    //color: gray;
-}
+    #mu2e_header div {
+        display: inline;
+        //color: gray;
+    }
 
 #mu2e_nav {
     position: fixed;
     top: 28px;
     width: 144px;
     left: 0px;
-    height:100%;
-    padding-top:2px;
+    height: 100%;
+    padding-top: 2px;
     overflow-x: hidden;
     background-color: rgb(232, 232, 232);
 }
 
-#mu2e_nav a {
-    display: block;
-    padding: 3px 5px 1px 5px;
-    width:100%;
-    text-decoration: none;
-    color:rgb(51, 51, 51);
-}
+    #mu2e_nav a {
+        display: block;
+        padding: 3px 5px 1px 5px;
+        width: 100%;
+        text-decoration: none;
+        color: rgb(51, 51, 51);
+    }
 
-#mu2e_nav a:hover {
-    width:100%;
-    background-color: lightgray;
-}
+        #mu2e_nav a:hover {
+            width: 100%;
+            background-color: lightgray;
+        }
 
 .mu2e_nav_active {
     background-color: rgb(151, 151, 151);
@@ -55,9 +55,9 @@
 
 #mu2e_main {
     position: absolute;
-    top:28px;
-    left:144px;
-    right:0px;
+    top: 28px;
+    left: 144px;
+    right: 0px;
     padding: 5px;
     text-align: center;
 }
@@ -66,7 +66,7 @@
     border: 1px dotted darkgray;
     border-radius: 10px;
     margin: 3px;
-    margin-bottom:10px;
+    margin-bottom: 10px;
 }
 
 .mu2e_grid {
@@ -92,6 +92,7 @@
     grid-gap: 3px;
     color: #444;
 }
+
 #mu2e_artdaq {
     display: grid;
     grid-gap: 3px;
@@ -105,73 +106,79 @@
 }
 
 .mu2e_dcs_timestamp {
-    color:#0000004e;
+    color: #0000004e;
 }
 
-//.mu2e_container>div{
-//    float:left;
-//}
+//.mu2e_container > div {
+    // float:left;
+    //
+}
 
 //.mu2e_container:after {
-//    display: table;
-//    clear: both;
-//}
+    // display: table;
+    // clear: both;
+    //
+}
 
 //.mu2e_quarter {
-//    width:25%;
-//    min-width: 200px;
-//    float:left;
-//}
+    // width:25%;
+    // min-width: 200px;
+    // float:left;
+    //
+}
+
 //.mu2e_half {
-//    width:50%;
-//    min-width: 400px;
-//    float:left;
-//}
+    // width:50%;
+    // min-width: 400px;
+    // float:left;
+    //
+}
 
 //.mu2e_full {
-//    width:100%;
-//    min-width: 800px;
-//}
+    // width:100%;
+    // min-width: 800px;
+    //
+}
 
 .mu2e_data {
     //border: 1px solid black;
-    background-color:rgb(232, 232, 232);
+    background-color: rgb(232, 232, 232);
     border-radius: 5px;
 }
 
 .mu2e_list {
     //border: 1px solid black;
-    background-color:rgb(232, 232, 232);
+    background-color: rgb(232, 232, 232);
     border-radius: 5px;
-    text-align:left;
-    padding-left:4px;
+    text-align: left;
+    padding-left: 4px;
 }
 
 .mu2e_data a {
-    text-decoration:none;
+    text-decoration: none;
 }
 
 .mu2e_list a {
-    text-decoration:none;
+    text-decoration: none;
 }
 
 .mu2e_right_float {
-    float:right;
-    padding-right:4px;
+    float: right;
+    padding-right: 4px;
 }
 
 .mu2e_disabled {
-    color:#0000004e;
+    color: #0000004e;
     //background-color:#ffeb3b;
 }
 
 .mu2e_title {
     background-color: lightseagreen;
-    color:white;
+    color: white;
     border-radius: 3px;
-    font-size:120%;
+    font-size: 120%;
 }
-  
+
 .tooltiptext {
     visibility: hidden;
     width: 600px;
@@ -183,48 +190,49 @@
     position: absolute;
     z-index: 1;
     //bottom: 150%;
-    top:10px;
+    top: 10px;
     left: 50%;
     margin-left: -400px;
-  }
-  
-.tooltiptext::after {
-    content: "";
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    margin-left: -5px;
-    border-width: 5px;
-    border-style: solid;
-    border-color: black transparent transparent transparent;
-  }
-  
-div:hover>.tooltiptext {
+}
+
+    .tooltiptext::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: black transparent transparent transparent;
+    }
+
+div:hover > .tooltiptext {
     visibility: visible;
-  }
-  
+}
+
 .mu2e_hidden {
-    display:none;
+    display: none;
 }
 
 .mu2e_bad {
-    background-color:#f44336;
-    color:white;
+    background-color: #f44336;
+    color: white;
 }
+
 .mu2e_bad_text {
-    color:#f44336;
+    color: #f44336;
 }
 
 .mu2e_ok {
-    background-color:#4CAF50;
+    background-color: #4CAF50;
 }
 
 .mu2e_warning {
-    background-color:#ffeb3b;
+    background-color: #ffeb3b;
 }
 
 .mu2e_transition {
-    background-color:#9c27b0;
+    background-color: #9c27b0;
 }
 
 .mu2e_editable {
@@ -232,7 +240,8 @@ div:hover>.tooltiptext {
     border: 1px solid transparent;
     padding: 0px;
     padding-right: 10px;
-  }
-  .mu2e_editable:hover {
-    border-color: #1343ab5c;
-  }
+}
+
+    .mu2e_editable:hover {
+        border-color: #1343ab5c;
+    }
