@@ -4,76 +4,76 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mu2e Overview - Wideband</title>
-    
-    <script type="text/JavaScript" src="/WebPath/js/Globals.js"></script>   
-    <script type="text/JavaScript" src="/WebPath/js/Debug.js"></script>     
+
+    <script type="text/JavaScript" src="/WebPath/js/Globals.js"></script>
+    <script type="text/JavaScript" src="/WebPath/js/Debug.js"></script>
     <!--<script type="text/JavaScript" src="/WebPath/js/DesktopContent.js"></script>
     <script type="text/JavaScript" src="/WebPath/js/js_lib/SimpleContextMenu.js"></script>-->
     <!--<script type="text/JavaScript" src="https://cdn.jsdelivr.net/npm/xml2js@0.6.2/lib/xml2js.min.js"></script>-->
     <script type="text/JavaScript" src="/WebPath/UserWebPath/js/mu2e.js"></script>
-    <link rel="stylesheet" href="/WebPath/UserWebPath/css/mu2e.css"> 
+    <link rel="stylesheet" href="/WebPath/UserWebPath/css/mu2e.css">
 </head>
 <body onload='//init() called by DesktopContent.js'>
     <h1>Mu2e Overview - Wideband</h1>
     <ul>
-    <li><a href="#" onclick="log(get('getAppStatus'));">test button</a></li>
-    <li><a href="#" onclick="log(getAppStatus()); ">getAppStatus</a></li>
-    <li><a href="#" onclick="log(restartContext('MainContext')); ">restartContext("MainContext")</a></li>
-    <li><a href="#" onclick="log(getAliasList()); ">getAliasList</a></li>
-    <li><a href="#" onclick="log(getContextNames()); ">getContextNames</a></li>
-    <li><a href="#" onclick="log(getSystemMessages()); ">getSystemMessages</a></li>
-    <li><a href="#" onclick="log(getSystemMessages(true)); ">getSystemMessages(history=true)</a></li>
-    <li><a href="#" onclick="log(getStateMachine()); ">getStateMachine</a></li>
-    <li><a href="#" onclick="log(transition('Configure'));">transition("Configure")</a></li>
-    <li><a href="#" onclick="log(getStateMachineNames()); ">getStateMachineNames</a></li>
-    <li><a href="#" onclick="log(getCurrentState()); ">getCurrentState</a></li>
-    <li><a href="#" onclick="log(getConsoleMsgs()); ">getConsoleMsgs</a></li>
-    <li><a href="#" onclick="log(getSlowPages()); ">getSlowPages</a></li>
-    <li><a href="#" onclick="log(getPVSettings(pvlist=['Mu2e:TDAQ_crv:crvROC09:FEB_p1_2_5Vpos','Mu2e:TDAQ_crv:crvROC09:FEB_p1_5Vneg'])); ">getPVSettings</a></li>
-    <li><a href="#" onclick="log(getPVList());">getPVList</a></li>
-    <li><a href="#" onclick="log(getPollUid(pvlist=['Mu2e:TDAQ_crv:crvROC09:FEB_p1_2_5Vpos','Mu2e:TDAQ_crv:crvROC09:FEB_p1_5Vneg']));">getPollUid</a></li>
-    <li><a href="#" onclick="log(pollPV(uid='4'));">pollPV</a></li>
-    <li><a href="#" onclick="log(getLastAlarmsData());">getLastAlarmsData</a></li>
-    <li><a href="#" onclick="log(getAlarmChecks());">getAlarmChecks</a></li>
-    <li><a href="#" onclick="log(getPvData(pvlist=['Mu2e:TDAQ_crv:crvROC09:FEB_p1_2_5Vpos','Mu2e:TDAQ_crv:crvROC09:FEB_p1_5Vneg','aba']));">getPvData</a></li>
-    <li><a href="#" onclick="log(getTreeView());">getTreeView</a></li>
-    <li><a href="#" onclick="log(getHardwareTree());">getHardwareTree</a></li>
-    <li><a href="#" onclick="log(dtcRead('0x9030'));">dtcRead</a></li>
-    <li><a href="#" onclick="log(dtcWrite('0x9030','0x1234'));">dtcWrite</a></li>
-    <li><a href="#" onclick="log(rocRead('0x35'));">rocRead</a></li>
-    <li><a href="#" onclick="log(rocWrite('0x35','0x1234'));">rocWrite</a></li>
-    <li><a href="#" onclick="log(febReset());">febReset</a></li>
-    <li><a href="#" onclick="log(febPwrPort());">febPwrPort</a></li>
-    <li><a href="#" onclick="log(getRunInfo());">getRunInfo()</a></li>
-    <li><a href="#" onclick="log(getRunInfo(105504));">getRunInfo(105504)</a></li>
-    <li><a href="#" onclick="log(getRunInfo(-10));">getRunInfo(-10)</a></li>
-    <li><a href="#" onclick="log(setTreeNodeFieldValues('SubsystemCRVChannelTable','CH000','BiasTrim','0x798'));">setTreeNodeFieldValues('SubsystemCRVChannelTable','CH000','BiasTrim','0x798')</a></li>
-    <li><a href="#" onclick="log(saveSpecificTable('SubsystemCRVChannelTable',-3));">saveSpecificTable('SubsystemCRVChannelTable',-5)</a></li>
-    <li><a href="#" onclick="log(saveNewTableGroup('CrvVSTConfig'));">saveNewTableGroup('CrvVSTConfig')</a></li>
-    <li><a href="#" onclick="log(saveNewTableGroup('CrvVSTConfig','comment',1));">saveNewTableGroup('CrvVSTConfig','comment',1)</a></li>
-    <li><a href="#" onclick="log(activateTableGroup('CrvVSTConfig',337));">activateTableGroup('CrvVSTConfig',337)</a></li>
-    <li><a href="#" onclick="log(setGroupAliasInActiveBackbone('CrvVSTConfig',337,'crv_vst_config'));">setGroupAliasInActiveBackbone('CrvVSTConfig',337,'crv_vst_config')</a></li>
-    <li><a href="#" onclick="log(getActiveTableGroups());">getActiveTableGroups()</a></li>
-    <li><a href="#" onclick="log(getTableStructureStatus());">getTableStructureStatus()</a></li>
-    <li><a href="#" onclick="log(getActiveTables());">getActiveTables()</a></li>
-    <li><a href="#" onclick="log(getSpecificTableGroup('CrvVSTConfig',337));">getSpecificTableGroup('CrvVSTConfig',337)</a></li>
-    <li><a href="#" onclick="log(saveConfig(function(e) {console.log(e);}));">saveConfig()</a></li>
-    <li><a href="#" onclick="log(getSpecificTable('SubsystemCRVChannelTable'));">getSpecificTable('SubsystemCRVChannelTable')</a></li>
-    <li><a href="#" onclick="log(getTreeNodeFieldValues('/XDAQApplicationPropertyTable','PropertyValue','SupervisorTFMConfig'));">getTreeNodeFieldValues('XDAQApplicationPropertyTable','PropertyValue','SupervisorTFMConfig')</a></li>
-    
-    <li><a href="#" onclick="log(getTreeView('/FEBInterfaceTable/FEB0'));">getTreeView('/FEB0')</a></li>
-    <li><a href="#" onclick="log(getDAQReport());">getDAQReport</a></li>
-    <li><a href="#" onclick="log(getDAQState());">getDAQState</a></li>
-    
-</ul>
+        <li><a href="#" onclick="log(get('getAppStatus'));">test button</a></li>
+        <li><a href="#" onclick="log(getAppStatus()); ">getAppStatus</a></li>
+        <li><a href="#" onclick="log(restartContext('MainContext')); ">restartContext("MainContext")</a></li>
+        <li><a href="#" onclick="log(getAliasList()); ">getAliasList</a></li>
+        <li><a href="#" onclick="log(getContextNames()); ">getContextNames</a></li>
+        <li><a href="#" onclick="log(getSystemMessages()); ">getSystemMessages</a></li>
+        <li><a href="#" onclick="log(getSystemMessages(true)); ">getSystemMessages(history=true)</a></li>
+        <li><a href="#" onclick="log(getStateMachine()); ">getStateMachine</a></li>
+        <li><a href="#" onclick="log(transition('Configure'));">transition("Configure")</a></li>
+        <li><a href="#" onclick="log(getStateMachineNames()); ">getStateMachineNames</a></li>
+        <li><a href="#" onclick="log(getCurrentState()); ">getCurrentState</a></li>
+        <li><a href="#" onclick="log(getConsoleMsgs()); ">getConsoleMsgs</a></li>
+        <li><a href="#" onclick="log(getSlowPages()); ">getSlowPages</a></li>
+        <li><a href="#" onclick="log(getPVSettings(pvlist=['Mu2e:TDAQ_crv:crvROC09:FEB_p1_2_5Vpos','Mu2e:TDAQ_crv:crvROC09:FEB_p1_5Vneg'])); ">getPVSettings</a></li>
+        <li><a href="#" onclick="log(getPVList());">getPVList</a></li>
+        <li><a href="#" onclick="log(getPollUid(pvlist=['Mu2e:TDAQ_crv:crvROC09:FEB_p1_2_5Vpos','Mu2e:TDAQ_crv:crvROC09:FEB_p1_5Vneg']));">getPollUid</a></li>
+        <li><a href="#" onclick="log(pollPV(uid='4'));">pollPV</a></li>
+        <li><a href="#" onclick="log(getLastAlarmsData());">getLastAlarmsData</a></li>
+        <li><a href="#" onclick="log(getAlarmChecks());">getAlarmChecks</a></li>
+        <li><a href="#" onclick="log(getPvData(pvlist=['Mu2e:TDAQ_crv:crvROC09:FEB_p1_2_5Vpos','Mu2e:TDAQ_crv:crvROC09:FEB_p1_5Vneg','aba']));">getPvData</a></li>
+        <li><a href="#" onclick="log(getTreeView());">getTreeView</a></li>
+        <li><a href="#" onclick="log(getHardwareTree());">getHardwareTree</a></li>
+        <li><a href="#" onclick="log(dtcRead('0x9030'));">dtcRead</a></li>
+        <li><a href="#" onclick="log(dtcWrite('0x9030','0x1234'));">dtcWrite</a></li>
+        <li><a href="#" onclick="log(rocRead('0x35'));">rocRead</a></li>
+        <li><a href="#" onclick="log(rocWrite('0x35','0x1234'));">rocWrite</a></li>
+        <li><a href="#" onclick="log(febReset());">febReset</a></li>
+        <li><a href="#" onclick="log(febPwrPort());">febPwrPort</a></li>
+        <li><a href="#" onclick="log(getRunInfo());">getRunInfo()</a></li>
+        <li><a href="#" onclick="log(getRunInfo(105504));">getRunInfo(105504)</a></li>
+        <li><a href="#" onclick="log(getRunInfo(-10));">getRunInfo(-10)</a></li>
+        <li><a href="#" onclick="log(setTreeNodeFieldValues('SubsystemCRVChannelTable','CH000','BiasTrim','0x798'));">setTreeNodeFieldValues('SubsystemCRVChannelTable','CH000','BiasTrim','0x798')</a></li>
+        <li><a href="#" onclick="log(saveSpecificTable('SubsystemCRVChannelTable',-3));">saveSpecificTable('SubsystemCRVChannelTable',-5)</a></li>
+        <li><a href="#" onclick="log(saveNewTableGroup('CrvVSTConfig'));">saveNewTableGroup('CrvVSTConfig')</a></li>
+        <li><a href="#" onclick="log(saveNewTableGroup('CrvVSTConfig','comment',1));">saveNewTableGroup('CrvVSTConfig','comment',1)</a></li>
+        <li><a href="#" onclick="log(activateTableGroup('CrvVSTConfig',337));">activateTableGroup('CrvVSTConfig',337)</a></li>
+        <li><a href="#" onclick="log(setGroupAliasInActiveBackbone('CrvVSTConfig',337,'crv_vst_config'));">setGroupAliasInActiveBackbone('CrvVSTConfig',337,'crv_vst_config')</a></li>
+        <li><a href="#" onclick="log(getActiveTableGroups());">getActiveTableGroups()</a></li>
+        <li><a href="#" onclick="log(getTableStructureStatus());">getTableStructureStatus()</a></li>
+        <li><a href="#" onclick="log(getActiveTables());">getActiveTables()</a></li>
+        <li><a href="#" onclick="log(getSpecificTableGroup('CrvVSTConfig',337));">getSpecificTableGroup('CrvVSTConfig',337)</a></li>
+        <li><a href="#" onclick="log(saveConfig(function(e) {console.log(e);}));">saveConfig()</a></li>
+        <li><a href="#" onclick="log(getSpecificTable('SubsystemCRVChannelTable'));">getSpecificTable('SubsystemCRVChannelTable')</a></li>
+        <li><a href="#" onclick="log(getTreeNodeFieldValues('/XDAQApplicationPropertyTable','PropertyValue','SupervisorTFMConfig'));">getTreeNodeFieldValues('XDAQApplicationPropertyTable','PropertyValue','SupervisorTFMConfig')</a></li>
+
+        <li><a href="#" onclick="log(getTreeView('/FEBInterfaceTable/FEB0'));">getTreeView('/FEB0')</a></li>
+        <li><a href="#" onclick="log(getDAQReport());">getDAQReport</a></li>
+        <li><a href="#" onclick="log(getDAQState());">getDAQState</a></li>
+
+    </ul>
 
     <pre id="output"></pre>
     <script>
-       async function log(promise) {
-           val = await promise;
-           console.log(val);
-           document.getElementById("output").innerHTML = JSON.stringify(val, null, 2);
-       }
+        async function log(promise) {
+            val = await promise;
+            console.log(val);
+            document.getElementById("output").innerHTML = JSON.stringify(val, null, 2);
+        }
 
     </script>
 

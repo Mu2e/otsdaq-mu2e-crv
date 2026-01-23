@@ -4,43 +4,43 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mu2e</title>
-    
-    <script type="text/JavaScript" src="/WebPath/js/Globals.js"></script>   
-    <script type="text/JavaScript" src="/WebPath/js/Debug.js"></script>     
+
+    <script type="text/JavaScript" src="/WebPath/js/Globals.js"></script>
+    <script type="text/JavaScript" src="/WebPath/js/Debug.js"></script>
     <script type="text/JavaScript" src="/WebPath/UserWebPath/js/mu2e.js"></script>
     <!--<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">-->
-    <link rel="stylesheet" href="/WebPath/UserWebPath/css/mu2e.css"> 
+    <link rel="stylesheet" href="/WebPath/UserWebPath/css/mu2e.css">
 </head>
 <body class="mu2e" onload="mu2e_init('DTC')">
     <script>
         errors = {
-            0:"Data Packet Count Error",
-            1:"Data Pending Timeout",
-            2:"RX Packet CRC Error",
-            3:"RX Packet Error",
-            4:"RX Packet Count Error",
-            5:"Sync Error"
+            0: "Data Packet Count Error",
+            1: "Data Pending Timeout",
+            2: "RX Packet CRC Error",
+            3: "RX Packet Error",
+            4: "RX Packet Count Error",
+            5: "Sync Error"
         }
 
         function expandLinkError(el) {
-            let el_ =  el.cloneNode(true)
+            let el_ = el.cloneNode(true)
             const span = el_.querySelector('span');
             if (span) span.remove();
             const val = parseInt(el_.textContent);
-            if(val == 0) return;
+            if (val == 0) return;
             const binaryString = val.toString(2);
             out_text = ": "
             for (let i = 0; i < 8; i++) {
-                if (binaryString[binaryString.length-1-i] === '1') {
-                    out_text += errors[i] + ", "; 
+                if (binaryString[binaryString.length - 1 - i] === '1') {
+                    out_text += errors[i] + ", ";
                 }
             }
-            out_text = out_text.substring(0, out_text.length-2);
-            
+            out_text = out_text.substring(0, out_text.length - 2);
+
             let errorspan = el_.querySelector('span[name="error"]');
-            if(!errorspan) {
+            if (!errorspan) {
                 errorspan = document.createElement("span")
-                errorspan.setAttribute("name","error")
+                errorspan.setAttribute("name", "error")
                 el.appendChild(errorspan)
             }
             errorspan.innerHTML = out_text;
@@ -48,24 +48,24 @@
 
         async function read(el) {
             const register = document.querySelector("input[id='dtcReadWrite_reg']")
-            if(register == undefined) {
+            if (register == undefined) {
                 return;
             }
             const reg = register.value
             const res = await dtcRead(reg, _dtcName);
             const read_value = res["feMacroExec"]["DTC Read"]["outputArgs_value"].split("%")[1].substring(2)
-            const read_time  = new Date(res["feMacroExec"]["DTC Read"]["exec_time"])
+            const read_time = new Date(res["feMacroExec"]["DTC Read"]["exec_time"])
             let div = document.querySelector("div[id=dtcRead_value]");
-            if(div) {
-                div.innerHTML = "0x"+parseInt(read_value).toString(16);
+            if (div) {
+                div.innerHTML = "0x" + parseInt(read_value).toString(16);
                 addTime(div, read_time)
             }
         }
 
         async function writeCmd(el) {
             const register = document.querySelector("input[id='dtcReadWrite_reg']")
-            const value    = document.querySelector("input[id='dtcWrite_value']")
-            if((register == undefined) || (value == undefined)) {
+            const value = document.querySelector("input[id='dtcWrite_value']")
+            if ((register == undefined) || (value == undefined)) {
                 return;
             }
             const reg = register.value;
@@ -73,10 +73,10 @@
             const res = await dtcWrite(reg, val, _dtcName);
             console.log(res)
             const write_value = res["feMacroExec"]["DTC Write"]["outputArgs_value"].split("%")[1].substring(2)
-            const write_time  = new Date(res["feMacroExec"]["DTC Write"]["exec_time"])
+            const write_time = new Date(res["feMacroExec"]["DTC Write"]["exec_time"])
             let div = document.querySelector("div[id=dtcWrite_value]");
-            if(div != undefined ) {
-                div.innerHTML = "0x"+parseInt(write_value).toString(16);
+            if (div != undefined) {
+                div.innerHTML = "0x" + parseInt(write_value).toString(16);
                 addTime(div, write_time)
             }
         }
@@ -86,157 +86,157 @@
     <div id="mu2e_nav"></div>
     <div id="mu2e_main">
         <!--<div class="mu2e_container">-->
-            <div id="mu2e_dtc" class="mu2e_container mu2e_grid">
-                <div class="mu2e_title"                                     style="grid-column: 1/5; grid-row: 1">DTC</div>
-                <!--<div style="grid-column: 1; grid-row: 5;" class="mu2e_data" style="min-width: 200px;">A</div>
-                <div style="grid-column: 2; grid-row: 5;" class="mu2e_data">B</div>
-                <div style="grid-column: 3; grid-row: 5;" class="mu2e_data">C</div>
-                <div style="grid-column: 4; grid-row: 5;" class="mu2e_data">D</div>
-                <div style="grid-column: 5; grid-row: 5;" class="mu2e_data">E</div>
-                <div style="grid-column: 6; grid-row: 5;" class="mu2e_data">F</div>-->
-                <div style="grid-column: 3/5; grid-row: 4;" class="mu2e_list">%nbsp;</div>
-                <div style="grid-column: 3/5;   grid-row: 4;" class="mu2e_list">Temperature:</div>
-                <div style="grid-column: 4;   grid-row: 4;"   class="mu2e_list" name="mu2e_dcs"  data="DTC_temperature"  format="2" units="&deg;C" title="Temperature">Value</div>
-                <div style="grid-column: 3/5;   grid-row: 2;" class="mu2e_list">FPGA Alarms:</div>
-                <div style="grid-column: 4;   grid-row: 2;"   class="mu2e_list" name="mu2e_dcs"  data="FPGA_Monitor_Alarm" format="0" title="FPGA Alarms">Value</div>
-                <div style="grid-column: 3/5;   grid-row: 3;" class="mu2e_list">ID:</div>
-                <div style="grid-column: 4;   grid-row: 3;"   class="mu2e_list" name="mu2e_dcs"  data="ID" format="hex">Value</div>
-                <div style="grid-column: 3/5;   grid-row: 5;" class="mu2e_list">Firmware Date:</div>
-                <div style="grid-column: 4;   grid-row: 5;"   class="mu2e_list" name="mu2e_dcs"  data="Firmware_Design_Date" format="hex">Value</div>
-                <div style="grid-column: 3/5; grid-row: 6; z-index: 1" class="mu2e_list">VCC AUX:</div>
-                <div style="grid-column: 4;   grid-row: 6; z-index: 2" class="mu2e_list" name="mu2e_dcs"  data="FPGA_VCC_AUX"  format="2" units="V" title="VCC AUX">Value</div>
-                <div style="grid-column: 3/5; grid-row: 7; z-index: 1" class="mu2e_list">VCC INT:</div>
-                <div style="grid-column: 4;   grid-row: 7; z-index: 2" class="mu2e_list" name="mu2e_dcs"  data="FPGA_VCC_INT"  format="2" units="V" title="VCC INT<">Value</div>
-                <div style="grid-column: 3/5; grid-row: 8; z-index: 1" class="mu2e_list">VCC BRAM:</div>
-                <div style="grid-column: 4;   grid-row: 8; z-index: 2" class="mu2e_list" name="mu2e_dcs"  data="FPGA_VCC_BRAM"  format="2" units="V" title="VCC BRAM">Value</div>
+        <div id="mu2e_dtc" class="mu2e_container mu2e_grid">
+            <div class="mu2e_title" style="grid-column: 1/5; grid-row: 1">DTC</div>
+            <!--<div style="grid-column: 1; grid-row: 5;" class="mu2e_data" style="min-width: 200px;">A</div>
+            <div style="grid-column: 2; grid-row: 5;" class="mu2e_data">B</div>
+            <div style="grid-column: 3; grid-row: 5;" class="mu2e_data">C</div>
+            <div style="grid-column: 4; grid-row: 5;" class="mu2e_data">D</div>
+            <div style="grid-column: 5; grid-row: 5;" class="mu2e_data">E</div>
+            <div style="grid-column: 6; grid-row: 5;" class="mu2e_data">F</div>-->
+            <div style="grid-column: 3/5; grid-row: 4;" class="mu2e_list">%nbsp;</div>
+            <div style="grid-column: 3/5;   grid-row: 4;" class="mu2e_list">Temperature:</div>
+            <div style="grid-column: 4;   grid-row: 4;" class="mu2e_list" name="mu2e_dcs" data="DTC_temperature" format="2" units="&deg;C" title="Temperature">Value</div>
+            <div style="grid-column: 3/5;   grid-row: 2;" class="mu2e_list">FPGA Alarms:</div>
+            <div style="grid-column: 4;   grid-row: 2;" class="mu2e_list" name="mu2e_dcs" data="FPGA_Monitor_Alarm" format="0" title="FPGA Alarms">Value</div>
+            <div style="grid-column: 3/5;   grid-row: 3;" class="mu2e_list">ID:</div>
+            <div style="grid-column: 4;   grid-row: 3;" class="mu2e_list" name="mu2e_dcs" data="ID" format="hex">Value</div>
+            <div style="grid-column: 3/5;   grid-row: 5;" class="mu2e_list">Firmware Date:</div>
+            <div style="grid-column: 4;   grid-row: 5;" class="mu2e_list" name="mu2e_dcs" data="Firmware_Design_Date" format="hex">Value</div>
+            <div style="grid-column: 3/5; grid-row: 6; z-index: 1" class="mu2e_list">VCC AUX:</div>
+            <div style="grid-column: 4;   grid-row: 6; z-index: 2" class="mu2e_list" name="mu2e_dcs" data="FPGA_VCC_AUX" format="2" units="V" title="VCC AUX">Value</div>
+            <div style="grid-column: 3/5; grid-row: 7; z-index: 1" class="mu2e_list">VCC INT:</div>
+            <div style="grid-column: 4;   grid-row: 7; z-index: 2" class="mu2e_list" name="mu2e_dcs" data="FPGA_VCC_INT" format="2" units="V" title="VCC INT<">Value</div>
+            <div style="grid-column: 3/5; grid-row: 8; z-index: 1" class="mu2e_list">VCC BRAM:</div>
+            <div style="grid-column: 4;   grid-row: 8; z-index: 2" class="mu2e_list" name="mu2e_dcs" data="FPGA_VCC_BRAM" format="2" units="V" title="VCC BRAM">Value</div>
 
-                <div style="grid-column: 1/3; grid-row: 2/9;" class="mu2e_list">Control (0x9100):</div>
-                <div style="grid-column: 2;   grid-row: 2;"   class="mu2e_list" name="mu2e_dcs"  data="Control"  format="hex" bitfield="control">Value</div>
-                <div style="grid-column: 1;   grid-row: 3;"  class="mu2e_list"> - 00 Hard Reset: </div>
-                <div style="grid-column: 2;   grid-row: 3;"  class="mu2e_list"  name="control" bit="0"></div>
-                <div style="grid-column: 1;   grid-row: 4;"  class="mu2e_list"> - 02 DCS Enable: </div>
-                <div style="grid-column: 2;   grid-row: 4;"  class="mu2e_list"  name="control" bit="2"></div>
-                <div style="grid-column: 1;   grid-row: 5;"  class="mu2e_list"> - 09 Punched Clock Enable: </div>
-                <div style="grid-column: 2;   grid-row: 5;"  class="mu2e_list" name="control" bit="9"></div>
-                <div style="grid-column: 1;   grid-row: 6;"  class="mu2e_list"> - 15 CFO Emulation Mode: </div>
-                <div style="grid-column: 2;   grid-row: 6;"  class="mu2e_list" name="control" bit="15"></div>
-                <div style="grid-column: 1;   grid-row: 7;" class="mu2e_list"> - 23 DTC Autogenerate DRP: </div>
-                <div style="grid-column: 2;   grid-row: 7;" class="mu2e_list" name="control" bit="23"></div>
-                <div style="grid-column: 1;   grid-row: 8;" class="mu2e_list"> - 31 Soft Reset: </div>
-                <div style="grid-column: 2;   grid-row: 8;" class="mu2e_list" name="control" bit="31"></div>
+            <div style="grid-column: 1/3; grid-row: 2/9;" class="mu2e_list">Control (0x9100):</div>
+            <div style="grid-column: 2;   grid-row: 2;" class="mu2e_list" name="mu2e_dcs" data="Control" format="hex" bitfield="control">Value</div>
+            <div style="grid-column: 1;   grid-row: 3;" class="mu2e_list"> - 00 Hard Reset: </div>
+            <div style="grid-column: 2;   grid-row: 3;" class="mu2e_list" name="control" bit="0"></div>
+            <div style="grid-column: 1;   grid-row: 4;" class="mu2e_list"> - 02 DCS Enable: </div>
+            <div style="grid-column: 2;   grid-row: 4;" class="mu2e_list" name="control" bit="2"></div>
+            <div style="grid-column: 1;   grid-row: 5;" class="mu2e_list"> - 09 Punched Clock Enable: </div>
+            <div style="grid-column: 2;   grid-row: 5;" class="mu2e_list" name="control" bit="9"></div>
+            <div style="grid-column: 1;   grid-row: 6;" class="mu2e_list"> - 15 CFO Emulation Mode: </div>
+            <div style="grid-column: 2;   grid-row: 6;" class="mu2e_list" name="control" bit="15"></div>
+            <div style="grid-column: 1;   grid-row: 7;" class="mu2e_list"> - 23 DTC Autogenerate DRP: </div>
+            <div style="grid-column: 2;   grid-row: 7;" class="mu2e_list" name="control" bit="23"></div>
+            <div style="grid-column: 1;   grid-row: 8;" class="mu2e_list"> - 31 Soft Reset: </div>
+            <div style="grid-column: 2;   grid-row: 8;" class="mu2e_list" name="control" bit="31"></div>
+        </div>
+        <div id="mu2e_dtc_links" class="mu2e_container mu2e_grid">
+            <div style="grid-column: 1/6; grid-row: 1" class="mu2e_title">ROC Links</div>
+
+            <div style="grid-column: 1/6;   grid-row: 4;" class="mu2e_list"> - Link 0: </div>
+            <div style="grid-column: 1;     grid-row: 4;" class="mu2e_list"> - Link 0: </div>
+            <div style="grid-column: 1/6;   grid-row: 5;" class="mu2e_list"> - Link 1: </div>
+            <div style="grid-column: 1/6;   grid-row: 6;" class="mu2e_list"> - Link 2: </div>
+            <div style="grid-column: 1/6;   grid-row: 7;" class="mu2e_list"> - Link 3: </div>
+            <div style="grid-column: 1/6;   grid-row: 8;" class="mu2e_list"> - Link 4: </div>
+            <div style="grid-column: 1/6;   grid-row: 9;" class="mu2e_list"> - Link 5: </div>
+            <div style="grid-column: 1/6;   grid-row: 10;" class="mu2e_list"> - CFO: </div>
+            <div style="grid-column: 1/6;   grid-row: 11;" class="mu2e_list"> - EVB: </div>
+            <div style="grid-column: 1/6;   grid-row: 12;" class="mu2e_list"> - to JA: </div>
+            <div style="grid-column: 1/6;   grid-row: 13;" class="mu2e_list"> - from JA: </div>
+
+            <div style="grid-column: 2;   grid-row: 2/4;" class="mu2e_list">Enabled Links (0x9114)</div>
+            <div style="grid-column: 2;   grid-row: 3;" class="mu2e_list" name="mu2e_dcs" data="Link_Enable" format="hex" bitfield="linkEnable">Value</div>
+            <div style="grid-column: 2;   grid-row: 4;" class="mu2e_list" name="linkEnable" bit="0"></div>
+            <div style="grid-column: 2;   grid-row: 5;" class="mu2e_list" name="linkEnable" bit="1"></div>
+            <div style="grid-column: 2;   grid-row: 6;" class="mu2e_list" name="linkEnable" bit="2"></div>
+            <div style="grid-column: 2;   grid-row: 7;" class="mu2e_list" name="linkEnable" bit="3"></div>
+            <div style="grid-column: 2;   grid-row: 8;" class="mu2e_list" name="linkEnable" bit="4"></div>
+            <div style="grid-column: 2;   grid-row: 9;" class="mu2e_list" name="linkEnable" bit="5"></div>
+            <div style="grid-column: 2;   grid-row: 10;" class="mu2e_list" name="linkEnable" bit="6"></div>
+            <div style="grid-column: 2;   grid-row: 11;" class="mu2e_list" name="linkEnable" bit="7"></div>
+
+            <div style="grid-column: 3;   grid-row: 2/4;" class="mu2e_list">SERDES PLL lock (0x9128)</div>
+            <div style="grid-column: 3;   grid-row: 3;" class="mu2e_list" name="mu2e_dcs" data="SERDES_PLL_Locked" format="hex" bitfield="pllLock">Value</div>
+            <div style="grid-column: 3;   grid-row: 4;" class="mu2e_list" name="pllLock" bit="0"></div>
+            <div style="grid-column: 3;   grid-row: 5;" class="mu2e_list" name="pllLock" bit="1"></div>
+            <div style="grid-column: 3;   grid-row: 6;" class="mu2e_list" name="pllLock" bit="2"></div>
+            <div style="grid-column: 3;   grid-row: 7;" class="mu2e_list" name="pllLock" bit="3"></div>
+            <div style="grid-column: 3;   grid-row: 8;" class="mu2e_list" name="pllLock" bit="4"></div>
+            <div style="grid-column: 3;   grid-row: 9;" class="mu2e_list" name="pllLock" bit="5"></div>
+            <div style="grid-column: 3;   grid-row: 10;" class="mu2e_list" name="pllLock" bit="6"></div>
+            <div style="grid-column: 3;   grid-row: 11;" class="mu2e_list" name="pllLock" bit="7"></div>
+            <div style="grid-column: 3;   grid-row: 12;" class="mu2e_list" name="pllLock" bit="8"></div>
+            <div style="grid-column: 3;   grid-row: 13;" class="mu2e_list" name="pllLock" bit="9"></div>
+
+            <div style="grid-column: 4;   grid-row: 2/4;" class="mu2e_list">CDR lock (0x9140)</div>
+            <div style="grid-column: 4;   grid-row: 3;" class="mu2e_list" name="mu2e_dcs" data="RX_CDR_Lock_Status" format="hex" bitfield="cdrLock">Value</div>
+            <div style="grid-column: 4;   grid-row: 4;" class="mu2e_list" name="cdrLock" bit="0"></div>
+            <div style="grid-column: 4;   grid-row: 5;" class="mu2e_list" name="cdrLock" bit="1"></div>
+            <div style="grid-column: 4;   grid-row: 6;" class="mu2e_list" name="cdrLock" bit="2"></div>
+            <div style="grid-column: 4;   grid-row: 7;" class="mu2e_list" name="cdrLock" bit="3"></div>
+            <div style="grid-column: 4;   grid-row: 8;" class="mu2e_list" name="cdrLock" bit="4"></div>
+            <div style="grid-column: 4;   grid-row: 9;" class="mu2e_list" name="cdrLock" bit="5"></div>
+            <div style="grid-column: 4;   grid-row: 10;" class="mu2e_list" name="cdrLock" bit="6"></div>
+            <div style="grid-column: 4;   grid-row: 11;" class="mu2e_list" name="cdrLock" bit="7"></div>
+
+            <div style="grid-column: 5;   grid-row: 2;" class="mu2e_list">Link Error</div>
+            <div style="grid-column: 5;   grid-row: 4;" class="mu2e_list" name="mu2e_dcs" data="ROC_Link_0_Error" format="hex" callback="expandLinkError">Value</div>
+            <div style="grid-column: 5;   grid-row: 5;" class="mu2e_list" name="mu2e_dcs" data="ROC_Link_1_Error" format="hex">Value</div>
+            <div style="grid-column: 5;   grid-row: 6;" class="mu2e_list" name="mu2e_dcs" data="ROC_Link_2_Error" format="hex">Value</div>
+            <div style="grid-column: 5;   grid-row: 7;" class="mu2e_list" name="mu2e_dcs" data="ROC_Link_3_Error" format="hex">Value</div>
+            <div style="grid-column: 5;   grid-row: 8;" class="mu2e_list" name="mu2e_dcs" data="ROC_Link_4_Error" format="hex">Value</div>
+            <div style="grid-column: 5;   grid-row: 9;" class="mu2e_list" name="mu2e_dcs" data="ROC_Link_5_Error" format="hex">Value</div>
+            <div style="grid-column: 5;   grid-row: 11;" class="mu2e_list" name="mu2e_dcs" data="CFO_Link_Error_Flags" format="hex">Value</div>
+
+            <!--
+
+            "Mu2e:TDAQ_crv:daq08DTC:SERDES_RX_Status",
+
+            "Mu2e:TDAQ_crv:daq08DTC:SERDES_RX_CNIT_Error",
+            "Mu2e:TDAQ_crv:daq08DTC:SERDES_RX_Disparity_Error",
+            "Mu2e:TDAQ_crv:daq08DTC:SERDES_Unlock_Error",
+            -->
+
+
+        </div>
+
+        <div id="mu2e_dtc_action" class="mu2e_container mu2e_grid">
+            <div style="grid-column: 1/5; grid-row: 1" class="mu2e_title">Settings</div>
+            <div style="grid-column: 1;   grid-row: 2;" class="mu2e_list">Enable: <span class="mu2e_config" path="/FEInterfaceTable" uid="daq08DTC" field="Status"></span></div>
+            <div style="grid-column: 2;   grid-row: 2;" class="mu2e_list">ROC Config Step: <span class="mu2e_config" path="/DTCInterfaceTable" uid="daq08DTC" field="EnableROCConfigureStep"></span></div>
+            <div style="grid-column: 3;   grid-row: 2;" class="mu2e_list">Monitoring: <span class="mu2e_config" path="/DTCInterfaceTable" uid="daq08DTC" field="SlowControlsEnable"></span></div>
+            <div style="grid-column: 4;   grid-row: 2;" class="mu2e_list"></div>
+            <div style="grid-column: 1;   grid-row: 3;" class="mu2e_list"><button onClick="document.getElementById('save_msg').innerHTML = ''; saveConfig(function (msg) {document.getElementById('save_msg').innerHTML += msg+'<br>';})">generate new configuration</button></div>
+            <div style="grid-column: 2/5;   grid-row: 3/5;" class="mu2e_list"><span id="save_msg"></span></div>
+            <div style="grid-column: 1;   grid-row: 4;" class="mu2e_list"><button onClick="document.getElementById('save_msg').innerHTML = ''; reloadConfig(function (msg) {document.getElementById('save_msg').innerHTML += msg+'<br>';}); handleConfig()">reload last configuration</button></div>
+        </div>
+
+        <div id="mu2e_dtc_action" class="mu2e_container mu2e_grid">
+            <div style="grid-column: 1/6; grid-row: 1" class="mu2e_title">Functions</div>
+            <div style="grid-column: 1;   grid-row: 2/4;" class="mu2e_list">Read/Write</div>
+            <div style="grid-column: 2;   grid-row: 2;" class="mu2e_list"> Register </div>
+            <div style="grid-column: 3;   grid-row: 2;" class="mu2e_list">
+                <input type="text" value="0x9030" size="6" id="dtcReadWrite_reg"></input>
             </div>
-            <div id="mu2e_dtc_links" class="mu2e_container mu2e_grid">
-                <div style="grid-column: 1/6; grid-row: 1" class="mu2e_title">ROC Links</div>
+            <div style="grid-column: 4;   grid-row: 2;" class="mu2e_list">
+                <button onClick="read(this);">read &#10095;</button>
+            </div>
+            <div style="grid-column: 5;   grid-row: 2;" class="mu2e_list" id="dtcRead_value"></div>
 
-                <div style="grid-column: 1/6;   grid-row: 4;"    class="mu2e_list"> - Link 0: </div>
-                <div style="grid-column: 1;     grid-row: 4;"    class="mu2e_list"> - Link 0: </div>
-                <div style="grid-column: 1/6;   grid-row: 5;"    class="mu2e_list"> - Link 1: </div>
-                <div style="grid-column: 1/6;   grid-row: 6;"    class="mu2e_list"> - Link 2: </div>
-                <div style="grid-column: 1/6;   grid-row: 7;"    class="mu2e_list"> - Link 3: </div>
-                <div style="grid-column: 1/6;   grid-row: 8;"    class="mu2e_list"> - Link 4: </div>
-                <div style="grid-column: 1/6;   grid-row: 9;"    class="mu2e_list"> - Link 5: </div>
-                <div style="grid-column: 1/6;   grid-row: 10;"    class="mu2e_list"> - CFO: </div>
-                <div style="grid-column: 1/6;   grid-row: 11;"    class="mu2e_list"> - EVB: </div>
-                <div style="grid-column: 1/6;   grid-row: 12;"    class="mu2e_list"> - to JA: </div>
-                <div style="grid-column: 1/6;   grid-row: 13;"    class="mu2e_list"> - from JA: </div>
+            <div style="grid-column: 2;   grid-row: 3;" class="mu2e_list">Value</div>
+            <div style="grid-column: 3;   grid-row: 3;" class="mu2e_list">
+                <input type="text" value="0x00000000" size="12" id="dtcWrite_value"></input>
+            </div>
+            <div style="grid-column: 4;   grid-row: 3;" class="mu2e_list">
+                <button onClick="writeCmd(this);">write &#10095;</button>
+            </div>
+            <div style="grid-column: 5;   grid-row: 3;" class="mu2e_list" id="dtcWrite_value"></div>
 
-                <div style="grid-column: 2;   grid-row: 2/4;"    class="mu2e_list">Enabled Links (0x9114)</div>
-                <div style="grid-column: 2;   grid-row: 3;"    class="mu2e_list" name="mu2e_dcs"  data="Link_Enable"  format="hex" bitfield="linkEnable">Value</div>
-                <div style="grid-column: 2;   grid-row: 4;"    class="mu2e_list"  name="linkEnable" bit="0"></div>
-                <div style="grid-column: 2;   grid-row: 5;"    class="mu2e_list"  name="linkEnable" bit="1"></div>
-                <div style="grid-column: 2;   grid-row: 6;"    class="mu2e_list" name="linkEnable" bit="2"></div>
-                <div style="grid-column: 2;   grid-row: 7;"    class="mu2e_list" name="linkEnable" bit="3"></div>
-                <div style="grid-column: 2;   grid-row: 8;"    class="mu2e_list" name="linkEnable" bit="4"></div>
-                <div style="grid-column: 2;   grid-row: 9;"    class="mu2e_list" name="linkEnable" bit="5"></div>
-                <div style="grid-column: 2;   grid-row: 10;"    class="mu2e_list" name="linkEnable" bit="6"></div>
-                <div style="grid-column: 2;   grid-row: 11;"    class="mu2e_list" name="linkEnable" bit="7"></div>
-
-                <div style="grid-column: 3;   grid-row: 2/4;"    class="mu2e_list">SERDES PLL lock (0x9128)</div>
-                <div style="grid-column: 3;   grid-row: 3;"    class="mu2e_list" name="mu2e_dcs"  data="SERDES_PLL_Locked"  format="hex" bitfield="pllLock">Value</div>
-                <div style="grid-column: 3;   grid-row: 4;"    class="mu2e_list" name="pllLock" bit="0"></div>
-                <div style="grid-column: 3;   grid-row: 5;"    class="mu2e_list" name="pllLock" bit="1"></div>
-                <div style="grid-column: 3;   grid-row: 6;"    class="mu2e_list" name="pllLock" bit="2"></div>
-                <div style="grid-column: 3;   grid-row: 7;"    class="mu2e_list" name="pllLock" bit="3"></div>
-                <div style="grid-column: 3;   grid-row: 8;"    class="mu2e_list" name="pllLock" bit="4"></div>
-                <div style="grid-column: 3;   grid-row: 9;"    class="mu2e_list" name="pllLock" bit="5"></div>
-                <div style="grid-column: 3;   grid-row: 10;"    class="mu2e_list" name="pllLock" bit="6"></div>
-                <div style="grid-column: 3;   grid-row: 11;"    class="mu2e_list" name="pllLock" bit="7"></div>
-                <div style="grid-column: 3;   grid-row: 12;"    class="mu2e_list" name="pllLock" bit="8"></div>
-                <div style="grid-column: 3;   grid-row: 13;"    class="mu2e_list" name="pllLock" bit="9"></div>
-
-                <div style="grid-column: 4;   grid-row: 2/4;"    class="mu2e_list">CDR lock (0x9140)</div>
-                <div style="grid-column: 4;   grid-row: 3;"    class="mu2e_list" name="mu2e_dcs"  data="RX_CDR_Lock_Status"  format="hex" bitfield="cdrLock">Value</div>
-                <div style="grid-column: 4;   grid-row: 4;"    class="mu2e_list" name="cdrLock" bit="0"></div>
-                <div style="grid-column: 4;   grid-row: 5;"    class="mu2e_list" name="cdrLock" bit="1"></div>
-                <div style="grid-column: 4;   grid-row: 6;"    class="mu2e_list" name="cdrLock" bit="2"></div>
-                <div style="grid-column: 4;   grid-row: 7;"    class="mu2e_list" name="cdrLock" bit="3"></div>
-                <div style="grid-column: 4;   grid-row: 8;"    class="mu2e_list" name="cdrLock" bit="4"></div>
-                <div style="grid-column: 4;   grid-row: 9;"    class="mu2e_list" name="cdrLock" bit="5"></div>
-                <div style="grid-column: 4;   grid-row: 10;"    class="mu2e_list" name="cdrLock" bit="6"></div>
-                <div style="grid-column: 4;   grid-row: 11;"    class="mu2e_list" name="cdrLock" bit="7"></div>
-
-                <div style="grid-column: 5;   grid-row: 2;"    class="mu2e_list">Link Error</div>
-                <div style="grid-column: 5;   grid-row: 4;"    class="mu2e_list" name="mu2e_dcs"  data="ROC_Link_0_Error"  format="hex" callback="expandLinkError">Value</div>
-                <div style="grid-column: 5;   grid-row: 5;"    class="mu2e_list" name="mu2e_dcs"  data="ROC_Link_1_Error"  format="hex">Value</div>
-                <div style="grid-column: 5;   grid-row: 6;"    class="mu2e_list" name="mu2e_dcs"  data="ROC_Link_2_Error"  format="hex">Value</div>
-                <div style="grid-column: 5;   grid-row: 7;"    class="mu2e_list" name="mu2e_dcs"  data="ROC_Link_3_Error"  format="hex">Value</div>
-                <div style="grid-column: 5;   grid-row: 8;"    class="mu2e_list" name="mu2e_dcs"  data="ROC_Link_4_Error"  format="hex">Value</div>
-                <div style="grid-column: 5;   grid-row: 9;"    class="mu2e_list" name="mu2e_dcs"  data="ROC_Link_5_Error"  format="hex">Value</div>
-                <div style="grid-column: 5;   grid-row: 11;"    class="mu2e_list" name="mu2e_dcs"  data="CFO_Link_Error_Flags"  format="hex">Value</div>
-
-                <!--
-                
-                "Mu2e:TDAQ_crv:daq08DTC:SERDES_RX_Status",
-
-                "Mu2e:TDAQ_crv:daq08DTC:SERDES_RX_CNIT_Error",
-                "Mu2e:TDAQ_crv:daq08DTC:SERDES_RX_Disparity_Error",
-                "Mu2e:TDAQ_crv:daq08DTC:SERDES_Unlock_Error",
-                -->
-
-
+            <!-- RESETS -->
+            <div style="grid-column: 1;   grid-row: 4;" class="mu2e_list">Resets</div>
+            <div style="grid-column: 2;   grid-row: 4;" class="mu2e_list">
+                <button onClick="dtcReset(false, _dtcName);">Soft Reset</button>
+                <button onClick="dtcReset(true,  _dtcName);">Hard Reset</button>
             </div>
 
-            <div id="mu2e_dtc_action" class="mu2e_container mu2e_grid">
-                <div style="grid-column: 1/5; grid-row: 1" class="mu2e_title">Settings</div>
-                <div style="grid-column: 1;   grid-row: 2;"    class="mu2e_list">Enable: <span class="mu2e_config" path="/FEInterfaceTable" uid="daq08DTC" field="Status"></span></div>
-                <div style="grid-column: 2;   grid-row: 2;"    class="mu2e_list">ROC Config Step: <span class="mu2e_config" path="/DTCInterfaceTable" uid="daq08DTC" field="EnableROCConfigureStep"></span></div>
-                <div style="grid-column: 3;   grid-row: 2;"    class="mu2e_list">Monitoring: <span class="mu2e_config" path="/DTCInterfaceTable" uid="daq08DTC" field="SlowControlsEnable"></span></div>
-                <div style="grid-column: 4;   grid-row: 2;"    class="mu2e_list"></div>
-                <div style="grid-column: 1;   grid-row: 3;"    class="mu2e_list"><button onClick="document.getElementById('save_msg').innerHTML = ''; saveConfig(function (msg) {document.getElementById('save_msg').innerHTML += msg+'<br>';})">generate new configuration</button></div>
-                <div style="grid-column: 2/5;   grid-row: 3/5;"    class="mu2e_list"><span id="save_msg"></span></div>
-                <div style="grid-column: 1;   grid-row: 4;"    class="mu2e_list"><button onClick="document.getElementById('save_msg').innerHTML = ''; reloadConfig(function (msg) {document.getElementById('save_msg').innerHTML += msg+'<br>';}); handleConfig()">reload last configuration</button></div>
-            </div>            
 
-            <div id="mu2e_dtc_action" class="mu2e_container mu2e_grid">
-                <div style="grid-column: 1/6; grid-row: 1" class="mu2e_title">Functions</div>
-                <div style="grid-column: 1;   grid-row: 2/4;"    class="mu2e_list">Read/Write</div>
-                <div style="grid-column: 2;   grid-row: 2;"    class="mu2e_list"> Register </div>
-                <div style="grid-column: 3;   grid-row: 2;"    class="mu2e_list">
-                     <input type="text" value="0x9030" size="6" id="dtcReadWrite_reg"></input>
-                </div>
-                <div style="grid-column: 4;   grid-row: 2;"    class="mu2e_list">
-                    <button onClick="read(this);">read &#10095;</button>
-                </div>
-                <div style="grid-column: 5;   grid-row: 2;"    class="mu2e_list" id="dtcRead_value"></div>
-
-                <div style="grid-column: 2;   grid-row: 3;"    class="mu2e_list">Value</div>
-                <div style="grid-column: 3;   grid-row: 3;"    class="mu2e_list">
-                    <input type="text" value="0x00000000" size="12" id="dtcWrite_value"></input>
-                </div>
-                <div style="grid-column: 4;   grid-row: 3;"    class="mu2e_list">
-                    <button onClick="writeCmd(this);">write &#10095;</button>
-                </div>
-                <div style="grid-column: 5;   grid-row: 3;"    class="mu2e_list" id="dtcWrite_value"></div>
-                
-                <!-- RESETS -->
-                <div style="grid-column: 1;   grid-row: 4;"    class="mu2e_list">Resets</div>
-                <div style="grid-column: 2;   grid-row: 4;"    class="mu2e_list">
-                    <button onClick="dtcReset(false, _dtcName);">Soft Reset</button>
-                    <button onClick="dtcReset(true,  _dtcName);">Hard Reset</button>
-                </div>
-
-
-            </div>
+        </div>
         <!--</div>-->
 
     </div>

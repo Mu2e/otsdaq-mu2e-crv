@@ -4,20 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mu2e</title>
-    
-    <script type="text/JavaScript" src="/WebPath/js/Globals.js"></script>   
-    <script type="text/JavaScript" src="/WebPath/js/Debug.js"></script>     
+
+    <script type="text/JavaScript" src="/WebPath/js/Globals.js"></script>
+    <script type="text/JavaScript" src="/WebPath/js/Debug.js"></script>
     <script type="text/JavaScript" src="/WebPath/UserWebPath/js/mu2e.js"></script>
     <!--<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">-->
-    <link rel="stylesheet" href="/WebPath/UserWebPath/css/mu2e.css"> 
+    <link rel="stylesheet" href="/WebPath/UserWebPath/css/mu2e.css">
 </head>
 <body class="mu2e" onload="mu2e_init('CrvConfig')">
     <script>
         function makeNewAlias() {
-            const name    = document.getElementById("newAliasName").value+"_config";
+            const name = document.getElementById("newAliasName").value + "_config";
             const comment = document.getElementById("newAliasComment").value;
             document.getElementById('save_msg').innerHTML = '';
-            setAlias(name, comment, function (msg) {document.getElementById('save_msg').innerHTML += msg+'<br>';}).then(res => {
+            setAlias(name, comment, function (msg) { document.getElementById('save_msg').innerHTML += msg + '<br>'; }).then(res => {
                 handleConfig();
                 const configs = document.querySelector('div[id="mu2e_configurations"]');
                 const title = configs.querySelector('div');
@@ -27,22 +27,22 @@
             })
         }
 
-        function loadConfig(msg=undefined) {
+        function loadConfig(msg = undefined) {
             const group = document.querySelector('[id="loadConfig_group"]').value;
             const key = document.querySelector('[id="loadConfig_key"]').value;
             const alias = document.querySelector('[id="mu2e_config_list"]>select').value;
             console.log("activate", group, key, "as", alias)
-            try{
+            try {
                 activateTableGroup(group, key).then(res => {
                     console.log(res)
-                    msg("activated "+group+"("+key+")");
-                    setAlias(alias,"",msg).then(res => {
+                    msg("activated " + group + "(" + key + ")");
+                    setAlias(alias, "", msg).then(res => {
                         handleConfig();
                         updateConfig();
                     });
                 });
 
-            } catch(error) {msg(error);};
+            } catch (error) { msg(error); };
         }
     </script>
     <div id="mu2e_header">mu2e</div>
@@ -50,12 +50,12 @@
     <div id="mu2e_main">
         <div class="mu2e_container mu2e_grid">
             <div style="grid-column: 1/5; grid-row: 1" class="mu2e_title">Configuration</div>
-            <div style="grid-column: 1;   grid-row: 2;"    class="mu2e_list" name="mu2e_config_name">Config Name</div>
-            <div style="grid-column: 2;   grid-row: 2;"    class="mu2e_list" name="mu2e_config">Config</div>
-            <div style="grid-column: 3;   grid-row: 2;"    class="mu2e_list" ></div>
-            <div style="grid-column: 4;   grid-row: 2;"    class="mu2e_list"></div>
+            <div style="grid-column: 1;   grid-row: 2;" class="mu2e_list" name="mu2e_config_name">Config Name</div>
+            <div style="grid-column: 2;   grid-row: 2;" class="mu2e_list" name="mu2e_config">Config</div>
+            <div style="grid-column: 3;   grid-row: 2;" class="mu2e_list"></div>
+            <div style="grid-column: 4;   grid-row: 2;" class="mu2e_list"></div>
             <!--<div style="grid-column: 1;   grid-row: 3;"    class="mu2e_list" id="mu2e_config_list"></div>-->
-        </div>    
+        </div>
         <div id="mu2e_configurations" class="mu2e_container mu2e_grid">
             <div style="grid-column: 1/5; grid-row: 1" class="mu2e_title">
                 Configurations
@@ -63,24 +63,24 @@
                     <a href="#" style="text-decoration:none; padding:3px; color:white;" onclick="toggleView(this,'mu2e_collapsable')">-</a>
                 </span>
             </div>
-        </div> 
-        
+        </div>
 
-         <!--<div id="mu2e_messages" class="mu2e_container">
+
+        <!--<div id="mu2e_messages" class="mu2e_container">
             <div class="mu2e_title">CRV Configuration</div>
         </div>-->
         <div class="mu2e_container mu2e_grid">
             <div style="grid-column: 1/5; grid-row: 1" class="mu2e_title">Actions</div>
-            <div style="grid-column: 1;   grid-row: 2;"    class="mu2e_list"><button onClick="makeNewAlias()">New Alias</button></div>
-            <div style="grid-column: 2;   grid-row: 2;"    class="mu2e_list">Name <input type="text" id="newAliasName" size="20"></input>_config</div>
-            <div style="grid-column: 3/5;   grid-row: 2;"    class="mu2e_list">Comment <input type="text" id="newAliasComment"  size="60"></input></div>
-            <div style="grid-column: 1;   grid-row: 3;"    class="mu2e_list"><button onClick="document.getElementById('save_msg').innerHTML = ''; saveConfig(function (msg) {document.getElementById('save_msg').innerHTML += msg+'<br>';})">generate new configuration</button></div>
-            <div style="grid-column: 2/5;   grid-row: 4/6;"    class="mu2e_list"><span id="save_msg"></span></div>
-            <div style="grid-column: 1;   grid-row: 5;"    class="mu2e_list"><button onClick="document.getElementById('save_msg').innerHTML = ''; reloadConfig(function (msg) {document.getElementById('save_msg').innerHTML += msg+'<br>';}); handleConfig()">reload last configuration</button></div>
-            <div style="grid-column: 1;   grid-row: 3;"    class="mu2e_list"><button onClick="document.getElementById('save_msg').innerHTML = ''; loadConfig(function (msg) {document.getElementById('save_msg').innerHTML += msg+'<br>';}); handleConfig()">load config</button></div>
-            <div style="grid-column: 2;   grid-row: 3;"    class="mu2e_list"><input type="text" value="CrvVSTConfig" id="loadConfig_group"></input>(<input type="text" value="340" id="loadConfig_key" size="5"></input>)</div>
-            <div style="grid-column: 3;   grid-row: 3;"    class="mu2e_list" id="mu2e_config_list"></div>
-        </div>    
+            <div style="grid-column: 1;   grid-row: 2;" class="mu2e_list"><button onClick="makeNewAlias()">New Alias</button></div>
+            <div style="grid-column: 2;   grid-row: 2;" class="mu2e_list">Name <input type="text" id="newAliasName" size="20"></input>_config</div>
+            <div style="grid-column: 3/5;   grid-row: 2;" class="mu2e_list">Comment <input type="text" id="newAliasComment" size="60"></input></div>
+            <div style="grid-column: 1;   grid-row: 3;" class="mu2e_list"><button onClick="document.getElementById('save_msg').innerHTML = ''; saveConfig(function (msg) {document.getElementById('save_msg').innerHTML += msg+'<br>';})">generate new configuration</button></div>
+            <div style="grid-column: 2/5;   grid-row: 4/6;" class="mu2e_list"><span id="save_msg"></span></div>
+            <div style="grid-column: 1;   grid-row: 5;" class="mu2e_list"><button onClick="document.getElementById('save_msg').innerHTML = ''; reloadConfig(function (msg) {document.getElementById('save_msg').innerHTML += msg+'<br>';}); handleConfig()">reload last configuration</button></div>
+            <div style="grid-column: 1;   grid-row: 3;" class="mu2e_list"><button onClick="document.getElementById('save_msg').innerHTML = ''; loadConfig(function (msg) {document.getElementById('save_msg').innerHTML += msg+'<br>';}); handleConfig()">load config</button></div>
+            <div style="grid-column: 2;   grid-row: 3;" class="mu2e_list"><input type="text" value="CrvVSTConfig" id="loadConfig_group"></input>(<input type="text" value="340" id="loadConfig_key" size="5"></input>)</div>
+            <div style="grid-column: 3;   grid-row: 3;" class="mu2e_list" id="mu2e_config_list"></div>
+        </div>
 
     </div>
 
