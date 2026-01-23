@@ -60,6 +60,7 @@ enum Register : uint16_t
 	Data_DDR_WriteLow  = 0x03,
 	Data_DDR_ReadHigh  = 0x04,
 	Data_DDR_ReadLow   = 0x05,
+	Data_InputMask     = 0x17,
 	Data_TestCounter   = 0x44,
 	Data_UpTimeHigh    = 0x6C,
 	Data_UpTimeLow     = 0x6D,
