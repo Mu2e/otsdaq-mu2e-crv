@@ -55,6 +55,7 @@ enum Register : uint16_t
 	GateOnOffSpill  = 0x1307,  // 6.25ns, default 16
 	GateOffOffSpill = 0x1308,  // 6.25ns, default 1792
 	LEDOn           = 0x1318,  // 6.25ns, default
+    PortAll        =  0x1329,  // set port for all FPGAs
 
 	// broadcast to all FEBs on ROC
 	AllFEB = 0x3000,
