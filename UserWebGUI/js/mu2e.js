@@ -276,8 +276,8 @@ async function transition(state, config = "crv_vst_config", name = "CrvVstRun") 
             data = "ConfigurationAlias=" + config,
             lid = LID_GATEWAY, type1 = "transition");
         let json = xmlToJson(xml).DATA;
-        if (json['state_tranisition_attempted'] != "1") {
-            throw (json['state_tranisition_attempted_err']);
+        if (json['state_transition_attempted'] != "1") {
+            throw (json['state_transition_attempted_err']);
         }
         return json;
     } catch (error) { console.error("Error:", error); }
