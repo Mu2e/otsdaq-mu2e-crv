@@ -1,9 +1,9 @@
-include(BuildPlugins) 
+include(BuildPlugins)
 
-cet_build_plugin(CrvVstDemoViewer art::module LIBRARIES 
-    REG 
-    TRACE::TRACE 
-    ROOT::Core 
+cet_build_plugin(CrvVstDemoViewer art::module LIBRARIES
+    REG
+    TRACE::TRACE
+    ROOT::Core
     ROOT::Gui
     artdaq-core-mu2e::Data_dict
     artdaq-core-mu2e::Overlays
@@ -21,7 +21,7 @@ cet_build_plugin(CrvDQM art::module LIBRARIES REG
     ROOT::Core
     ROOT::RIO
     ROOT::Gui
-    ROOT::RHTTP 
+    ROOT::RHTTP
 )
 
 install_headers(SUBDIRS detail)
