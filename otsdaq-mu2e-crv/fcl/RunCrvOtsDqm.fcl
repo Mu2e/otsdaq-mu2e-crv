@@ -41,23 +41,18 @@ physics : {
     }
     CrvDQMcollector: @local::CrvDQMcollector
   }
-
   t1 : [ crvdigi ] 
   a1 : [ crvdqm ]
-
   trigger_paths  : [t1]
   end_paths      : [a1]
-
 }
 
 outputs: { 
-
   # out1: {
   #   module_type: FileDumperOutput
   #   wantProductFriendlyClassName: true   # Print class names
   #   onlyIfPresent: true # Only present products
   # }
-      
 }
 
 services.TimeTracker.printSummary: false

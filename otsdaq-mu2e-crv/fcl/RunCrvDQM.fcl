@@ -37,11 +37,9 @@ physics : {
 }
 
 outputs: { 
-
   out1: {
     module_type: FileDumperOutput
     wantProductFriendlyClassName: true   # Print class names
     onlyIfPresent: true # Only present products
   }
-      
 }

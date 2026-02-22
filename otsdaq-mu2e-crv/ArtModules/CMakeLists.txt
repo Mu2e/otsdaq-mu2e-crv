@@ -37,7 +37,6 @@ cet_build_plugin(CrvOtsDqm art::module LIBRARIES REG
     ROOT::RIO
     ROOT::Gui
     ROOT::RHTTP
-    
 )
 
 install_headers(SUBDIRS detail)
