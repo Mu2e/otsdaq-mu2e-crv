@@ -54,12 +54,12 @@ public:
 
 	// CRV ROC specific functions
 	void Reset();
-	void RocConfigure(bool gr=false, uint16_t grn=0, uint16_t uBoffset = 0x0);
+	void RocConfigure(bool gr=false, uint16_t grn=0, uint16_t uBoffset = 0x0, uint16_t timeout = 0xffff);
 	void FebConfigure(bool useOtsConfig = true);
 	void ResetRxBuffers();
 	void SetMarkerSync(bool enable=true);
     int16_t Realign(int sleep_uc = 1000);
-    void ResetPLL(int sleep_us = 1000);
+    void ResetPLL(int sleep_us = 1000, bool allPorts = false);
 
     uint16_t ReadAFE(uint16_t fpga, uint16_t afe_no, uint16_t reg);
 	// CRV FEB specific functions
@@ -107,6 +107,8 @@ public:
     void                                    FebIITrigBaselines      (__ARGS__);
     void                                    SetInputMask            (__ARGS__);
 	// clang-format on
+private:
+    bool gr;
 };
 
 }  // namespace ots
