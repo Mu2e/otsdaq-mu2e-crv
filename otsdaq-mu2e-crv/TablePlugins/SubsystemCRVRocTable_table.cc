@@ -14,7 +14,7 @@ std::string getCRVDummyCSVFormat(std::map<uint16_t, uint16_t>& mapChannels)
 	mapChannels.clear();
 
 	std::stringstream offlineTable;
-	offlineTable << "TABLE Dummy" << __E__;
+	offlineTable << "TABLE CRVDummy" << __E__;
 
 	for(uint16_t i = 0; i < 16; ++i)
 	{
