@@ -107,8 +107,8 @@ public:
     void                                    FebIITrigBaselines      (__ARGS__);
     void                                    SetInputMask            (__ARGS__);
 	// clang-format on
-private:
-    bool gr;
+  private:
+	bool gr;
 };
 
 }  // namespace ots

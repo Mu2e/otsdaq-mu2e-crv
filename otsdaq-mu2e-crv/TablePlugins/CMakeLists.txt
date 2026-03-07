@@ -10,4 +10,3 @@ cet_build_plugin(SubsystemCRVRocTable otsdaq::table LIBRARIES REG
 
 install_headers()
 install_source()
-

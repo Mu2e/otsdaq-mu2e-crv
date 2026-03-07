@@ -19,7 +19,9 @@ std::string getCRVDummyCSVFormat(std::map<uint16_t, uint16_t>& mapChannels)
 	for(uint16_t i = 0; i < 16; ++i)
 	{
 		mapChannels[i] = i;
-		offlineTable << i << ", " << "1" << "\n";
+		offlineTable << i << ", "
+		             << "1"
+		             << "\n";
 	}
 
 	return offlineTable.str();
@@ -42,14 +44,15 @@ void SubsystemCRVRocTable::init(ConfigurationManager* configManager)
 	generateOfflineTableMap(configManager);
 
 	const std::string dbserviceOnlinePath =
-		getenv("DBSERVICE_ONLINE_PATH") ? getenv("DBSERVICE_ONLINE_PATH") : "";
+	    getenv("DBSERVICE_ONLINE_PATH") ? getenv("DBSERVICE_ONLINE_PATH") : "";
 	if(dbserviceOnlinePath.empty())
 		return;
 
 	for(const auto& offlineTable : mapOfflineTables_)
 	{
-		const std::string fileName = dbserviceOnlinePath + "/" + offlineTable.first + ".txt";
-		std::ofstream     out(fileName);
+		const std::string fileName =
+		    dbserviceOnlinePath + "/" + offlineTable.first + ".txt";
+		std::ofstream out(fileName);
 		if(!out)
 		{
 			__SS__ << "Failed to open file: " << fileName << __E__;
@@ -60,15 +63,16 @@ void SubsystemCRVRocTable::init(ConfigurationManager* configManager)
 }
 
 //==============================================================================
-void SubsystemCRVRocTable::generateOfflineTableMap(const ConfigurationManager* /*configManager*/)
+void SubsystemCRVRocTable::generateOfflineTableMap(
+    const ConfigurationManager* /*configManager*/)
 {
 	mapOfflineTables_.clear();
 	mapOfflineTables_["CRVDummy"] = getCRVDummyCSVFormat(mapChannels_);
 }
 
 //==============================================================================
-std::string SubsystemCRVRocTable::getStatusTableInCSVFormat(const ConfigurationManager* /*configManager*/,
-															const std::string&          OfflineCxxClassName)
+std::string SubsystemCRVRocTable::getStatusTableInCSVFormat(
+    const ConfigurationManager* /*configManager*/, const std::string& OfflineCxxClassName)
 {
 	std::stringstream out;
 	out << "TABLE " << OfflineCxxClassName << __E__;
@@ -78,7 +82,8 @@ std::string SubsystemCRVRocTable::getStatusTableInCSVFormat(const ConfigurationM
 }
 
 //==============================================================================
-std::string SubsystemCRVRocTable::getStructureAsJSON(const ConfigurationManager* configManager)
+std::string SubsystemCRVRocTable::getStructureAsJSON(
+    const ConfigurationManager* configManager)
 {
 	if(mapOfflineTables_.empty())
 		generateOfflineTableMap(configManager);
@@ -90,7 +95,7 @@ std::string SubsystemCRVRocTable::getStructureAsJSON(const ConfigurationManager*
 	for(auto it = mapOfflineTables_.begin(); it != mapOfflineTables_.end(); ++it)
 	{
 		out << "\"" << it->first << "\": \""
-			<< StringMacros::escapeJSONStringEntities(it->second) << "\"";
+		    << StringMacros::escapeJSONStringEntities(it->second) << "\"";
 		if(std::next(it) != mapOfflineTables_.end())
 			out << ",";
 	}

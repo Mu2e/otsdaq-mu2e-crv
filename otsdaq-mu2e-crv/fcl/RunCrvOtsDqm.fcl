@@ -41,13 +41,13 @@ physics : {
     }
     CrvDQMcollector: @local::CrvDQMcollector
   }
-  t1 : [ crvdigi ] 
+  t1 : [ crvdigi ]
   a1 : [ crvdqm ]
   trigger_paths  : [t1]
   end_paths      : [a1]
 }
 
-outputs: { 
+outputs: {
   # out1: {
   #   module_type: FileDumperOutput
   #   wantProductFriendlyClassName: true   # Print class names
