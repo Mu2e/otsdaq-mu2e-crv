@@ -484,7 +484,7 @@ try
 		       "mode not set, default to "
 		    << gr << __E__;
 	}
-	RocConfigure(gr,0,0xa,0xffff);
+	RocConfigure(gr,0,0x0,0xffff);
 
 	// ================================ FEB part ================================
 
@@ -530,7 +530,7 @@ void ROCCosmicRayVetoInterface::resume(void) {}
 void ROCCosmicRayVetoInterface::start(std::string)
 {  // runNumber)
 	//ResetRxBuffers();
-    RocConfigure(gr,0,0xa,0xffff);
+    RocConfigure(gr,0,0x0,0xffff);
 	// take pedestrals
 	// this->writeRegister(FEB::AllFEB|FEB::AllFPGA|FEB::CSRBroadCast, 0x100);
 	// TLOG(TLVL_Start) << "Taking pedestrals" << __E__;
