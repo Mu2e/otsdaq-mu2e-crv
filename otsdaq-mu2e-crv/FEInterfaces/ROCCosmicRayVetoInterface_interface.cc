@@ -529,7 +529,7 @@ void ROCCosmicRayVetoInterface::resume(void) {}
 
 //==============================================================================
 void ROCCosmicRayVetoInterface::start(std::string)
-{   // runNumber)
+{  // runNumber)
 	// ResetRxBuffers();
 	RocConfigure(gr, 0, 0x0, 0xffff);
 	// take pedestrals
