@@ -70,10 +70,6 @@ endif()
 # these are minimum required versions, not the actual product versions
 find_package(otsdaq-mu2e 1.02.00 REQUIRED)
 
- # XDAQ Extra setup
- include_directories($ENV{XDAQ_ROOT}/include/linux $ENV{XDAQ_ROOT}/include)
-link_directories($ENV{XDAQ_ROOT}/lib)
-
 include(BuildPlugins)
 
 # Code
@@ -89,13 +85,5 @@ add_subdirectory(otsdaq-mu2e-crv)
 if( $ENV{OTS_DOXY} MATCHES "DOIT" )
 	add_subdirectory(doc)
 endif()
-
-# Data
-#FILE(COPY ConfigurationDataExamples DESTINATION Data)
-#INSTALL(DIRECTORY ConfigurationDataExamples DESTINATION ${product}/${version}/Data)
-#FILE(COPY XDAQConfigurations DESTINATION Data)
-#INSTALL(DIRECTORY XDAQConfigurations DESTINATION ${product}/${version}/Data)
-#FILE(COPY ServiceData DESTINATION Data)
-#INSTALL(DIRECTORY ServiceData DESTINATION ${product}/${version}/Data)
 
 cet_cmake_config()
