@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CRV DQM</title>
+  <script src="/jsrootsys/scripts/JSRoot.core.js"></script>
+  <style>
+    body  { font-family: sans-serif; background: #111; color: #ddd; margin: 16px; }
+    h1    { font-size: 1.2em; margin-bottom: 12px; }
+    #canvas_div { width: 1400px; height: 500px; }
+  </style>
+</head>
+<body>
+  <h1>CRV DQM</h1>
+  <div id="canvas_div"></div>
+  <script>
+    async function update() {
+      let canvas = await JSROOT.httpRequest('/CrvOtsDqmDisplay/root.json', 'object');
+      await JSROOT.redraw('canvas_div', canvas);
+    }
+
+    async function init() {
+      let refreshMs = 500;
+      try {
+        let txt = await JSROOT.httpRequest('/config/refreshMs/cmd.json?method=GetTitle', 'text');
+        let val = parseFloat(JSON.parse(txt).value);
+        if (val > 0) refreshMs = val;
+      } catch(e) {}
+      update();
+      setInterval(update, refreshMs);
+    }
+    init();
+  </script>
+</body>
+</html>

@@ -34,7 +34,7 @@
 #include "Offline/RecoDataProducts/inc/CrvDigi.hh"
 
 // Custom styling
-#include "CrvDQMStyle.hh"
+// #include "CrvDQMStyle.hh"
 
 namespace ots
 {
@@ -122,7 +122,7 @@ CrvOtsDqm::CrvOtsDqm(fhicl::ParameterSet const& ps)
     , enableHttpServer_(ps.get<bool>("enableHttpServer", true))
     , httpPort_(ps.get<int>("httpPort", 8877))
     , onlineRefreshPeriodMs_(ps.get<float>("onlineRefreshPeriod", 500.f))
-    , histColor_(ps.get<std::string>("histColor", "blue"))
+    , histColor_(ps.get<std::string>("histColor", "red"))
     , canvasName_(ps.get<std::string>("canvasName", "CrvOtsDqmDisplay"))
     , webCanvas_(nullptr)
     , httpServer_(nullptr)
@@ -170,16 +170,15 @@ void CrvOtsDqm::beginJob()
 	}
 	else
 	{
-		// 28 FEBs * 64 channels = 1792 channels
-		// h1_channels_ = dir.make<TH1F>("h1_channels", "All FEB channels;Global FEB
-		// channel ID;Counts", 1792, -0.5, 1791.5);
+		// ROC 1: 25 FEB slots (0-24), ROC 2: 6 FEB slots (25-30) = 31 slots x 64 ch = 1984
+		// Port 0 per ROC reserved for misconfigured FEBs
 		h1_channels_ = dir.make<TH1F>("h1_channels",
 		                              "All FEB channels;Global FEB channel ID;Counts",
 		                              1984,
 		                              -0.5,
 		                              1983.5);
 		h2_channels_ = dir.make<TH2F>(
-		    "h2_channels", "All FEB channels;Channel;FEB", 64, -0.5, 63.5, 29, 0.5, 29.5);
+		    "h2_channels", "All FEB channels;Channel;FEB", 64, -0.5, 63.5, 31, -0.5, 30.5);
 	}
 
 	// Seed TRandom3
@@ -245,13 +244,13 @@ void CrvOtsDqm::Send()
 void CrvOtsDqm::startHttpServer()
 {
 	// Apply styling
-	CrvDQMStyle::SetStyle();
+	// CrvDQMStyle::SetStyle();
 
 	// Create HTTP server
 	httpServer_ = new THttpServer(Form("http:%d", httpPort_));
 
 	// Create canvas
-	webCanvas_ = new TCanvas(canvasName_.c_str(), "CRV DQM Web Display");
+	webCanvas_ = new TCanvas(canvasName_.c_str(), "CRV DQM");
 	if(dummyHist_)
 	{
 		webCanvas_->Divide(1, 1);
@@ -265,16 +264,18 @@ void CrvOtsDqm::startHttpServer()
 	if(dummyHist_)
 	{
 		webCanvas_->cd(padIdx);
-		CrvDQMStyle::FormatHist(h1_dummy_, histColor_);
+		// CrvDQMStyle::FormatHist(h1_dummy_, histColor_);
 		h1_dummy_->Draw("HIST");
 	}
 	else
 	{
 		webCanvas_->cd(padIdx++);
-		CrvDQMStyle::FormatHist(h1_channels_, histColor_);
+		gPad->SetLogy();
+		// CrvDQMStyle::FormatHist(h1_channels_, histColor_);
 		h1_channels_->Draw("HIST");
 
 		webCanvas_->cd(padIdx);
+		gPad->SetLogz();
 		if(h2_channels_)
 		{
 			h2_channels_->SetStats(0);
@@ -283,16 +284,21 @@ void CrvOtsDqm::startHttpServer()
 		}
 	}
 
-	// Register canvas with server
+	// Register canvas and histograms with server
 	httpServer_->Register("/", webCanvas_);
+	if(!dummyHist_)
+	{
+		httpServer_->Register("/", h1_channels_);
+		httpServer_->Register("/", h2_channels_);
+	}
 
-	// Set item defaults
-	httpServer_->SetItemField(
-	    "/", "_monitoring", Form("%f", onlineRefreshPeriodMs_));  // Update period in ms
-	httpServer_->SetItemField("/", "_sidebar", "0");
-	httpServer_->SetItemField(
-	    "/", "_drawitem", canvasName_.c_str());          // Set DQM canvas as default item
-	httpServer_->SetItemField("/", "_http_cache", "0");  // Disable HTTP caching
+	// Publish refresh period so the HTML page can read it
+	httpServer_->CreateItem("/config/refreshMs", Form("%.0f", onlineRefreshPeriodMs_));
+
+	// Setup custom page
+	std::string webPage = std::string(getenv("OTS_SOURCE")) +
+	                      "/otsdaq-mu2e-crv/UserWebGUI/html/CrvDqm.html";
+	httpServer_->SetDefaultPage(webPage);
 
 	lastRefreshTime_ = std::chrono::steady_clock::now();
 
@@ -393,14 +399,10 @@ void CrvOtsDqm::analyze(art::Event const& event)
 				uint8_t febChannel = digi.GetFEBchannel();  // 0-63
 
 				// === Global channel IDs ===
-				// FEBs 1-24 on ROC 1, 25-49 on ROC 2
-				int globalFebId = ((roc - 1) * 24) + feb;
-				// FEB 1 has channels 0-63, FEB 1 has 64-127, etc.
-				// int globalChannelId = ((globalFebId) * 64) + febChannel;
-				// lets preserve feb 0, that should not exist but its the FEB default
-				// setting
-				// this is a good tool to find not configured FEBs
-				int globalChannelId = febChannel + 64 * feb + (64 * 25) * (roc - 1);
+				// 25 FEB slots per ROC (0-24), FEB 0 reserved for misconfigured boards
+				// ROC 1: slots 0-24, ROC 2: slots 25-49
+				int globalFebId     = ((roc - 1) * 25) + feb;
+				int globalChannelId = globalFebId * 64 + febChannel;
 
 				// Fill channel histograms
 				h1_channels_->Fill(globalChannelId);
