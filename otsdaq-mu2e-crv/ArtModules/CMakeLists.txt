@@ -11,19 +11,6 @@ cet_build_plugin(CrvVstDemoViewer art::module LIBRARIES
     artdaq::DAQdata
 )
 
-cet_build_plugin(CrvDQM art::module LIBRARIES REG
-    art_root_io::TFileService_service
-    artdaq-core-mu2e::Data
-    otsdaq-mu2e::ArtModules
-    otsdaq::NetworkUtilities
-    ROOT::Hist
-    ROOT::Tree
-    ROOT::Core
-    ROOT::RIO
-    ROOT::Gui
-    ROOT::RHTTP
-)
-
 cet_build_plugin(CrvOtsDqm art::module LIBRARIES REG
     art_root_io::TFileService_service
     artdaq-core-mu2e::Data
