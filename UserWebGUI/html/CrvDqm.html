@@ -5,29 +5,56 @@
   <title>CRV DQM</title>
   <script src="/jsrootsys/scripts/JSRoot.core.js"></script>
   <style>
-    body  { font-family: sans-serif; background: #111; color: #ddd; margin: 16px; }
+    body  { font-family: sans-serif; background: #f5f5f5; color: #333; margin: 16px; }
     h1    { font-size: 1.2em; margin-bottom: 12px; }
-    #canvas_div { width: 1400px; height: 500px; }
+    #status { font-size: 0.85em; color: #666; margin-bottom: 8px; }
+    #canvas_div { width: 100%; max-width: 1400px; height: 900px; }
   </style>
 </head>
 <body>
   <h1>CRV DQM</h1>
+  <div id="status">Loading...</div>
   <div id="canvas_div"></div>
   <script>
+    let updating = false;
+
+    // function setPalette(id) {
+    //   if (JSROOT.settings) JSROOT.settings.Palette = id;
+    //   if (globalThis.JSROOT && globalThis.JSROOT.settings) globalThis.JSROOT.settings.Palette = id;
+    // }
+
     async function update() {
-      let canvas = await JSROOT.httpRequest('/CrvOtsDqmDisplay/root.json', 'object');
-      await JSROOT.redraw('canvas_div', canvas);
+      if (updating) return;
+      updating = true;
+      try {
+        let canvas = await JSROOT.httpRequest('/CrvOtsDqmDisplay/root.json', 'object');
+        document.getElementById('canvas_div').innerHTML = '';
+        await JSROOT.draw('canvas_div', canvas);
+        document.getElementById('status').textContent =
+          'Last update: ' + new Date().toLocaleTimeString();
+      } catch(e) {
+        document.getElementById('status').textContent =
+          'Update failed: ' + e.message + ' \u2014 retrying...';
+      } finally {
+        updating = false;
+      }
     }
 
     async function init() {
+
       let refreshMs = 500;
       try {
         let txt = await JSROOT.httpRequest('/config/refreshMs/cmd.json?method=GetTitle', 'text');
         let val = parseFloat(JSON.parse(txt).value);
         if (val > 0) refreshMs = val;
       } catch(e) {}
-      update();
-      setInterval(update, refreshMs);
+
+      // setTimeout chain prevents overlapping redraws
+      async function loop() {
+        await update();
+        setTimeout(loop, refreshMs);
+      }
+      loop();
     }
     init();
   </script>

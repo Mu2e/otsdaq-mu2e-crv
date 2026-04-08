@@ -4,6 +4,7 @@
 // Date: created May 2025, updated to use digis Nov 2025
 
 // C++ includes
+#include <algorithm>
 #include <map>
 #include <sstream>
 #include <string>
@@ -19,8 +20,10 @@
 
 // ROOT includes
 #include <TCanvas.h>
+#include <TColor.h>
 #include <TH1.h>
 #include <TH2.h>
+#include <TPaveStats.h>
 #include <THttpServer.h>
 #include <TRandom3.h>
 #include <TSystem.h>
@@ -34,7 +37,7 @@
 #include "Offline/RecoDataProducts/inc/CrvDigi.hh"
 
 // Custom styling
-// #include "CrvDQMStyle.hh"
+#include "otsdaq-mu2e-crv/ArtModules/CrvDQMStyle.hh"
 
 namespace ots
 {
@@ -72,6 +75,12 @@ class CrvOtsDqm : public art::EDAnalyzer
 	bool        sendHists_;
 	bool        dummyHist_;
 
+	// Histogram binning
+	int   nBinsDigisPerEvt_;
+	float maxDigisPerEvt_;
+	int   nBinsPeakAdc_;
+	float maxPeakAdc_;
+
 	// HISTOGRAM SENDING
 	std::unique_ptr<HistoSender> histoSender_;
 	float                        sendIntervalSec_;
@@ -80,9 +89,11 @@ class CrvOtsDqm : public art::EDAnalyzer
 	art::ServiceHandle<art::TFileService> tfs_;
 
 	// Histograms
-	TH1F* h1_dummy_;     // dummy
-	TH1F* h1_channels_;  // global FEB channel hits
-	TH2F* h2_channels_;  // FEB vs channel hits
+	TH1F* h1_dummy_;        // dummy
+	TH1F* h1_channels_;     // global FEB channel hits
+	TH2F* h2_channels_;     // FEB vs channel hits
+	TH1F* h1_digisPerEvt_;  // digis per event
+	TH1F* h1_peakAdc_;      // peak ADC per digi
 
 	// HTTP server & visualisation
 	bool                                               enableHttpServer_;
@@ -118,11 +129,15 @@ CrvOtsDqm::CrvOtsDqm(fhicl::ParameterSet const& ps)
     , outputTag_(ps.get<std::string>("outputTag", "CrvOtsDqm"))
     , sendHists_(ps.get<bool>("sendHists", true))
     , dummyHist_(ps.get<bool>("dummyHist", false))
+    , nBinsDigisPerEvt_(ps.get<int>("nBinsDigisPerEvt", 200))
+    , maxDigisPerEvt_(ps.get<float>("maxDigisPerEvt", 4000))
+    , nBinsPeakAdc_(ps.get<int>("nBinsPeakAdc", 450))
+    , maxPeakAdc_(ps.get<float>("maxPeakAdc", 4500))
     , sendIntervalSec_(ps.get<float>("sendIntervalSec", 0.5))
     , enableHttpServer_(ps.get<bool>("enableHttpServer", true))
     , httpPort_(ps.get<int>("httpPort", 8877))
     , onlineRefreshPeriodMs_(ps.get<float>("onlineRefreshPeriod", 500.f))
-    , histColor_(ps.get<std::string>("histColor", "red"))
+    , histColor_(ps.get<std::string>("histColor", "black"))
     , canvasName_(ps.get<std::string>("canvasName", "CrvOtsDqmDisplay"))
     , webCanvas_(nullptr)
     , httpServer_(nullptr)
@@ -139,6 +154,9 @@ CrvOtsDqm::~CrvOtsDqm()
 
 void CrvOtsDqm::beginJob()
 {
+	// Apply styling before booking histograms so they inherit the style
+	CrvDQMStyle::SetStyle();
+
 	if(diagLevel_ > 1)
 	{
 		std::cout << outputPrefix_ << "Beginning job" << std::endl;
@@ -172,13 +190,23 @@ void CrvOtsDqm::beginJob()
 	{
 		// ROC 1: 25 FEB slots (0-24), ROC 2: 6 FEB slots (25-30) = 31 slots x 64 ch = 1984
 		// Port 0 per ROC reserved for misconfigured FEBs
+		h1_digisPerEvt_ = dir.make<TH1F>(
+		    "h1_digisPerEvt", "Hits / event;Hits / event;Events",
+		    nBinsDigisPerEvt_, 0.5, maxDigisPerEvt_ + 0.5);
+		h1_digisPerEvt_->SetMinimum(0.5);
+		h1_peakAdc_ = dir.make<TH1F>(
+		    "h1_peakAdc", "Max sample ADC;Max sample ADC;Hits",
+		    nBinsPeakAdc_, 0, maxPeakAdc_);
+		// ROC 1: 25 FEB slots (0-24), ROC 2: 6 FEB slots (25-30) = 31 slots x 64 ch = 1984
+		// Port 0 per ROC reserved for misconfigured FEBs
 		h1_channels_ = dir.make<TH1F>("h1_channels",
-		                              "All FEB channels;Global FEB channel ID;Counts",
+		                              "Channel occupancy;Global channel ID;Hits",
 		                              1984,
 		                              -0.5,
 		                              1983.5);
+		h1_channels_->SetMinimum(0.5);
 		h2_channels_ = dir.make<TH2F>(
-		    "h2_channels", "All FEB channels;Channel;FEB", 64, -0.5, 63.5, 31, -0.5, 30.5);
+		    "h2_channels", "FEB vs channel hit map;Channel;FEB", 64, 0.5, 64.5, 30, 0.5, 30.5);
 	}
 
 	// Seed TRandom3
@@ -227,8 +255,10 @@ void CrvOtsDqm::Send()
 	}
 	else
 	{
-		hists["hists/h1_channels:replace"] = {h1_channels_};
-		hists["hists/h2_channels:replace"] = {h2_channels_};
+		hists["hists/h1_channels:replace"]    = {h1_channels_};
+		hists["hists/h2_channels:replace"]    = {h2_channels_};
+		hists["hists/h1_digisPerEvt:replace"] = {h1_digisPerEvt_};
+		hists["hists/h1_peakAdc:replace"]     = {h1_peakAdc_};
 	}
 
 	// Call send method
@@ -243,9 +273,6 @@ void CrvOtsDqm::Send()
 
 void CrvOtsDqm::startHttpServer()
 {
-	// Apply styling
-	// CrvDQMStyle::SetStyle();
-
 	// Create HTTP server
 	httpServer_ = new THttpServer(Form("http:%d", httpPort_));
 
@@ -257,29 +284,58 @@ void CrvOtsDqm::startHttpServer()
 	}
 	else
 	{
-		webCanvas_->Divide(2, 1);
+		webCanvas_->Divide(2, 2);
 	}
 
 	int padIdx = 1;
 	if(dummyHist_)
 	{
 		webCanvas_->cd(padIdx);
-		// CrvDQMStyle::FormatHist(h1_dummy_, histColor_);
+		CrvDQMStyle::FormatHist(h1_dummy_, histColor_);
 		h1_dummy_->Draw("HIST");
 	}
 	else
 	{
+		// Pad 1: digis per event
+		webCanvas_->cd(padIdx++);
+		gPad->SetLogx();
+		gPad->SetLogy();
+		CrvDQMStyle::FormatHist(h1_digisPerEvt_, histColor_);
+		h1_digisPerEvt_->SetMinimum(0.5);
+		h1_digisPerEvt_->Draw("HIST");
+
+		// Pad 2: peak ADC
+		webCanvas_->cd(padIdx++);
+		CrvDQMStyle::FormatHist(h1_peakAdc_, histColor_);
+		h1_peakAdc_->Draw("HIST");
+
+		// Pad 3: global channel occupancy
 		webCanvas_->cd(padIdx++);
 		gPad->SetLogy();
-		// CrvDQMStyle::FormatHist(h1_channels_, histColor_);
+		CrvDQMStyle::FormatHist(h1_channels_, histColor_);
+		h1_channels_->SetMinimum(0.5);
 		h1_channels_->Draw("HIST");
+		gPad->Update();
+		// Force stat box styling — workaround for large-bin histogram
+		TPaveStats* st = dynamic_cast<TPaveStats*>(h1_channels_->FindObject("stats"));
+		if(st)
+		{
+			st->SetBorderSize(0);
+			st->SetFillStyle(0);
+			st->SetTextFont(42);
+			st->SetTextSize(0.032);
+			st->SetOptStat(111110);
+		}
 
+		// Pad 4: channel vs FEB hit map
 		webCanvas_->cd(padIdx);
 		gPad->SetLogz();
+		gPad->SetRightMargin(0.14);
 		if(h2_channels_)
 		{
-			h2_channels_->SetStats(0);
-			h2_channels_->GetZaxis()->SetTitle("Counts");
+			CrvDQMStyle::FormatHist2D(h2_channels_);
+			h2_channels_->GetZaxis()->SetTitle("Hits");
+			gStyle->SetPalette(kInvertedDarkBodyRadiator);
 			h2_channels_->Draw("COLZ");
 		}
 	}
@@ -288,6 +344,8 @@ void CrvOtsDqm::startHttpServer()
 	httpServer_->Register("/", webCanvas_);
 	if(!dummyHist_)
 	{
+		httpServer_->Register("/", h1_digisPerEvt_);
+		httpServer_->Register("/", h1_peakAdc_);
 		httpServer_->Register("/", h1_channels_);
 		httpServer_->Register("/", h2_channels_);
 	}
@@ -341,14 +399,35 @@ void CrvOtsDqm::updateWebDisplay(bool force)
 		double maxContent = h1_dummy_->GetBinContent(h1_dummy_->GetMaximumBin());
 		h1_dummy_->GetYaxis()->SetRangeUser(0.0, std::max(1.0, 1.15 * maxContent));
 	}
-	else if(h1_channels_)
+	else
 	{
-		double maxContent = h1_channels_->GetBinContent(h1_channels_->GetMaximumBin());
-		h1_channels_->GetYaxis()->SetRangeUser(0.0, std::max(1.0, 1.15 * maxContent));
+		if(h1_digisPerEvt_)
+		{
+			double maxContent = h1_digisPerEvt_->GetBinContent(h1_digisPerEvt_->GetMaximumBin());
+			h1_digisPerEvt_->GetYaxis()->SetRangeUser(0.5, std::max(1.0, 1.15 * maxContent));
+		}
+		if(h1_channels_)
+		{
+			double maxContent = h1_channels_->GetBinContent(h1_channels_->GetMaximumBin());
+			h1_channels_->GetYaxis()->SetRangeUser(0.5, std::max(1.0, 1.15 * maxContent));
+		}
 	}
 
+	// Re-apply palette right before update — global TColor state is fragile
+	gStyle->SetPalette(kInvertedDarkBodyRadiator);
+
+	if(eventCounts_ > 0)
+	{
+		for(int i = 1; i <= webCanvas_->GetListOfPrimitives()->GetSize(); ++i)
+		{
+			webCanvas_->cd(i);
+			gPad->Modified();
+		}
+	}
+	webCanvas_->cd();
 	webCanvas_->Modified();
 	webCanvas_->Update();
+
 	gSystem->ProcessEvents();
 	lastRefreshTime_ = now;
 }
@@ -406,7 +485,15 @@ void CrvOtsDqm::analyze(art::Event const& event)
 
 				// Fill channel histograms
 				h1_channels_->Fill(globalChannelId);
-				h2_channels_->Fill(febChannel, globalFebId);
+				h2_channels_->Fill(febChannel + 1, globalFebId);
+
+				// Max sample ADC from waveform
+				const auto& adcs = digi.GetADCs();
+				if(!adcs.empty())
+				{
+					int16_t maxSample = *std::max_element(adcs.begin(), adcs.end());
+					h1_peakAdc_->Fill(maxSample);
+				}
 
 				// Track active ROCs and FEBs
 				activeROCs_.insert(roc);
@@ -415,6 +502,7 @@ void CrvOtsDqm::analyze(art::Event const& event)
 			}
 
 			digiCounts_ += nDigis;
+			h1_digisPerEvt_->Fill(nDigis);
 
 			if(diagLevel_ > 1)
 			{
@@ -458,7 +546,7 @@ void CrvOtsDqm::endJob()
 	{
 		// Print job-level statistics
 		std::cout << outputPrefix_
-		          << "================= End Job Summary =================" << std::endl;
+		          << "================= End job summary =================" << std::endl;
 		std::cout << outputPrefix_ << "Total events: " << eventCounts_ << std::endl;
 		if(!dummyHist_)
 		{
