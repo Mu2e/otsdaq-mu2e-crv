@@ -23,6 +23,7 @@
 #include "TCanvas.h"
 #include "TGraph.h"
 #include "TH1D.h"
+#include "TH1F.h"
 #include "THttpServer.h"
 #include "TSystem.h"
 
@@ -393,26 +394,34 @@ void CrvDQM::analyze(art::Event const& e)
 					}
 					for(auto& graph : graphs_)
 					{
-						// Get the number of points in the graph
 						int nPoints = graph.second->GetN();
-						// std::cout<<nPoints<<std::endl;
-						// Get the x and y values of the graph
+						if(nPoints == 0) continue;
+
 						double* xValues = graph.second->GetX();
 						double* yValues = graph.second->GetY();
 
-						// Find the min and max x and y values
 						double xMin = *std::min_element(xValues, xValues + nPoints);
 						double xMax = *std::max_element(xValues, xValues + nPoints);
 						double yMin = *std::min_element(yValues, yValues + nPoints);
 						double yMax = *std::max_element(yValues, yValues + nPoints);
 
-						// Optionally add a margin to the y-axis for better visualization
-						double yMargin = 0.1 * (yMax - yMin);
+						// Guard against degenerate (all-equal) ranges, which would make
+						// the axis limits collapse and trip SetRangeUser / SetLimits.
+						if(xMax == xMin) { xMin -= 0.5; xMax += 0.5; }
+						double yMargin = (yMax > yMin) ? 0.1 * (yMax - yMin)
+						                               : 0.1 * std::abs(yMax) + 1.0;
 
-						// Set the range for both axes
-						graph.second->GetXaxis()->SetRangeUser(xMin, xMax);
-						graph.second->GetYaxis()->SetRangeUser(yMin - yMargin,
-						                                       yMax + yMargin);
+						// Use SetLimits (resets fXmin/fXmax) and SetMinimum/SetMaximum
+						// on the graph's backing histogram, instead of SetRangeUser
+						// which requires the new range to fall within the existing
+						// axis limits and warns otherwise.
+						TH1F* frame = graph.second->GetHistogram();
+						if(frame)
+						{
+							frame->GetXaxis()->SetLimits(xMin, xMax);
+							frame->SetMinimum(yMin - yMargin);
+							frame->SetMaximum(yMax + yMargin);
+						}
 					}
 
 					// Update the canvas

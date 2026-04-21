@@ -34,6 +34,7 @@ enum Register : uint16_t
 	LoopbackMode      = 0x47,
 	LoopbackMarkerCnt = 0x4A,
 	HeartBeatCn       = 0x4F,  // EWT from fibers, bad name!
+    DcsBufferWdCnt    = 0x51,
 	sendGR            = 0x58,
 	InjectionCnt      = 0x59,
 	InjectionLength   = 0x5A,

@@ -335,6 +335,22 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                        },
 	                        std::vector<std::string>{"response"},
 	                        1);  // requiredUserPermissions
+	registerFEMacroFunction("Test FEB Connection",
+	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
+	                            &ROCCosmicRayVetoInterface::TestFebConnection),
+	                        std::vector<std::string>{
+	                            "register (Default: 0x1023 = CntLO)",
+	                            "port (Default: 0 = all active, >0 = single)",
+	                        },
+	                        std::vector<std::string>{"response"},
+	                        1);  // requiredUserPermissions
+
+	registerFEMacroFunction("Test ROC Links",
+	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
+	                            &ROCCosmicRayVetoInterface::TestRocLinks),
+	                        std::vector<std::string>{},
+	                        std::vector<std::string>{"result", "response"},
+	                        1);  // requiredUserPermissions
 	registerFEMacroFunction("FEB II Set AFE Offset",
 	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
 	                            &ROCCosmicRayVetoInterface::FebIISetAFEOffset),
@@ -532,9 +548,16 @@ void ROCCosmicRayVetoInterface::start(std::string)
 {  // runNumber)
 	// ResetRxBuffers();
 	RocConfigure(gr, 0, 0x0, 0xffff);
-	// take pedestrals
-	// this->writeRegister(FEB::AllFEB|FEB::AllFPGA|FEB::CSRBroadCast, 0x100);
-	// TLOG(TLVL_Start) << "Taking pedestrals" << __E__;
+
+	__FE_COUT__ << "Testing FEB links before run start..." << __E__;
+	if(!testRocLinks())
+	{
+		__FE_SS__ << "FEB link test failed at start: one or more active ports did not "
+		             "respond to CntLO readback. Check FEB connections."
+		          << __E__;
+		__SS_THROW__;
+	}
+	__FE_COUT__ << "FEB link test passed." << __E__;
 }
 
 //==============================================================================
@@ -1839,6 +1862,130 @@ void ROCCosmicRayVetoInterface::FebIIGetStatus(__ARGS__)
 	ostr << "===============================" << std::endl;
 	__SET_ARG_OUT__("response", ostr.str());
 }
+
+void ROCCosmicRayVetoInterface::TestFebConnection(__ARGS__)
+{
+	uint16_t reg =
+	    __GET_ARG_IN__("register (Default: 0x1023 = CntLO)", uint16_t, FEBII::CntLO);
+	int requestedPort =
+	    __GET_ARG_IN__("port (Default: 0 = all active, >0 = single)", int, 0);
+
+	std::stringstream response;
+	uint32_t          active = GetActivePorts();
+
+	response << "Testing FEB readback for register 0x" << std::hex << std::setw(4)
+	         << std::setfill('0') << reg << std::dec << std::setfill(' ') << std::endl;
+	response << "Active ports mask: 0x" << std::hex << std::setw(6) << std::setfill('0')
+	         << active << std::dec << std::setfill(' ') << std::endl;
+
+	auto testPort = [this, reg, &response](uint16_t port) {
+		response << "Port " << port << ":" << std::endl;
+		try
+		{
+			SetActivePort(port, true);
+		}
+		catch(...)
+		{
+			response << "  failed to select port" << std::endl;
+			return;
+		}
+
+		for(uint16_t fpga = 0; fpga < 4; ++fpga)
+		{
+			try
+			{
+				uint16_t value = this->readRegister(FEBII::FPGA[fpga] | reg);
+				response << "  fpga " << fpga << ": 0x" << std::hex << std::setw(4)
+				         << std::setfill('0') << value << std::dec << std::setfill(' ')
+				         << std::endl;
+			}
+			catch(...)
+			{
+				response << "  fpga " << fpga << ": read failed" << std::endl;
+			}
+		}
+	};
+
+	if(requestedPort > 0)
+	{
+		testPort(static_cast<uint16_t>(requestedPort));
+	}
+	else
+	{
+		bool testedAnyPort = false;
+		for(uint16_t port = 1; port <= 24; ++port)
+		{
+			if(active & (0x00000001u << (port - 1)))
+			{
+				testedAnyPort = true;
+				testPort(port);
+			}
+		}
+
+		if(!testedAnyPort)
+			response << "No active ports found." << std::endl;
+	}
+
+	__SET_ARG_OUT__("response", response.str());
+}
+
+// Reads CntLO from FPGA0 on every active port.
+// Returns true if all active ports respond, false if any read fails.
+bool ROCCosmicRayVetoInterface::testRocLinks()
+{
+	bool     allOk  = true;
+	uint32_t active = GetActivePorts();
+	for(uint16_t port = 1; port <= 24; ++port)
+	{
+		if(!(active & (0x00000001u << (port - 1))))
+			continue;
+		try
+		{
+			SetActivePort(port, true);
+			this->readRegister(FEBII::FPGA[0] | FEBII::CntLO);
+		}
+		catch(...)
+		{
+			__FE_COUT_ERR__ << "testRocLinks: port " << port
+			                << " did not respond (CntLO read failed)" << __E__;
+			allOk = false;
+		}
+	}
+	return allOk;
+}  // end testRocLinks()
+
+void ROCCosmicRayVetoInterface::TestRocLinks(__ARGS__)
+{
+	std::stringstream response;
+	uint32_t          active = GetActivePorts();
+
+	response << "Testing FEB links (FPGA0 CntLO readback per active port)\n";
+	response << "Active ports mask: 0x" << std::hex << std::setw(6) << std::setfill('0')
+	         << active << std::dec << std::setfill(' ') << "\n";
+
+	bool allOk = true;
+	for(uint16_t port = 1; port <= 24; ++port)
+	{
+		if(!(active & (0x00000001u << (port - 1))))
+			continue;
+		try
+		{
+			SetActivePort(port, true);
+			uint16_t val = this->readRegister(FEBII::FPGA[0] | FEBII::CntLO);
+			response << "  port " << port << ": 0x" << std::hex << std::setw(4)
+			         << std::setfill('0') << val << std::dec << std::setfill(' ') << "\n";
+		}
+		catch(...)
+		{
+			response << "  port " << port << ": read failed\n";
+			allOk = false;
+		}
+	}
+
+	response << (allOk ? "Result: PASS" : "Result: FAIL") << "\n";
+	__SET_ARG_OUT__("result", allOk ? "true" : "false");
+	__SET_ARG_OUT__("response", response.str());
+}  // end TestRocLinks()
 
 void ROCCosmicRayVetoInterface::FebIISetChannel(__ARGS__)
 {

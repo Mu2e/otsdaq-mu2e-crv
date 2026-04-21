@@ -101,6 +101,9 @@ public:
 	void                                    FebIISetGateOnSpill     (__ARGS__);
 	void                                    FebIISetGateOffSpill    (__ARGS__);
 	void                                    FebIIGetStatus          (__ARGS__);
+	void                                    TestFebConnection       (__ARGS__);
+	void                                    TestRocLinks            (__ARGS__);
+	bool                                    testRocLinks            ();
 	void                                    FebIISetChannel         (__ARGS__);
     void                                    FebIISetAFEOffset       (__ARGS__);
     void                                    FebIIGetBaselines       (__ARGS__);
