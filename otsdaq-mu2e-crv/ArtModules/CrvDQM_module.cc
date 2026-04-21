@@ -1,6 +1,6 @@
 // DQM and viewer for the CRV
 // Sends histograms to otsdaq visualizer and standalone THttpServer
-// Author: Sam Grant
+// Sam Grant, Simon Corrodi
 
 // C++ includes
 #include <algorithm>
@@ -31,7 +31,7 @@
 #include <TSystem.h>
 
 // OTS includes
-#include "otsdaq-mu2e/ArtModules/HistoSender.hh"  // HISTOGRAM SENDING
+#include "otsdaq-mu2e/ArtModules/HistoSender.hh"
 #include "otsdaq/Macros/CoutMacros.h"
 #include "otsdaq/Macros/ProcessorPluginMacros.h"
 
@@ -59,23 +59,19 @@ class CrvDQM : public art::EDAnalyzer
 	void endJob() override;
 
 	/// Module methods
-	// void Fill(art::Event const& event);
 	void Send();
 	void startHttpServer();
 	void stopHttpServer();
 	void updateWebDisplay(bool force = false);
 
-	// CRV digi producer module label?
-
 	// fcl parameters
 	art::InputTag crvDigiTag_;  // producer module label
-	// art::InputTag crvStatusTag_;
-	int         diagLevel_;
-	int         port_;  // port to connect to
-	std::string address_;
-	std::string outputTag_;
-	bool        sendHists_;
-	bool        dummyHist_;
+	int           diagLevel_;
+	int           port_;  // port to connect to
+	std::string   address_;
+	std::string   outputTag_;
+	bool          sendHists_;
+	bool          dummyHist_;
 
 	// Histogram binning
 	int   nBinsDigisPerEvt_;
@@ -155,7 +151,6 @@ class CrvDQM : public art::EDAnalyzer
 CrvDQM::CrvDQM(fhicl::ParameterSet const& ps)
     : art::EDAnalyzer(ps)
     , crvDigiTag_(ps.get<std::string>("crvDigiTag", "crvdigi"))
-    // , crvStatusTag_(ps.get<std::string>("crvStatusTag", "crvdigi"))
     , diagLevel_(ps.get<int>("diagLevel", 3))
     , port_(ps.get<int>("port", 6000))
     , address_(ps.get<std::string>("address", "localhost"))
@@ -227,21 +222,20 @@ void CrvDQM::beginJob()
 	}
 	else
 	{
-		// ROC 1: 25 FEB slots (0-24), ROC 2: 6 FEB slots (25-30) = 31 slots x 64 ch =
-		// 1984 Port 0 per ROC reserved for misconfigured FEBs
+		// ROC 0: 25 FEB slots
+		// ROC 1: 6 FEB slots
+		// 31 slots x 64 ch = 1984 ch
 		h1_digisPerEvt_ = dir.make<TH1F>("h1_digisPerEvt",
 		                                 "Hits / event;Hits / event;Events",
 		                                 nBinsDigisPerEvt_,
 		                                 0.5,
 		                                 maxDigisPerEvt_ + 0.5);
 		h1_digisPerEvt_->SetMinimum(0.5);
-		h1_peakAdc_ = dir.make<TH1F>("h1_peakAdc",
-		                             "Max sample ADC;Max sample ADC;Hits",
-		                             nBinsPeakAdc_,
-		                             0,
-		                             maxPeakAdc_);
-		// ROC 1: 25 FEB slots (0-24), ROC 2: 6 FEB slots (25-30) = 31 slots x 64 ch =
-		// 1984 Port 0 per ROC reserved for misconfigured FEBs
+		h1_peakAdc_  = dir.make<TH1F>("h1_peakAdc",
+                                     "Max sample ADC;Max sample ADC;Hits",
+                                     nBinsPeakAdc_,
+                                     0,
+                                     maxPeakAdc_);
 		h1_channels_ = dir.make<TH1F>("h1_channels",
 		                              "Channel occupancy;Global channel ID;Hits",
 		                              1984,
@@ -263,9 +257,7 @@ void CrvDQM::beginJob()
 		         kGraphPoints_,
 		         kEwtWindow_));
 		// Seed with two points so TGraphPainter has a non-degenerate Y range
-		// when the canvas first draws (before any event arrives). A single
-		// (0,0) seed would give y1 == y2 and cause TPad::Range to fail fatally.
-		// updateWebDisplay() replaces Y min/max from real data once points arrive.
+		// when the canvas first draws (before any event arrives).
 		g_digisVsEwt_->SetPoint(0, 0, 0);
 		g_digisVsEwt_->SetPoint(1, 1, 1);
 
@@ -275,7 +267,7 @@ void CrvDQM::beginJob()
 		    Form("Mean hits per event (averaged over %zu events);"
 		         "Event window tag;<hits / event>",
 		         avgBlockSize_));
-		// Two-point seed for non-degenerate initial frame (same trick as g_digisVsEwt_)
+		// Two-point seed for initial frame
 		g_digisAvgVsEwt_->SetPoint(0, 0, 0);
 		g_digisAvgVsEwt_->SetPoint(1, 1, 1);
 	}
@@ -371,9 +363,8 @@ void CrvDQM::startHttpServer()
 
 	int padIdx = 1;
 	// Workaround for ROOT fatal "TPad::Range: y1 == y2 == 0" on empty
-	// histograms: SetMinimum/SetMaximum alone are not enough on some ROOT
-	// versions. Poke a tiny entry into bin 1 so max_bin_content > 0. This
-	// is overwritten as soon as real data arrives.
+	// histograms. Put a tiny entry into bin 1 so max_bin_content > 0.
+	// This is overwritten as soon as real data arrives.
 	auto seedFrame = [](TH1* h) {
 		if(!h)
 			return;
@@ -394,8 +385,6 @@ void CrvDQM::startHttpServer()
 	else
 	{
 		// Pad 1: digis vs event window tag (rolling).
-		// Seed the backing frame so TPad::Range has a non-degenerate window
-		// before real data arrives.
 		webCanvas_->cd(padIdx++);
 		CrvDQMStyle::FormatGraph(g_digisVsEwt_, histColor_);
 		if(TH1F* frame = g_digisVsEwt_->GetHistogram())
@@ -429,7 +418,7 @@ void CrvDQM::startHttpServer()
 		seedFrame(h1_channels_);
 		h1_channels_->Draw("HIST");
 		gPad->Update();
-		// Force stat box styling — workaround for large-bin histogram
+		// Force stat box styling. Workaround for large-bin histogram
 		TPaveStats* st = dynamic_cast<TPaveStats*>(h1_channels_->FindObject("stats"));
 		if(st)
 		{
@@ -516,8 +505,6 @@ void CrvDQM::updateWebDisplay(bool force)
 		return;
 	}
 
-	// gSystem->ProcessEvents();
-
 	auto                                      now     = std::chrono::steady_clock::now();
 	std::chrono::duration<double, std::milli> elapsed = now - lastRefreshTime_;
 
@@ -551,7 +538,7 @@ void CrvDQM::updateWebDisplay(bool force)
 		}
 	}
 
-	// Re-apply palette right before update — global TColor state is fragile
+	// Re-apply palette right before update: global TColor state is fragile
 	gStyle->SetPalette(kInvertedDarkBodyRadiator);
 
 	// Re-apply per-object formatting that ROOT loses when internal
@@ -565,11 +552,6 @@ void CrvDQM::updateWebDisplay(bool force)
 		CrvDQMStyle::FormatGraph(g_digisVsEwt_, histColor_);
 
 		// Auto-range both hits-graphs' Y axes from current data.
-		// Skip the (0,0)/(1,1) seed phase — once the first real point has
-		// arrived, SetPoint() replaces the seed via Set(0) + SetPoint().
-		// SetMinimum/SetMaximum on the TGraph itself persist across
-		// internal histogram rebuilds; the same call on GetHistogram()
-		// gets clobbered when SetPoint() rebuilds the backing frame.
 		auto autoRangeGraphY = [](TGraph* g) {
 			if(!g || g->GetN() <= 0)
 				return;
@@ -658,8 +640,6 @@ void CrvDQM::analyze(art::Event const& event)
 				uint8_t febChannel = digi.GetFEBchannel();  // 0-63
 
 				// === Global channel IDs ===
-				// 25 FEB slots per ROC (0-24), FEB 0 reserved for misconfigured boards
-				// ROC 1: slots 0-24, ROC 2: slots 25-49
 				int globalFebId     = ((roc - 1) * 25) + feb;
 				int globalChannelId = globalFebId * 64 + febChannel;
 
@@ -684,8 +664,8 @@ void CrvDQM::analyze(art::Event const& event)
 			digiCounts_ += nDigis;
 			h1_digisPerEvt_->Fill(nDigis);
 
-			// Block-average: accumulate avgBlockSize_ events, then emit one point
-			// plotted at the mid-EWT of the block with y = <nDigis>.
+			// Block-average: accumulate avgBlockSize_ events, then plot one point
+			// at the mid-EWT of the block
 			if(avgBlockCount_ == 0)
 				avgBlockFirstEwt_ = eventID.event();
 			avgBlockSum_ += nDigis;
@@ -723,7 +703,7 @@ void CrvDQM::analyze(art::Event const& event)
 				ewtWindowSum_ -= ewtWindow_.front().second;
 				ewtWindow_.pop_front();
 			}
-			// Drop the two seed points ((0,0) and (1,1)) on the first real fill
+			// Drop the two seed points on the first real fill
 			if(ewtWindow_.size() == 1 && g_digisVsEwt_->GetN() == 2)
 			{
 				g_digisVsEwt_->Set(0);
@@ -740,8 +720,7 @@ void CrvDQM::analyze(art::Event const& event)
 			// Scale x-axis to show only the last kEwtXRange_ EWTs.
 			// Use SetLimits on the backing histogram rather than SetRangeUser:
 			// SetRangeUser requires the new window to lie within the existing
-			// axis limits, and a sliding window over EWT numbers violates that
-			// (triggers "ufirst < fXmin" warnings from TAxis).
+			// axis limits
 			double currentEwt = static_cast<double>(eventID.event());
 			double xLo        = std::max(0.0, currentEwt - kEwtXRange_);
 			double xHi        = currentEwt;
