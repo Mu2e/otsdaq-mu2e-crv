@@ -46,7 +46,7 @@ class CrvDQMStyle
 		style->SetTextSize(0.045);
 		style->SetTitleSize(0.045, "xyz");
 		style->SetLabelSize(0.045, "xyz");
-		style->SetStatFontSize(0.045); // 0.032);
+		style->SetStatFontSize(0.045);  // 0.032);
 		style->SetLegendTextSize(0.045);
 		style->SetLegendBorderSize(0);
 		style->SetLegendFillColor(kWhite);
@@ -110,7 +110,8 @@ class CrvDQMStyle
 		style->SetGridWidth(1);
 
 		// 2D palette
-		style->SetPalette(kInvertedDarkBodyRadiator); // RainBow); // kViridis); // kRainBox); // BlackBody);
+		style->SetPalette(kInvertedDarkBodyRadiator);  // RainBow); // kViridis); //
+		                                               // kRainBox); // BlackBody);
 		style->SetNumberContours(256);
 
 		gROOT->SetStyle("CrvStyle");
@@ -128,7 +129,7 @@ class CrvDQMStyle
 		hist->GetYaxis()->SetTitleOffset(1.40);
 		hist->GetXaxis()->SetTitleOffset(1.15);
 
-		if (colour == "black") // default: black/grey
+		if(colour == "black")  // default: black/grey
 		{
 			hist->SetLineColor(kBlack);
 			hist->SetFillColor(kGray);
@@ -148,7 +149,6 @@ class CrvDQMStyle
 			hist->SetLineColor(kRed + 2);
 			hist->SetFillColor(kRed - 9);
 		}
-
 	}
 
 	static void FormatHist2D(TH2* hist)
@@ -174,7 +174,7 @@ class CrvDQMStyle
 		graph->GetYaxis()->SetTitleOffset(1.40);
 		graph->GetXaxis()->SetTitleOffset(1.15);
 
-		if (colour == "black") // default: black/grey
+		if(colour == "black")  // default: black/grey
 		{
 			graph->SetLineColor(kBlack);
 			graph->SetFillColor(kGray);
