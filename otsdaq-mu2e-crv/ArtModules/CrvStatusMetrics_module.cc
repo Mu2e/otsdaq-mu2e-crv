@@ -27,8 +27,8 @@
 #include "artdaq-core/Data/Fragment.hh"
 
 // artdaq metric manager
-#include "artdaq/DAQdata/Globals.hh"
 #include "artdaq-utilities/Plugins/MetricManager.hh"
+#include "artdaq/DAQdata/Globals.hh"
 
 namespace ots
 {
@@ -164,19 +164,20 @@ void CrvStatusMetrics::analyze(art::Event const& e)
 
 					if(diagLevel_ > 1)
 					{
-						std::cout << outputPrefix_ << "  CRV block [" << iBlock
-						          << "] version=0x" << std::hex
-						          << (int)blockHeader->GetVersion() << std::dec
-						          << " linkID=" << (int)blockHeader->GetLinkID()
-						          << " EWT="
-						          << blockHeader->GetEventWindowTag().GetEventWindowTag(true)
-						          << std::endl;
+						std::cout
+						    << outputPrefix_ << "  CRV block [" << iBlock
+						    << "] version=0x" << std::hex
+						    << (int)blockHeader->GetVersion() << std::dec
+						    << " linkID=" << (int)blockHeader->GetLinkID() << " EWT="
+						    << blockHeader->GetEventWindowTag().GetEventWindowTag(true)
+						    << std::endl;
 					}
 
 					// Metric name prefix keyed by DTC id and link id
 					const std::string rocPrefix =
-					    "CRV.DTC" + std::to_string(static_cast<int>(blockHeader->GetID())) +
-					    ".ROC" + std::to_string(static_cast<int>(blockHeader->GetLinkID())) + ".";
+					    "CRV.DTC" +
+					    std::to_string(static_cast<int>(blockHeader->GetID())) + ".ROC" +
+					    std::to_string(static_cast<int>(blockHeader->GetLinkID())) + ".";
 
 					// ---- Decode FEB-II status packet -------------------------
 					const mu2e::CRVDataDecoder::CRVROCStatusPacketFEBII* status =
@@ -184,21 +185,19 @@ void CrvStatusMetrics::analyze(art::Event const& e)
 
 					if(status != nullptr)
 					{
-						const uint32_t        ewt        = status->GetEventWindowTag();
-						const uint16_t        trigCount  = status->TriggerCount;
-						const uint16_t        wordCount  = status->ControllerEventWordCount;
-						const uint32_t        ubStatus   = status->GetMicroBunchStatus();
+						const uint32_t ewt       = status->GetEventWindowTag();
+						const uint16_t trigCount = status->TriggerCount;
+						const uint16_t wordCount = status->ControllerEventWordCount;
+						const uint32_t ubStatus  = status->GetMicroBunchStatus();
 						const std::bitset<24> activeFEBs = status->GetActiveFEBFlags();
-						const int             nActiveFEBs =
-						    static_cast<int>(activeFEBs.count());
+						const int nActiveFEBs = static_cast<int>(activeFEBs.count());
 
 						if(diagLevel_ > 0)
 						{
 							std::cout << outputPrefix_ << "  " << rocPrefix
-							          << "TriggerCount=" << trigCount
-							          << " EWT=" << ewt
-							          << " ActiveFEBs=" << activeFEBs.to_string()
-							          << " (" << nActiveFEBs << " active)"
+							          << "TriggerCount=" << trigCount << " EWT=" << ewt
+							          << " ActiveFEBs=" << activeFEBs.to_string() << " ("
+							          << nActiveFEBs << " active)"
 							          << " MicroBunchStatus=0x" << std::hex << ubStatus
 							          << std::dec << " WordCount=" << wordCount
 							          << std::endl;
@@ -206,34 +205,39 @@ void CrvStatusMetrics::analyze(art::Event const& e)
 
 						sendMetric(rocPrefix + "TriggerCount",
 						           static_cast<uint64_t>(trigCount),
-						           "counts", metricLevel_,
+						           "counts",
+						           metricLevel_,
 						           artdaq::MetricMode::LastPoint);
 
 						sendMetric(rocPrefix + "EventWindowTag",
 						           static_cast<uint64_t>(ewt),
-						           "EWT", metricLevel_,
+						           "EWT",
+						           metricLevel_,
 						           artdaq::MetricMode::LastPoint);
 
 						sendMetric(rocPrefix + "ActiveFEBCount",
 						           static_cast<uint64_t>(nActiveFEBs),
-						           "FEBs", metricLevel_,
+						           "FEBs",
+						           metricLevel_,
 						           artdaq::MetricMode::LastPoint);
 
 						sendMetric(rocPrefix + "MicroBunchStatus",
 						           static_cast<uint64_t>(ubStatus),
-						           "status", metricLevel_,
+						           "status",
+						           metricLevel_,
 						           artdaq::MetricMode::LastPoint);
 
 						sendMetric(rocPrefix + "WordCount",
 						           static_cast<uint64_t>(wordCount),
-						           "words", metricLevel_,
+						           "words",
+						           metricLevel_,
 						           artdaq::MetricMode::LastPoint);
 					}
 					else if(diagLevel_ > 1)
 					{
 						std::cout << outputPrefix_
-						          << "  No FEB-II status packet for CRV block ["
-						          << iBlock << "]" << std::endl;
+						          << "  No FEB-II status packet for CRV block [" << iBlock
+						          << "]" << std::endl;
 					}
 				}  // iBlock
 			}      // iSub
@@ -242,8 +246,8 @@ void CrvStatusMetrics::analyze(art::Event const& e)
 		{
 			if(diagLevel_ > 0)
 			{
-				std::cerr << outputPrefix_ << "Exception processing fragment: "
-				          << ex.what() << std::endl;
+				std::cerr << outputPrefix_
+				          << "Exception processing fragment: " << ex.what() << std::endl;
 			}
 		}
 	}  // fragments
@@ -252,12 +256,9 @@ void CrvStatusMetrics::analyze(art::Event const& e)
 // -----------------------------------------------------------------------
 void CrvStatusMetrics::endJob()
 {
-	std::cout << outputPrefix_
-	          << "========== End Job Summary ==========" << std::endl;
-	std::cout << outputPrefix_ << "Events processed: " << eventCount_
-	          << std::endl;
-	std::cout << outputPrefix_
-	          << "=====================================" << std::endl;
+	std::cout << outputPrefix_ << "========== End Job Summary ==========" << std::endl;
+	std::cout << outputPrefix_ << "Events processed: " << eventCount_ << std::endl;
+	std::cout << outputPrefix_ << "=====================================" << std::endl;
 }
 
 DEFINE_ART_MODULE(ots::CrvStatusMetrics)
