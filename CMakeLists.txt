@@ -69,6 +69,7 @@ endif()
 
 # these are minimum required versions, not the actual product versions
 find_package(otsdaq-mu2e 1.02.00 REQUIRED)
+find_package(Offline 11 REQUIRED)
 
 include(BuildPlugins)
 
