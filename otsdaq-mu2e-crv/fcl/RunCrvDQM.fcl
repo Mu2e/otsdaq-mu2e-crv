@@ -1,45 +1,60 @@
+#include "mu2e-trig-config/core/trigProducers.fcl"
+#include "Offline/fcl/standardServices.fcl"
+#include "Offline/CRVResponse/fcl/prolog.fcl"
+
 process_name : CrvDQM
 
-source: {
-  module_type: RootInput # EmptyEvent
-  maxEvents: -1
-}
-services : {
-  message : {
-    destinations : {
-      console : {
-        type : "cout"
-        threshold : "INFO"
-        categories : {
-          default : { limit : 50 }
-        }
-      }
-    }
+services :{
+  @table::Services.Core
+  @table::Services.Reco
+  TFileService : {
+    fileName : "crvDQM.root"
   }
+}
+
+source : {
+  module_type : RootInput
+  fileNames   : @nil
+  maxEvents   : -1
 }
 
 physics : {
-  analyzers : {
-    dqm : {
-      module_type : CrvDQM
-      port : 8877 // server port
-      diagLevel : 1 // debug level
-      onlineRefreshPeriod : 250 // ms
-      keepAlive : 1
-      keepAliveDuration : 1 // mins
-      histColor : "red" // "blue" // "green"
+  producers :
+  {
+    crvdigi :
+    {
+      module_type   : CrvDigisFromArtdaqFragmentsFEBII
+      diagLevel     : 0
+      useSubsystem0 : false
+      produceNZS : false
+      # useOnlineChannel: true
+
     }
   }
-
-  dqm_path : [dqm]
-  end_paths : [dqm_path]
-
+  analyzers : {
+    crvdqm : {
+      module_type           : CrvDQM
+      diagLevel             : 1
+      sendHists             : false
+      dummyHist             : false
+    }
+    CrvDQMcollector: @local::CrvDQMcollector
+  }
+  t1 : [ crvdigi ]
+  a1 : [ crvdqm ]
+  trigger_paths  : [t1]
+  end_paths      : [a1]
 }
 
 outputs: {
-  out1: {
-    module_type: FileDumperOutput
-    wantProductFriendlyClassName: true   # Print class names
-    onlyIfPresent: true # Only present products
-  }
+  # out1: {
+  #   module_type: FileDumperOutput
+  #   wantProductFriendlyClassName: true   # Print class names
+  #   onlyIfPresent: true # Only present products
+  # }
 }
+
+services.TimeTracker.printSummary: false
+services.scheduler.wantSummary: false
+services.message.destinations.log.outputStatistics : false
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_common_extracted.txt"
