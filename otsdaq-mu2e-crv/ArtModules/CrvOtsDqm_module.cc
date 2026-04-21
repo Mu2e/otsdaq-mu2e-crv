@@ -25,8 +25,8 @@
 #include <TGraph.h>
 #include <TH1.h>
 #include <TH2.h>
-#include <TPaveStats.h>
 #include <THttpServer.h>
+#include <TPaveStats.h>
 #include <TRandom3.h>
 #include <TSystem.h>
 
@@ -96,11 +96,11 @@ class CrvOtsDqm : public art::EDAnalyzer
 	art::ServiceHandle<art::TFileService> tfs_;
 
 	// Histograms
-	TH1F* h1_dummy_;        // dummy
-	TH1F* h1_channels_;     // global FEB channel hits
-	TH2F* h2_channels_;     // FEB vs channel hits
-	TH1F* h1_digisPerEvt_;  // digis per event
-	TH1F* h1_peakAdc_;      // peak ADC per digi
+	TH1F*   h1_dummy_;         // dummy
+	TH1F*   h1_channels_;      // global FEB channel hits
+	TH2F*   h2_channels_;      // FEB vs channel hits
+	TH1F*   h1_digisPerEvt_;   // digis per event
+	TH1F*   h1_peakAdc_;       // peak ADC per digi
 	TGraph* g_digisVsEwt_;     // digis vs event window tag (rolling sum)
 	TGraph* g_digisAvgVsEwt_;  // mean digis per event, averaged over avgBlockSize_ events
 
@@ -122,20 +122,20 @@ class CrvOtsDqm : public art::EDAnalyzer
 	std::map<uint8_t, std::set<uint8_t>> rocFEBMap_;  // Track FEBs per ROC
 
 	// Rate counters (printed every statLogPeriodSec_ seconds at diag level 0)
-	double                                             statLogPeriodSec_{10.0};
-	std::size_t                                        statAnalyze_{0};
-	std::size_t                                        statUpdate_{0};
-	std::size_t                                        statUpdateCalls_{0};  // all calls, including those gated out
-	std::size_t                                        statUpdateGateA_{0};  // returned because disabled / no canvas
-	std::size_t                                        statUpdateGateB_{0};  // returned because refresh period not elapsed
-	std::size_t                                        statProcEvents_{0};
-	std::size_t                                        statSend_{0};
+	double      statLogPeriodSec_{10.0};
+	std::size_t statAnalyze_{0};
+	std::size_t statUpdate_{0};
+	std::size_t statUpdateCalls_{0};  // all calls, including those gated out
+	std::size_t statUpdateGateA_{0};  // returned because disabled / no canvas
+	std::size_t statUpdateGateB_{0};  // returned because refresh period not elapsed
+	std::size_t statProcEvents_{0};
+	std::size_t statSend_{0};
 	std::chrono::time_point<std::chrono::steady_clock> statLastLog_;
 
 	// Rolling window of (ewt, nDigis) for g_digisVsEwt_
-	static constexpr std::size_t kEwtWindow_    = 100;
-	static constexpr std::size_t kGraphPoints_  = 500;    // max points kept in TGraph
-	static constexpr double      kEwtXRange_    = 100000; // x-axis shows last N EWTs
+	static constexpr std::size_t kEwtWindow_   = 100;
+	static constexpr std::size_t kGraphPoints_ = 500;     // max points kept in TGraph
+	static constexpr double      kEwtXRange_   = 100000;  // x-axis shows last N EWTs
 	std::deque<std::pair<uint32_t, int>> ewtWindow_;
 	long long                            ewtWindowSum_{0};
 
@@ -143,7 +143,7 @@ class CrvOtsDqm : public art::EDAnalyzer
 	long long   avgBlockSum_{0};
 	std::size_t avgBlockCount_{0};
 	uint32_t    avgBlockFirstEwt_{0};
-	bool        avgSeedsCleared_{false};  // true once the two seed points have been dropped
+	bool avgSeedsCleared_{false};  // true once the two seed points have been dropped
 
 	// Misc member variables
 	std::chrono::time_point<std::chrono::steady_clock> lastSendTime_;
@@ -182,7 +182,7 @@ CrvOtsDqm::CrvOtsDqm(fhicl::ParameterSet const& ps)
 	          << " (onlineRefreshPeriodMs=" << onlineRefreshPeriodMs_
 	          << ", sendIntervalSec=" << sendIntervalSec_
 	          << ", enableHttpServer=" << enableHttpServer_ << ")" << std::endl;
-    //ROOT::EnableThreadSafety();
+	// ROOT::EnableThreadSafety();
 }
 
 // Destructor impl
@@ -227,30 +227,41 @@ void CrvOtsDqm::beginJob()
 	}
 	else
 	{
-		// ROC 1: 25 FEB slots (0-24), ROC 2: 6 FEB slots (25-30) = 31 slots x 64 ch = 1984
-		// Port 0 per ROC reserved for misconfigured FEBs
-		h1_digisPerEvt_ = dir.make<TH1F>(
-		    "h1_digisPerEvt", "Hits / event;Hits / event;Events",
-		    nBinsDigisPerEvt_, 0.5, maxDigisPerEvt_ + 0.5);
+		// ROC 1: 25 FEB slots (0-24), ROC 2: 6 FEB slots (25-30) = 31 slots x 64 ch =
+		// 1984 Port 0 per ROC reserved for misconfigured FEBs
+		h1_digisPerEvt_ = dir.make<TH1F>("h1_digisPerEvt",
+		                                 "Hits / event;Hits / event;Events",
+		                                 nBinsDigisPerEvt_,
+		                                 0.5,
+		                                 maxDigisPerEvt_ + 0.5);
 		h1_digisPerEvt_->SetMinimum(0.5);
-		h1_peakAdc_ = dir.make<TH1F>(
-		    "h1_peakAdc", "Max sample ADC;Max sample ADC;Hits",
-		    nBinsPeakAdc_, 0, maxPeakAdc_);
-		// ROC 1: 25 FEB slots (0-24), ROC 2: 6 FEB slots (25-30) = 31 slots x 64 ch = 1984
-		// Port 0 per ROC reserved for misconfigured FEBs
+		h1_peakAdc_ = dir.make<TH1F>("h1_peakAdc",
+		                             "Max sample ADC;Max sample ADC;Hits",
+		                             nBinsPeakAdc_,
+		                             0,
+		                             maxPeakAdc_);
+		// ROC 1: 25 FEB slots (0-24), ROC 2: 6 FEB slots (25-30) = 31 slots x 64 ch =
+		// 1984 Port 0 per ROC reserved for misconfigured FEBs
 		h1_channels_ = dir.make<TH1F>("h1_channels",
 		                              "Channel occupancy;Global channel ID;Hits",
 		                              1984,
 		                              -0.5,
 		                              1983.5);
 		h1_channels_->SetMinimum(0.5);
-		h2_channels_ = dir.make<TH2F>(
-		    "h2_channels", "FEB vs channel hit map;Channel;FEB", 64, 0.5, 64.5, 30, 0.5, 30.5);
+		h2_channels_  = dir.make<TH2F>("h2_channels",
+                                      "FEB vs channel hit map;Channel;FEB",
+                                      64,
+                                      0.5,
+                                      64.5,
+                                      30,
+                                      0.5,
+                                      30.5);
 		g_digisVsEwt_ = dir.make<TGraph>();
 		g_digisVsEwt_->SetName("g_digisVsEwt");
 		g_digisVsEwt_->SetTitle(
 		    Form("Hits in last %zu EWTs;Event window tag;Hits (last %zu EWTs)",
-		         kGraphPoints_, kEwtWindow_));
+		         kGraphPoints_,
+		         kEwtWindow_));
 		// Seed with two points so TGraphPainter has a non-degenerate Y range
 		// when the canvas first draws (before any event arrives). A single
 		// (0,0) seed would give y1 == y2 and cause TPad::Range to fail fatally.
@@ -364,7 +375,8 @@ void CrvOtsDqm::startHttpServer()
 	// versions. Poke a tiny entry into bin 1 so max_bin_content > 0. This
 	// is overwritten as soon as real data arrives.
 	auto seedFrame = [](TH1* h) {
-		if(!h) return;
+		if(!h)
+			return;
 		if(h->GetMaximum() <= h->GetMinimum())
 		{
 			h->SetBinContent(1, 1e-9);
@@ -411,7 +423,7 @@ void CrvOtsDqm::startHttpServer()
 
 		// Pad 4: global channel occupancy
 		webCanvas_->cd(padIdx++);
-		//gPad->SetLogy();
+		// gPad->SetLogy();
 		CrvDQMStyle::FormatHist(h1_channels_, histColor_);
 		h1_channels_->SetMinimum(0.5);
 		seedFrame(h1_channels_);
@@ -430,7 +442,7 @@ void CrvOtsDqm::startHttpServer()
 
 		// Pad 5: channel vs FEB hit map
 		webCanvas_->cd(padIdx++);
-		//gPad->SetLogz();
+		// gPad->SetLogz();
 		gPad->SetRightMargin(0.14);
 		if(h2_channels_)
 		{
@@ -504,7 +516,7 @@ void CrvOtsDqm::updateWebDisplay(bool force)
 		return;
 	}
 
-    //gSystem->ProcessEvents();
+	// gSystem->ProcessEvents();
 
 	auto                                      now     = std::chrono::steady_clock::now();
 	std::chrono::duration<double, std::milli> elapsed = now - lastRefreshTime_;
@@ -526,12 +538,15 @@ void CrvOtsDqm::updateWebDisplay(bool force)
 	{
 		if(h1_digisPerEvt_)
 		{
-			double maxContent = h1_digisPerEvt_->GetBinContent(h1_digisPerEvt_->GetMaximumBin());
-			h1_digisPerEvt_->GetYaxis()->SetRangeUser(0.5, std::max(1.0, 1.15 * maxContent));
+			double maxContent =
+			    h1_digisPerEvt_->GetBinContent(h1_digisPerEvt_->GetMaximumBin());
+			h1_digisPerEvt_->GetYaxis()->SetRangeUser(0.5,
+			                                          std::max(1.0, 1.15 * maxContent));
 		}
 		if(h1_channels_)
 		{
-			double maxContent = h1_channels_->GetBinContent(h1_channels_->GetMaximumBin());
+			double maxContent =
+			    h1_channels_->GetBinContent(h1_channels_->GetMaximumBin());
 			h1_channels_->GetYaxis()->SetRangeUser(0.5, std::max(1.0, 1.15 * maxContent));
 		}
 	}
@@ -556,12 +571,14 @@ void CrvOtsDqm::updateWebDisplay(bool force)
 		// internal histogram rebuilds; the same call on GetHistogram()
 		// gets clobbered when SetPoint() rebuilds the backing frame.
 		auto autoRangeGraphY = [](TGraph* g) {
-			if(!g || g->GetN() <= 0) return;
+			if(!g || g->GetN() <= 0)
+				return;
 			double* y   = g->GetY();
 			int     n   = g->GetN();
 			double  yLo = *std::min_element(y, y + n);
 			double  yHi = *std::max_element(y, y + n);
-			if(yHi <= yLo) yHi = yLo + 1.0;
+			if(yHi <= yLo)
+				yHi = yLo + 1.0;
 			double margin = 0.1 * (yHi - yLo);
 			g->SetMinimum(std::max(0.0, yLo - margin));
 			g->SetMaximum(yHi + margin);
@@ -571,7 +588,8 @@ void CrvOtsDqm::updateWebDisplay(bool force)
 				frame->SetMaximum(yHi + margin);
 			}
 		};
-		if(!ewtWindow_.empty()) autoRangeGraphY(g_digisVsEwt_);
+		if(!ewtWindow_.empty())
+			autoRangeGraphY(g_digisVsEwt_);
 		autoRangeGraphY(g_digisAvgVsEwt_);
 	}
 
@@ -668,7 +686,8 @@ void CrvOtsDqm::analyze(art::Event const& event)
 
 			// Block-average: accumulate avgBlockSize_ events, then emit one point
 			// plotted at the mid-EWT of the block with y = <nDigis>.
-			if(avgBlockCount_ == 0) avgBlockFirstEwt_ = eventID.event();
+			if(avgBlockCount_ == 0)
+				avgBlockFirstEwt_ = eventID.event();
 			avgBlockSum_ += nDigis;
 			++avgBlockCount_;
 			if(avgBlockCount_ >= avgBlockSize_)
@@ -676,7 +695,7 @@ void CrvOtsDqm::analyze(art::Event const& event)
 				double midEwt = 0.5 * (static_cast<double>(avgBlockFirstEwt_) +
 				                       static_cast<double>(eventID.event()));
 				double mean   = static_cast<double>(avgBlockSum_) /
-				                static_cast<double>(avgBlockCount_);
+				              static_cast<double>(avgBlockCount_);
 
 				// Drop the two seed points on the first real fill
 				if(!avgSeedsCleared_)
@@ -726,7 +745,8 @@ void CrvOtsDqm::analyze(art::Event const& event)
 			double currentEwt = static_cast<double>(eventID.event());
 			double xLo        = std::max(0.0, currentEwt - kEwtXRange_);
 			double xHi        = currentEwt;
-			if(xHi <= xLo) xHi = xLo + 1.0;
+			if(xHi <= xLo)
+				xHi = xLo + 1.0;
 			if(TH1F* frame = g_digisVsEwt_->GetHistogram())
 			{
 				frame->GetXaxis()->SetLimits(xLo, xHi);
@@ -740,7 +760,8 @@ void CrvOtsDqm::analyze(art::Event const& event)
 				int     nAvg = g_digisAvgVsEwt_->GetN();
 				double  aLo  = *std::min_element(ax, ax + nAvg);
 				double  aHi  = *std::max_element(ax, ax + nAvg);
-				if(aHi <= aLo) aHi = aLo + 1.0;
+				if(aHi <= aLo)
+					aHi = aLo + 1.0;
 				if(TH1F* frame = g_digisAvgVsEwt_->GetHistogram())
 				{
 					frame->GetXaxis()->SetLimits(aLo, aHi);
@@ -787,16 +808,13 @@ void CrvOtsDqm::analyze(art::Event const& event)
 	if(statElapsed.count() >= statLogPeriodSec_)
 	{
 		double dt = statElapsed.count();
-		std::cout << outputPrefix_
-		          << "Rates (last " << dt << " s): "
+		std::cout << outputPrefix_ << "Rates (last " << dt << " s): "
 		          << "analyze=" << (statAnalyze_ / dt) << " Hz, "
 		          << "updateWebDisplay=" << (statUpdate_ / dt) << " Hz"
-		          << " (calls=" << statUpdateCalls_
-		          << ", gateA=" << statUpdateGateA_
+		          << " (calls=" << statUpdateCalls_ << ", gateA=" << statUpdateGateA_
 		          << ", gateB=" << statUpdateGateB_ << "), "
 		          << "ProcessEvents=" << (statProcEvents_ / dt) << " Hz, "
-		          << "sendHistograms=" << (statSend_ / dt) << " Hz"
-		          << std::endl;
+		          << "sendHistograms=" << (statSend_ / dt) << " Hz" << std::endl;
 		statAnalyze_     = 0;
 		statUpdate_      = 0;
 		statUpdateCalls_ = 0;
