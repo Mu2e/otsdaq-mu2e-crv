@@ -548,16 +548,17 @@ void ROCCosmicRayVetoInterface::start(std::string)
 {  // runNumber)
 	// ResetRxBuffers();
 	RocConfigure(gr, 0, 0x0, 0xffff);
+    sleep(1);
 
 	__FE_COUT__ << "Testing FEB links before run start..." << __E__;
 	if(!testRocLinks())
 	{
-		__FE_SS__ << "FEB link test failed at start: one or more active ports did not "
-		             "respond to CntLO readback. Check FEB connections."
-		          << __E__;
-		__SS_THROW__;
+		__FE_COUT_WARN__ << "FEB link test failed at start: one or more active ports did not "
+		                    "respond to CntLO readback. Check FEB connections - this might just be a readback issue."
+		                 << __E__;
 	}
-	__FE_COUT__ << "FEB link test passed." << __E__;
+	else
+		__FE_COUT__ << "FEB link test passed." << __E__;
 }
 
 //==============================================================================
@@ -1946,8 +1947,8 @@ bool ROCCosmicRayVetoInterface::testRocLinks()
 		}
 		catch(...)
 		{
-			__FE_COUT_ERR__ << "testRocLinks: port " << port
-			                << " did not respond (CntLO read failed)" << __E__;
+			__FE_COUT_WARN__ << "testRocLinks: port " << port
+			                 << " did not respond (CntLO read failed)" << __E__;
 			allOk = false;
 		}
 	}

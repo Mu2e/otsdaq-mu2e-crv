@@ -25,7 +25,6 @@ physics : {
     {
       module_type   : CrvDigisFromArtdaqFragmentsFEBII
       diagLevel     : 0
-      useSubsystem0 : false
       produceNZS : false
       # useOnlineChannel: true
 

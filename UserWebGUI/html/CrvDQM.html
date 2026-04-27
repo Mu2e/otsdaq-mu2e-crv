@@ -90,6 +90,9 @@
         // kInvertedDarkBodyRadiator = 56 in ROOT palette IDs
         setPalette(56);
         let canvas = await JSROOT.httpRequest('/CrvDisplay/root.json', 'object');
+        // DIAGNOSTIC: always full draw (was: redraw after first tick).
+        // Revert to test whether JSROOT.redraw is responsible for the
+        // jumpy sliding-window graph.
         document.getElementById('canvas_div').innerHTML = '';
         lastPainter = await JSROOT.draw('canvas_div', canvas);
         document.getElementById('status').textContent =

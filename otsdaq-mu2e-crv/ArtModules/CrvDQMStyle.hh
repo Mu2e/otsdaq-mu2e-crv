@@ -46,14 +46,14 @@ class CrvDQMStyle
 		style->SetTextSize(0.045);
 		style->SetTitleSize(0.045, "xyz");
 		style->SetLabelSize(0.045, "xyz");
-		style->SetStatFontSize(0.045);  // 0.032);
-		style->SetLegendTextSize(0.045);
+		style->SetStatFontSize(0.040);
+		style->SetLegendTextSize(0.040);
 		style->SetLegendBorderSize(0);
 		style->SetLegendFillColor(kWhite);
 
 		// Axis title offsets
 		style->SetTitleOffset(1.15, "x");
-		style->SetTitleOffset(1.30, "y");
+		style->SetTitleOffset(1.50, "y");
 		style->SetTitleOffset(1.15, "z");
 
 		// Title box — borderless, transparent, centred, bold
@@ -126,7 +126,7 @@ class CrvDQMStyle
 		hist->SetLineWidth(2);
 		hist->SetFillStyle(1001);
 		hist->SetLineStyle(1);
-		hist->GetYaxis()->SetTitleOffset(1.40);
+		hist->GetYaxis()->SetTitleOffset(1.60);
 		hist->GetXaxis()->SetTitleOffset(1.15);
 
 		if(colour == "black")  // default: black/grey
@@ -157,7 +157,7 @@ class CrvDQMStyle
 			return;
 
 		hist->GetXaxis()->SetTitleOffset(1.15);
-		hist->GetYaxis()->SetTitleOffset(1.30);
+		hist->GetYaxis()->SetTitleOffset(1.50);
 		hist->GetZaxis()->SetTitleOffset(1.15);
 		hist->SetStats(0);
 	}
@@ -171,7 +171,7 @@ class CrvDQMStyle
 		graph->SetMarkerStyle(20);
 		graph->SetMarkerSize(0.8);
 		graph->SetLineStyle(1);
-		graph->GetYaxis()->SetTitleOffset(1.40);
+		graph->GetYaxis()->SetTitleOffset(1.60);
 		graph->GetXaxis()->SetTitleOffset(1.15);
 
 		if(colour == "black")  // default: black/grey

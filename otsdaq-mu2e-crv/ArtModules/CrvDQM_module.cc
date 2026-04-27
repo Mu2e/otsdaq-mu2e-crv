@@ -129,9 +129,9 @@ class CrvDQM : public art::EDAnalyzer
 	std::chrono::time_point<std::chrono::steady_clock> statLastLog_;
 
 	// Rolling window of (ewt, nDigis) for g_digisVsEwt_
-	static constexpr std::size_t kEwtWindow_   = 100;
-	static constexpr std::size_t kGraphPoints_ = 500;     // max points kept in TGraph
-	static constexpr double      kEwtXRange_   = 100000;  // x-axis shows last N EWTs
+	static constexpr std::size_t kEwtWindow_   = 1000;
+	static constexpr std::size_t kGraphPoints_ = 10000;  // max points kept in TGraph
+	static constexpr double      kEwtXRange_   = 1000000;  // x-axis shows last N EWTs
 	std::deque<std::pair<uint32_t, int>> ewtWindow_;
 	long long                            ewtWindowSum_{0};
 
@@ -253,9 +253,10 @@ void CrvDQM::beginJob()
 		g_digisVsEwt_ = dir.make<TGraph>();
 		g_digisVsEwt_->SetName("g_digisVsEwt");
 		g_digisVsEwt_->SetTitle(
-		    Form("Hits in last %zu EWTs;Event window tag;Hits (last %zu EWTs)",
-		         kGraphPoints_,
-		         kEwtWindow_));
+		    Form("Hits in last %zu EWTs (%zu points);"
+		         "Event window tag;Hits",
+		         kEwtWindow_,
+		         kGraphPoints_));
 		// Seed with two points so TGraphPainter has a non-degenerate Y range
 		// when the canvas first draws (before any event arrives).
 		g_digisVsEwt_->SetPoint(0, 0, 0);
@@ -425,7 +426,7 @@ void CrvDQM::startHttpServer()
 			st->SetBorderSize(0);
 			st->SetFillStyle(0);
 			st->SetTextFont(42);
-			st->SetTextSize(0.032);
+			st->SetTextSize(0.040);
 			st->SetOptStat(111110);
 		}
 
@@ -571,8 +572,32 @@ void CrvDQM::updateWebDisplay(bool force)
 			}
 		};
 		if(!ewtWindow_.empty())
+		{
 			autoRangeGraphY(g_digisVsEwt_);
+			// autoRangeGraphY may trigger TGraph::GetHistogram() to recreate the
+			// frame, which defaults X limits to the data range and breaks the
+			// sliding window set in analyze(). Re-apply the sliding window here.
+			double currentEwt = static_cast<double>(ewtWindow_.back().first);
+			double xLo        = std::max(0.0, currentEwt - kEwtXRange_);
+			double xHi        = currentEwt;
+			if(xHi <= xLo)
+				xHi = xLo + 1.0;
+			if(TH1F* frame = g_digisVsEwt_->GetHistogram())
+				frame->GetXaxis()->SetLimits(xLo, xHi);
+		}
 		autoRangeGraphY(g_digisAvgVsEwt_);
+		// Same fix for the averaged graph: span the points it currently holds.
+		if(g_digisAvgVsEwt_->GetN() > 0)
+		{
+			double* ax   = g_digisAvgVsEwt_->GetX();
+			int     nAvg = g_digisAvgVsEwt_->GetN();
+			double  aLo  = *std::min_element(ax, ax + nAvg);
+			double  aHi  = *std::max_element(ax, ax + nAvg);
+			if(aHi <= aLo)
+				aHi = aLo + 1.0;
+			if(TH1F* frame = g_digisAvgVsEwt_->GetHistogram())
+				frame->GetXaxis()->SetLimits(aLo, aHi);
+		}
 	}
 
 	if(eventCounts_ > 0)
