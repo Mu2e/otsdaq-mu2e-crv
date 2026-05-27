@@ -395,7 +395,8 @@ void CrvDQM::analyze(art::Event const& e)
 					for(auto& graph : graphs_)
 					{
 						int nPoints = graph.second->GetN();
-						if(nPoints == 0) continue;
+						if(nPoints == 0)
+							continue;
 
 						double* xValues = graph.second->GetX();
 						double* yValues = graph.second->GetY();
@@ -407,7 +408,11 @@ void CrvDQM::analyze(art::Event const& e)
 
 						// Guard against degenerate (all-equal) ranges, which would make
 						// the axis limits collapse and trip SetRangeUser / SetLimits.
-						if(xMax == xMin) { xMin -= 0.5; xMax += 0.5; }
+						if(xMax == xMin)
+						{
+							xMin -= 0.5;
+							xMax += 0.5;
+						}
 						double yMargin = (yMax > yMin) ? 0.1 * (yMax - yMin)
 						                               : 0.1 * std::abs(yMax) + 1.0;
 

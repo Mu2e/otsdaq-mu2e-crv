@@ -63,21 +63,21 @@ class CrvEventFilter : public art::EDFilter
 	bool     printHistogram_{};
 
 	// cumulative (reported in endJob)
-	size_t   eventsSeen_{};
-	size_t   eventsPassed_{};
-	size_t   eventsWithDtcevt_{};
-	size_t   totalCrvBlocks_{};
-	size_t   totalPackets_{};
-	size_t   totalExtraPackets_{};
-	unsigned maxPacketsInBlock_{};
-	std::vector<size_t> totalExtraHist_; // bin width=5, index=extraPkts/5
+	size_t              eventsSeen_{};
+	size_t              eventsPassed_{};
+	size_t              eventsWithDtcevt_{};
+	size_t              totalCrvBlocks_{};
+	size_t              totalPackets_{};
+	size_t              totalExtraPackets_{};
+	unsigned            maxPacketsInBlock_{};
+	std::vector<size_t> totalExtraHist_;  // bin width=5, index=extraPkts/5
 
 	// interval (reset after each periodic print)
-	size_t ivBlocks_{};
-	size_t ivPackets_{};
-	size_t ivExtraPackets_{};
-	size_t ivMaxSum_{};           // sum of per-event max packet count
-	size_t ivEventsWithBlocks_{}; // events with >=1 CRV block in interval
+	size_t              ivBlocks_{};
+	size_t              ivPackets_{};
+	size_t              ivExtraPackets_{};
+	size_t              ivMaxSum_{};            // sum of per-event max packet count
+	size_t              ivEventsWithBlocks_{};  // events with >=1 CRV block in interval
 	std::vector<size_t> ivExtraHist_;
 };
 
@@ -93,9 +93,9 @@ CrvEventFilter::CrvEventFilter(const art::EDFilter::Table<Config>& config)
 void CrvEventFilter::beginJob()
 {
 	TLOG(TLVL_INFO) << "CrvEventFilter beginJob: debugEvery=" << debugEvery_
-	                 << ", statusPacketsPerBlock=" << statusPacketsPerBlock_
-	                 << ", minExtraPackets=" << minExtraPackets_
-	                 << ", printHistogram=" << (printHistogram_ ? "true" : "false");
+	                << ", statusPacketsPerBlock=" << statusPacketsPerBlock_
+	                << ", minExtraPackets=" << minExtraPackets_
+	                << ", printHistogram=" << (printHistogram_ ? "true" : "false");
 }
 
 void CrvEventFilter::endJob()
@@ -103,10 +103,9 @@ void CrvEventFilter::endJob()
 	const double passRate = eventsSeen_ > 0 ? 100.0 * eventsPassed_ / eventsSeen_ : 0.0;
 	TLOG(TLVL_INFO) << "CrvEventFilter summary: seen=" << eventsSeen_
 	                << ", withDTCEVT=" << eventsWithDtcevt_
-	                << ", passed=" << eventsPassed_
-	                << " (" << std::fixed << std::setprecision(1) << passRate << "%)"
-	                << ", crvBlocks=" << totalCrvBlocks_
-	                << ", sumPkts=" << totalPackets_
+	                << ", passed=" << eventsPassed_ << " (" << std::fixed
+	                << std::setprecision(1) << passRate << "%)"
+	                << ", crvBlocks=" << totalCrvBlocks_ << ", sumPkts=" << totalPackets_
 	                << ", sumExtraPkts=" << totalExtraPackets_
 	                << ", maxPktsInBlock=" << maxPacketsInBlock_
 	                << (printHistogram_ ? buildHistogram_(totalExtraHist_) : "");
@@ -145,19 +144,21 @@ bool CrvEventFilter::filter(art::Event& event)
 
 				// cumulative
 				++totalCrvBlocks_;
-				totalPackets_      += packetCount;
+				totalPackets_ += packetCount;
 				totalExtraPackets_ += extraPackets;
 				if(packetCount > maxPacketsInBlock_)
 					maxPacketsInBlock_ = packetCount;
 				const size_t bin = extraPackets / 5;
-				if(bin >= totalExtraHist_.size()) totalExtraHist_.resize(bin + 1, 0);
+				if(bin >= totalExtraHist_.size())
+					totalExtraHist_.resize(bin + 1, 0);
 				totalExtraHist_[bin] += extraPackets;
 
 				// interval
 				++ivBlocks_;
-				ivPackets_      += packetCount;
+				ivPackets_ += packetCount;
 				ivExtraPackets_ += extraPackets;
-				if(bin >= ivExtraHist_.size()) ivExtraHist_.resize(bin + 1, 0);
+				if(bin >= ivExtraHist_.size())
+					ivExtraHist_.resize(bin + 1, 0);
 				ivExtraHist_[bin] += extraPackets;
 
 				if(extraPackets >= minExtraPackets_)
@@ -177,11 +178,12 @@ bool CrvEventFilter::filter(art::Event& event)
 
 	if(debugEvery_ != 0 && (eventsSeen_ % debugEvery_) == 0)
 	{
-		const double passRate = eventsSeen_ > 0 ? 100.0 * eventsPassed_ / eventsSeen_ : 0.0;
+		const double passRate =
+		    eventsSeen_ > 0 ? 100.0 * eventsPassed_ / eventsSeen_ : 0.0;
 
 		TLOG(TLVL_INFO) << "CrvEventFilter stats: seen=" << eventsSeen_
-		                << ", passed=" << eventsPassed_
-		                << " (" << std::fixed << std::setprecision(1) << passRate << "%)"
+		                << ", passed=" << eventsPassed_ << " (" << std::fixed
+		                << std::setprecision(1) << passRate << "%)"
 		                << " | last " << debugEvery_ << " evts:"
 		                << " sumPkts=" << ivPackets_
 		                << " sumExtraPkts=" << ivExtraPackets_
@@ -199,7 +201,8 @@ std::string CrvEventFilter::buildHistogram_(const std::vector<size_t>& hist) con
 	if(hist.empty())
 		return "";
 	size_t maxBin = 0;
-	for(size_t v : hist) maxBin = std::max(maxBin, v);
+	for(size_t v : hist)
+		maxBin = std::max(maxBin, v);
 	if(maxBin == 0)
 		return "";
 
@@ -208,12 +211,14 @@ std::string CrvEventFilter::buildHistogram_(const std::vector<size_t>& hist) con
 	oss << "\n  extraPkts histogram (sum per bin):";
 	for(size_t i = 0; i < hist.size(); ++i)
 	{
-		if(hist[i] == 0) continue;
+		if(hist[i] == 0)
+			continue;
 		const size_t lo   = i * 5;
 		const size_t hi   = lo + 5;
 		const int    bars = static_cast<int>(hist[i] * barWidth / maxBin);
 		oss << "\n    " << std::setw(3) << lo << "-" << std::setw(3) << hi << ": ";
-		for(int b = 0; b < bars; ++b) oss << "\xe2\x96\x88"; // █
+		for(int b = 0; b < bars; ++b)
+			oss << "\xe2\x96\x88";  // █
 		oss << " (" << hist[i] << ")";
 	}
 	return oss.str();

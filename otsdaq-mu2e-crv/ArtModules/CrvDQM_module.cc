@@ -130,7 +130,7 @@ class CrvDQM : public art::EDAnalyzer
 
 	// Rolling window of (ewt, nDigis) for g_digisVsEwt_
 	static constexpr std::size_t kEwtWindow_   = 1000;
-	static constexpr std::size_t kGraphPoints_ = 10000;  // max points kept in TGraph
+	static constexpr std::size_t kGraphPoints_ = 10000;    // max points kept in TGraph
 	static constexpr double      kEwtXRange_   = 1000000;  // x-axis shows last N EWTs
 	std::deque<std::pair<uint32_t, int>> ewtWindow_;
 	long long                            ewtWindowSum_{0};
@@ -666,7 +666,8 @@ void CrvDQM::analyze(art::Event const& event)
 
 				// DTC link 3 (ROC=4) carries the same physical FEBs as link 1 (ROC=2).
 				// Fold ROC=4 into ROC=2 so both appear in the same display slot.
-				if(roc == 4) roc = 2;
+				if(roc == 4)
+					roc = 2;
 
 				// === Global channel IDs ===
 				int globalFebId     = ((roc - 1) * 25) + feb;
