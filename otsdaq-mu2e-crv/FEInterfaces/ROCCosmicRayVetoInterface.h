@@ -56,10 +56,13 @@ public:
 	void Reset();
 	void RocConfigure(bool gr=false, uint16_t grn=0, uint16_t uBoffset = 0x0, uint16_t timeout = 0xffff);
 	void FebConfigure(bool useOtsConfig = true);
+	std::string febIIConfigureFromTables(bool skipBias = false);  // called from configure() and macro
 	void ResetRxBuffers();
 	void SetMarkerSync(bool enable=true);
     int16_t Realign(int sleep_uc = 1000);
-    void ResetPLL(int sleep_us = 1000, bool allPorts = false);
+	void ResetPLL(int sleep_us = 1000,
+	              bool allPorts = false,
+	              bool runRocClockAlign = true);
 
     uint16_t ReadAFE(uint16_t fpga, uint16_t afe_no, uint16_t reg);
 	// CRV FEB specific functions
@@ -94,6 +97,7 @@ public:
 	void                                    GetHistograms           (__ARGS__);
 	void                                    RegDump                 (__ARGS__);
 	void                                    FebIIConfigure          (__ARGS__);
+	void                                    FebIIConfigureFromTables(__ARGS__);
     void                                    FebIIAlign              (__ARGS__);
 	void                                    FebIISetThreshold       (__ARGS__);
 	void                                    FebIISetBias            (__ARGS__);

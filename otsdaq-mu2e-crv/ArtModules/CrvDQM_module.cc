@@ -316,14 +316,14 @@ void CrvDQM::Send()
 	std::map<std::string, std::vector<TH1*>> hists;
 	if(dummyHist_)
 	{
-		hists["hists/h1_gaus:replace"] = {h1_dummy_};
+		hists["crv/h1_gaus:replace"] = {h1_dummy_};
 	}
 	else
 	{
-		hists["hists/h1_channels:replace"]    = {h1_channels_};
-		hists["hists/h2_channels:replace"]    = {h2_channels_};
-		hists["hists/h1_digisPerEvt:replace"] = {h1_digisPerEvt_};
-		hists["hists/h1_peakAdc:replace"]     = {h1_peakAdc_};
+		hists["crv/h1_channels:replace"]    = {h1_channels_};
+		hists["crv/h2_channels:replace"]    = {h2_channels_};
+		hists["crv/h1_digisPerEvt:replace"] = {h1_digisPerEvt_};
+		hists["crv/h1_peakAdc:replace"]     = {h1_peakAdc_};
 	}
 
 	// Call send method
@@ -334,8 +334,8 @@ void CrvDQM::Send()
 	if(!dummyHist_)
 	{
 		std::map<std::string, std::vector<TGraph*>> graphs;
-		graphs["graphs/g_digisVsEwt:replace"]    = {g_digisVsEwt_};
-		graphs["graphs/g_digisAvgVsEwt:replace"] = {g_digisAvgVsEwt_};
+		graphs["crv/g_digisVsEwt:replace"]    = {g_digisVsEwt_};
+		graphs["crv/g_digisAvgVsEwt:replace"] = {g_digisAvgVsEwt_};
 		histoSender_->sendGraphs(graphs);
 	}
 
@@ -663,6 +663,10 @@ void CrvDQM::analyze(art::Event const& event)
 				uint8_t roc        = digi.GetROC();         // 1-2 (extracted)
 				uint8_t feb        = digi.GetFEB();         // 1-28 (extracted)
 				uint8_t febChannel = digi.GetFEBchannel();  // 0-63
+
+				// DTC link 3 (ROC=4) carries the same physical FEBs as link 1 (ROC=2).
+				// Fold ROC=4 into ROC=2 so both appear in the same display slot.
+				if(roc == 4) roc = 2;
 
 				// === Global channel IDs ===
 				int globalFebId     = ((roc - 1) * 25) + feb;

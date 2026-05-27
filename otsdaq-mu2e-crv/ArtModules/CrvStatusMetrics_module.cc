@@ -158,8 +158,9 @@ void CrvStatusMetrics::analyze(art::Event const& e)
 				{
 					auto blockHeader = subevent.GetDataBlock(iBlock)->GetHeader();
 
-					// Only process CRV blocks (subsystem == 2)
-					if(blockHeader->GetSubsystem() != 2)
+					// Only process CRV blocks
+					if(blockHeader->GetSubsystem() !=
+					   DTCLib::DTC_Subsystem::DTC_Subsystem_CRV)
 						continue;
 
 					if(diagLevel_ > 1)
