@@ -1,6 +1,8 @@
 #include "otsdaq-mu2e-crv/TablePlugins/SubsystemCRVRocTable.h"
 #include "otsdaq/Macros/TablePluginMacros.h"
 
+#include <fcntl.h>
+#include <sys/file.h>
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
@@ -47,6 +49,21 @@ void SubsystemCRVRocTable::init(ConfigurationManager* configManager)
 	    getenv("DBSERVICE_ONLINE_PATH") ? getenv("DBSERVICE_ONLINE_PATH") : "";
 	if(dbserviceOnlinePath.empty())
 		return;
+
+	// Grab a non-blocking exclusive flock so only one context writes the files.
+	// The lock is held for the lifetime of the process; subsequent contexts skip.
+	const std::string lockFilePath = dbserviceOnlinePath + "/SubsystemCRVRocTable.lock";
+	int               lockFd       = open(lockFilePath.c_str(), O_CREAT | O_WRONLY, 0644);
+	if(lockFd < 0 || flock(lockFd, LOCK_EX | LOCK_NB) != 0)
+	{
+		if(lockFd >= 0)
+			close(lockFd);
+		__COUT__ << "SubsystemCRVRocTable: lock already held by another supervisor, "
+		            "skipping file write."
+		         << __E__;
+		return;
+	}
+	// lockFd left open intentionally — released automatically when process exits.
 
 	for(const auto& offlineTable : mapOfflineTables_)
 	{

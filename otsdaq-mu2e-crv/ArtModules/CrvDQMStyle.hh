@@ -1,12 +1,15 @@
 // ROOT styling for CRV DQM
+// Adapted from mu2e.mplstyle
 // Samuel Grant 2025
 
 #ifndef CRV_DQM_STYLE_H
 #define CRV_DQM_STYLE_H
 
 #include "TCanvas.h"
+#include "TColor.h"
 #include "TGraph.h"
 #include "TH1.h"
+#include "TH2.h"
 #include "TPad.h"
 #include "TROOT.h"
 #include "TStyle.h"
@@ -18,65 +21,120 @@ class CrvDQMStyle
 	{
 		TStyle* style = new TStyle("CrvStyle", "CRV DQM styling");
 
-		// Basic canvas settings
+		// White, borderless canvas and pads
 		style->SetCanvasColor(kWhite);
 		style->SetCanvasBorderMode(0);
+		style->SetCanvasDefH(600);
+		style->SetCanvasDefW(800);
 		style->SetPadColor(kWhite);
 		style->SetPadBorderMode(0);
-		style->SetPadTopMargin(0.05);
-		style->SetPadBottomMargin(0.13);
-		style->SetPadLeftMargin(0.15);
-		style->SetPadRightMargin(0.05);
 
-		// Font settings
-		style->SetTextFont(42);
-		style->SetLabelFont(42, "xyz");
-		style->SetTitleFont(42, "xyz");
+		// Margins
+		style->SetPadTopMargin(0.08);
+		style->SetPadBottomMargin(0.14);
+		style->SetPadLeftMargin(0.14);
+		style->SetPadRightMargin(0.06);
 
-		// Text sizes
+		// Helvetica (font 42) for axes, labels, stats
+		int font = 42;
+		style->SetTextFont(font);
+		style->SetLabelFont(font, "xyz");
+		style->SetTitleFont(font, "xyz");
+		style->SetStatFont(font);
+
+		// Font sizes
 		style->SetTextSize(0.045);
+		style->SetTitleSize(0.045, "xyz");
 		style->SetLabelSize(0.045, "xyz");
-		style->SetTitleSize(0.05, "xyz");
+		style->SetStatFontSize(0.040);
+		style->SetLegendTextSize(0.040);
+		style->SetLegendBorderSize(0);
+		style->SetLegendFillColor(kWhite);
 
-		// Title positioning
-		style->SetTitleOffset(1.2, "y");
-		style->SetTitleOffset(1.0, "x");
+		// Axis title offsets
+		style->SetTitleOffset(1.15, "x");
+		style->SetTitleOffset(1.50, "y");
+		style->SetTitleOffset(1.15, "z");
 
-		// Canvas fill
+		// Title box — borderless, transparent, centred, bold
+		style->SetOptTitle(1);
+		style->SetTitleBorderSize(0);
+		style->SetTitleFillColor(0);
+		style->SetTitleStyle(0);
+		style->SetTitleFont(62, "");  // Helvetica bold
+		style->SetTitleFontSize(0.045);
+		style->SetTitleAlign(23);
+		style->SetTitleX(0.5);
+
+		// Stat box — entries, mean, RMS, underflow, overflow; frameless
+		// Numeric format ksiourmen: 000111110 = 111110
+		style->SetOptStat(111110);
+		style->SetStatBorderSize(0);
+		style->SetStatStyle(0);
+		style->SetStatX(0.92);
+		style->SetStatY(0.90);
+		style->SetStatW(0.22);
+		style->SetStatH(0.20);
+
+		// Fills
 		style->SetFillColor(kWhite);
 		style->SetFillStyle(1001);
 
-		// Ticks and divisions
+		// Default histogram colours (used by ForceStyle)
+		style->SetHistLineColor(kBlack);
+		style->SetHistFillColor(kGray);
+		style->SetHistFillStyle(1001);
+
+		// axes.linewidth: 2
+		style->SetFrameLineWidth(2);
+
+		// Ticks on all sides, inward
 		style->SetPadTickX(1);
 		style->SetPadTickY(1);
-		style->SetTickLength(0.015);
-		style->SetNdivisions(505, "xyz");
+		style->SetTickLength(0.03, "x");
+		style->SetTickLength(0.03, "y");
+		style->SetTickLength(0.03, "z");
 
-		// Frame
-		style->SetFrameLineWidth(1);
-		style->SetLineWidth(1);
+		// Minor ticks visible (510 = 10 primary, 5 minor)
+		style->SetNdivisions(510, "x");
+		style->SetNdivisions(510, "y");
+		style->SetNdivisions(510, "z");
 
-		style->SetOptStat(111111);
+		// Line widths
+		style->SetLineWidth(2);
+		style->SetHistLineWidth(2);
 
-		// Use current style - this works in 6.30
+		// Grid
+		style->SetGridColor(kGray + 1);
+		style->SetGridStyle(3);
+		style->SetGridWidth(1);
+
+		// 2D palette
+		style->SetPalette(kInvertedDarkBodyRadiator);  // RainBow); // kViridis); //
+		                                               // kRainBox); // BlackBody);
+		style->SetNumberContours(256);
+
 		gROOT->SetStyle("CrvStyle");
 		gROOT->ForceStyle();
 	}
 
-	static void FormatHist(TH1* hist, const std::string& colour = "red")
+	static void FormatHist(TH1* hist, const std::string& colour = "black")
 	{
 		if(!hist)
 			return;
-		// Basic histogram-specific formatting
-		// hist->SetStats(0);
+
 		hist->SetLineWidth(2);
 		hist->SetFillStyle(1001);
 		hist->SetLineStyle(1);
-		hist->GetYaxis()->SetTitleOffset(1.6);
-		hist->GetXaxis()->SetTitleOffset(1.2);
+		hist->GetYaxis()->SetTitleOffset(1.60);
+		hist->GetXaxis()->SetTitleOffset(1.15);
 
-		// Primary colours
-		if(colour == "blue")
+		if(colour == "black")  // default: black/grey
+		{
+			hist->SetLineColor(kBlack);
+			hist->SetFillColor(kGray);
+		}
+		else if(colour == "blue")
 		{
 			hist->SetLineColor(kAzure + 2);
 			hist->SetFillColor(kAzure - 9);
@@ -93,31 +151,48 @@ class CrvDQMStyle
 		}
 	}
 
-	static void FormatGraph(TGraph* graph, const std::string& colour = "red")
+	static void FormatHist2D(TH2* hist)
+	{
+		if(!hist)
+			return;
+
+		hist->GetXaxis()->SetTitleOffset(1.15);
+		hist->GetYaxis()->SetTitleOffset(1.50);
+		hist->GetZaxis()->SetTitleOffset(1.15);
+		hist->SetStats(0);
+	}
+
+	static void FormatGraph(TGraph* graph, const std::string& colour = "black")
 	{
 		if(!graph)
 			return;
-		// Basic graph-specific formatting
-		graph->SetLineStyle(1);
-		graph->GetYaxis()->SetTitleOffset(1.6);
-		graph->GetXaxis()->SetTitleOffset(1.2);
-		graph->SetMarkerStyle(20);  // full circle
 
-		// Primary colours
-		if(colour == "blue")
+		graph->SetLineWidth(2);
+		graph->SetMarkerStyle(20);
+		graph->SetMarkerSize(0.8);
+		graph->SetLineStyle(1);
+		graph->GetYaxis()->SetTitleOffset(1.60);
+		graph->GetXaxis()->SetTitleOffset(1.15);
+
+		if(colour == "black")  // default: black/grey
 		{
-			graph->SetMarkerColor(kAzure + 2);
-			graph->SetLineColor(kAzure - 9);
+			graph->SetLineColor(kBlack);
+			graph->SetFillColor(kGray);
+		}
+		else if(colour == "blue")
+		{
+			graph->SetLineColor(kAzure + 2);
+			graph->SetFillColor(kAzure - 9);
 		}
 		else if(colour == "green")
 		{
-			graph->SetMarkerColor(kGreen + 2);
-			graph->SetLineColor(kGreen - 9);
+			graph->SetLineColor(kGreen + 2);
+			graph->SetFillColor(kGreen - 9);
 		}
 		else if(colour == "red")
 		{
-			graph->SetMarkerColor(kRed + 2);
-			graph->SetLineColor(kRed - 9);
+			graph->SetLineColor(kRed + 2);
+			graph->SetFillColor(kRed - 9);
 		}
 	}
 };

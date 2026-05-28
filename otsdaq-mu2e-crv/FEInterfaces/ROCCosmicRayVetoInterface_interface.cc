@@ -301,22 +301,26 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                        },
 	                        std::vector<std::string>{"response"},
 	                        1);  // requiredUserPermissions
-	registerFEMacroFunction("FEB II Set Gate OnSpill",
-	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
-	                            &ROCCosmicRayVetoInterface::FebIISetGateOnSpill),
-	                        std::vector<std::string>{"port (Default: -1, current active)",
-	                                                 "gate start, 6.25ns (Default: 16)",
-	                                                 "gate end, 6.25ns (Default: 255)"},
-	                        std::vector<std::string>{"response"},
-	                        1);  // requiredUserPermissions
-	registerFEMacroFunction("FEB II Set Gate OffSpill",
-	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
-	                            &ROCCosmicRayVetoInterface::FebIISetGateOffSpill),
-	                        std::vector<std::string>{"port (Default: -1, current active)",
-	                                                 "gate start, 6.25ns (Default: 16)",
-	                                                 "gate end, 6.25ns (Default: 15000)"},
-	                        std::vector<std::string>{"response"},
-	                        1);  // requiredUserPermissions
+	registerFEMacroFunction(
+	    "FEB II Set Gate OnSpill",
+	    static_cast<FEVInterface::frontEndMacroFunction_t>(
+	        &ROCCosmicRayVetoInterface::FebIISetGateOnSpill),
+	    std::vector<std::string>{"port (Default: -1, current active)",
+	                             "gate start, 6.25ns (Default: 16)",
+	                             "gate end, 6.25ns (Default: 255)",
+	                             "use broadcast when port=0 (Default: true)"},
+	    std::vector<std::string>{"response"},
+	    1);  // requiredUserPermissions
+	registerFEMacroFunction(
+	    "FEB II Set Gate OffSpill",
+	    static_cast<FEVInterface::frontEndMacroFunction_t>(
+	        &ROCCosmicRayVetoInterface::FebIISetGateOffSpill),
+	    std::vector<std::string>{"port (Default: -1, current active)",
+	                             "gate start, 6.25ns (Default: 16)",
+	                             "gate end, 6.25ns (Default: 15000)",
+	                             "use broadcast when port=0 (Default: true)"},
+	    std::vector<std::string>{"response"},
+	    1);  // requiredUserPermissions
 	registerFEMacroFunction("FEB II Set Channel",
 	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
 	                            &ROCCosmicRayVetoInterface::FebIISetChannel),
@@ -334,6 +338,22 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                            "port (Default: -1, current active)",
 	                        },
 	                        std::vector<std::string>{"response"},
+	                        1);  // requiredUserPermissions
+	registerFEMacroFunction("Test FEB Connection",
+	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
+	                            &ROCCosmicRayVetoInterface::TestFebConnection),
+	                        std::vector<std::string>{
+	                            "register (Default: 0x1023 = CntLO)",
+	                            "port (Default: 0 = all active, >0 = single)",
+	                        },
+	                        std::vector<std::string>{"response"},
+	                        1);  // requiredUserPermissions
+
+	registerFEMacroFunction("Test ROC Links",
+	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
+	                            &ROCCosmicRayVetoInterface::TestRocLinks),
+	                        std::vector<std::string>{},
+	                        std::vector<std::string>{"result", "response"},
 	                        1);  // requiredUserPermissions
 	registerFEMacroFunction("FEB II Set AFE Offset",
 	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
@@ -361,6 +381,8 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	    static_cast<FEVInterface::frontEndMacroFunction_t>(
 	        &ROCCosmicRayVetoInterface::FebIIConfigure),
 	    std::vector<std::string>{"port (Default: -1: current active, 0: all)",
+	                             "use broadcast when port=0 (Default: true)",
+	                             "run ROC clock align sequence (Default: true)",
 	                             "bias (Default: 0xaaf)",
 	                             "skip bias (Default: false)",
 	                             "threshold (Default: 0x50)",
@@ -371,12 +393,20 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	    std::vector<std::string>{"response"},
 	    1);  // requiredUserPermissions
 
+	registerFEMacroFunction("FEB II Configure from Tables",
+	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
+	                            &ROCCosmicRayVetoInterface::FebIIConfigureFromTables),
+	                        std::vector<std::string>{"skip bias (Default: false)"},
+	                        std::vector<std::string>{"response"},
+	                        1);  // requiredUserPermissions
+
 	registerFEMacroFunction(
 	    "FEB II Reset and Align",
 	    static_cast<FEVInterface::frontEndMacroFunction_t>(
 	        &ROCCosmicRayVetoInterface::FebIIAlign),
 	    std::vector<std::string>{"port (Default: -1, current active)",
 	                             "re-lock PLL (Default: true)",
+	                             "run ROC clock align sequence (Default: true)",
 	                             "sleep for lock [ms] (Default: 1000)",
 	                             "sleep [us] (Default: 1000)"},
 	    std::vector<std::string>{"response"},
@@ -532,9 +562,21 @@ void ROCCosmicRayVetoInterface::start(std::string)
 {  // runNumber)
 	// ResetRxBuffers();
 	RocConfigure(gr, 0, 0x0, 0xffff);
-	// take pedestrals
-	// this->writeRegister(FEB::AllFEB|FEB::AllFPGA|FEB::CSRBroadCast, 0x100);
-	// TLOG(TLVL_Start) << "Taking pedestrals" << __E__;
+	sleep(1);
+
+	__FE_COUT__ << "Testing FEB links before run start..." << __E__;
+	if(!testRocLinks())
+	{
+		__FE_COUT_WARN__
+		    << "FEB link test failed at start: one or more active ports did not "
+		       "respond to CntLO readback. Check FEB connections - this might just be a "
+		       "readback issue."
+		    << __E__;
+	}
+	else
+		__FE_COUT__ << "FEB link test passed." << __E__;
+
+	thisDTC_->SoftReset();
 }
 
 //==============================================================================
@@ -594,201 +636,24 @@ void ROCCosmicRayVetoInterface::SoftReset(__ARGS__) { ResetRxBuffers(); }
 void ROCCosmicRayVetoInterface::FebConfigure(bool useOtsConfig)
 {
 	TLOG(TLVL_FEBConfig) << "FebConfigure start..." << __E__;
-	this->readRegister(ROC::Version);
 
-	// first broadcast common settings
-	// Set external trigger to RJ45
-	// To make the PLL lock properly, we often need to shut the PLL off first
-	this->writeRegister(FEB::AllFEB | FEB::TRIG, 0x1);
-	usleep(0);  // seems to work, 2025-01-03
-	this->writeRegister(FEB::AllFEB | FEB::TRIG, 0x0);
-
-	// Enable self-triggering on spill gate
-	// this->writeRegister(FEB::AllFEB|FEB::AllFPGA|FEB::IntTrgEn, 0x2); // doesn't seem
-	// to work yet? 2025-01-03
-	this->writeRegister(FEB::AllFPGA | FEB::IntTrgEn, 0x2);
-	// Set number of ADC samples to 8, will be 12 moving forward
-	this->writeRegister(FEB::AllFEB | FEB::AllFPGA | FEB::Samples, 0x8);
-
-	// Reset DDR write/read pointers
-	this->writeRegister(FEB::AllFEB | FEB::AllFPGA | FEB::RdPtrHi,
-	                    0x0);  // not really needed
-	this->writeRegister(FEB::AllFEB | FEB::AllFPGA | FEB::RdPtrLo,
-	                    0x0);  // not really needed
-	this->writeRegister(FEB::AllFEB | FEB::AllFPGA | FEB::WrPtrHi,
-	                    0x0);  // not really needed
-	this->writeRegister(FEB::AllFEB | FEB::AllFPGA | FEB::WrPtrLo,
-	                    0x0);  // not really needed
-
-	// Take Pedestrals
-	// moved to start
-
-	uint16_t TEMPFIX = 0xefff;
-	if(useOtsConfig)
+	if(!useOtsConfig)
 	{
-		try
-		{
-			auto rocConfigs = getSelfNode()
-			                      .getNode("ROCTypeLinkTable")
-			                      .getNode("LinkToSubsystemCRVGroupedParametersTable")
-			                      .getChildren();
-			for(const auto& rocConfig : rocConfigs)
-			{
-				// Set on-spill gate @ 80MHz
-				if(rocConfig.second.getNode("Name").getValueAsString() ==
-				   "OnSpillGateLength")
-				{
-					uint16_t onSpillGateLength =
-					    rocConfig.second.getNode("Value").getValue<uint16_t>();
-					this->writeRegister(
-					    (FEB::AllFEB | FEB::AllFPGA | FEB::OnSpillGate) & TEMPFIX,
-					    onSpillGateLength);
-					TLOG(TLVL_FEBConfig)
-					    << "Broadcast 'OnSpillGateLength' 0x" << std::hex
-					    << onSpillGateLength << " (80MHz) to all FEBs " << __E__;
-					continue;
-				}
-				// Set off-spill gate @ 80MHz
-				if(rocConfig.second.getNode("Name").getValueAsString() ==
-				   "OffSpillGateLength")
-				{
-					uint16_t offSpillGateLength =
-					    rocConfig.second.getNode("Value").getValue<uint16_t>();
-					this->writeRegister(
-					    (FEB::AllFEB | FEB::AllFPGA | FEB::OffSpillGate) & TEMPFIX,
-					    offSpillGateLength);
-					TLOG(TLVL_FEBConfig)
-					    << "Broadcast 'OffSpillGateLength' 0x" << std::hex
-					    << offSpillGateLength << " (80MHz) to all FEBs " << __E__;
-					continue;
-				}
-				// Set pipeline delay
-				if(rocConfig.second.getNode("Name").getValueAsString() ==
-				   "HitPipelineDelay")
-				{
-					uint16_t hitPipelineDelay =
-					    rocConfig.second.getNode("Value").getValue<uint16_t>();
-					this->writeRegister(
-					    (FEB::AllFEB | FEB::AllFPGA | FEB::Pipeline) & TEMPFIX,
-					    hitPipelineDelay);
-					TLOG(TLVL_FEBConfig) << "Broadcast 'HitPipelineDelay' 0x" << std::hex
-					                     << hitPipelineDelay << " to all FEBs " << __E__;
-					continue;
-				}
-			}
-		}
-		catch(...)
-		{
-			TLOG(TLVL_WARNING)
-			    << "Missing 'ROCTypeLinkTable/LinkToSubsystemGroupedParametersTable', "
-			       "skipping broadcasted FEB config. Use defaults."
-			    << __E__;
-		}
-	}
-	else
-	{  // don't use the OTS config, for use in Macro Maker Mode
-		this->writeRegister((FEB::AllFEB | FEB::AllFPGA | FEB::OnSpillGate) & TEMPFIX,
-		                    0x0ff);  // WARNING, at 0xfff things seem to go wrong!
-		this->writeRegister((FEB::AllFEB | FEB::AllFPGA | FEB::OffSpillGate) & TEMPFIX,
-		                    0x0ff);
-		this->writeRegister((FEB::AllFEB | FEB::AllFPGA | FEB::Pipeline) & TEMPFIX, 0x5);
-
-		this->writeRegister(FEB::AllFPGA | FEB::Port, 0x1);
+		TLOG(TLVL_WARNING) << "FebConfigure called with useOtsConfig=false. "
+		                      "FEB II requires config tables — skipping."
+		                   << __E__;
+		return;
 	}
 
-	usleep(100000);  // 20ms doesn't work
-	                 // loop through all active FEBs
-	if(useOtsConfig)
+	try
 	{
-		auto febs = getSelfNode().getNode("LinkToFEBInterfaceTable").getChildren();
-		for(const auto& feb : febs)
-		{
-			bool active = feb.second.getNode("Status").getValue<bool>();
-			if(active)
-			{
-				uint16_t port = feb.second.getNode("Port").getValue<uint16_t>();
-				TLOG(TLVL_FEBConfig) << "Configure FEB " << feb.first << " on port "
-				                     << std::to_string(port) << __E__;
-				SetActivePort(port, true);
-				this->writeRegister(FEB::AllFPGA | FEB::Port, port);
-
-				// loop through channels
-				if(!feb.second.getNode("LinkToCRVChannelTable").isDisconnected())
-				{
-					for(const auto& ch :
-					    feb.second.getNode("LinkToCRVChannelTable").getChildren())
-					{
-						uint16_t channel =
-						    ch.second.getNode("Channel").getValue<uint16_t>();
-						uint16_t biasTrim =
-						    ch.second.getNode("BiasTrim").getValue<uint16_t>();
-						uint16_t threshold =
-						    ch.second.getNode("Threshold").getValue<uint16_t>();
-						uint16_t fpga     = channel >> 4;
-						uint16_t channel_ = channel & 0xf;
-						TLOG(TLVL_FEBConfig)
-						    << "Configure channel " << ch.first << " ch: " << channel
-						    << "(fpga" << fpga << ":" << channel_ << ")"
-						    << ", trim: 0x" << std::hex << biasTrim << ", threshold: 0x"
-						    << std::hex << threshold << __E__;
-						if(fpga > 3)
-						{
-							__FE_SS__ << "Channel number " << channel << " (fpga" << fpga
-							          << ":" << channel_
-							          << ") is not valid. Fpga needs to be in [0,1,2,3].";
-							__SS_THROW__;
-						}
-						this->writeRegister(FEB::FPGA[fpga] | (FEB::BiasTrim + channel_),
-						                    biasTrim);
-						this->writeRegister(FEB::FPGA[fpga] | (FEB::Threshold + channel_),
-						                    threshold);
-					}
-				}
-				else
-				{
-					TLOG(TLVL_WARNING) << "Missing 'LinkToCRVChannelTable' link, "
-					                      "skipping channel config."
-					                   << __E__;
-				}
-
-				// loop through channel groups
-				if(!feb.second.getNode("LinkToCRVChannelGroupTable").isDisconnected())
-				{
-					for(const auto& chg :
-					    feb.second.getNode("LinkToCRVChannelGroupTable").getChildren())
-					{
-						uint16_t number =
-						    chg.second.getNode("Number").getValue<uint16_t>();
-						uint16_t bias = chg.second.getNode("Bias").getValue<uint16_t>();
-						uint16_t fpga = number >> 1;
-						uint16_t no   = number & 0x1;
-						TLOG(TLVL_FEBConfig) << "Configure channel group " << chg.first
-						                     << " number: " << number << "(fpga" << fpga
-						                     << ":" << no << ")"
-						                     << ", bias: 0x" << std::hex << bias << __E__;
-						if(fpga > 3)
-						{
-							__FE_SS__ << "Number " << number << " (fpga" << fpga << ":"
-							          << no
-							          << ") is not valid. Fpga needs to be in [0,1,2,3].";
-							__SS_THROW__;
-						}
-						this->writeRegister(FEB::FPGA[fpga] | (FEB::Bias + no), bias);
-					}
-				}
-				else
-				{
-					TLOG(TLVL_WARNING) << "Missing 'LinkToCRVChannelGroupTable' link, "
-					                      "skipping channel group config."
-					                   << __E__;
-				}
-			}
-			else
-			{
-				TLOG(TLVL_FEBConfig) << "Skip configuration of " << feb.first
-				                     << " because its not active." << __E__;
-			}
-		}
+		std::string result = febIIConfigureFromTables();
+		TLOG(TLVL_FEBConfig) << "FebConfigure (FEB II from tables):" << result << __E__;
+	}
+	catch(std::exception& e)
+	{
+		TLOG(TLVL_ERROR) << "FebConfigure failed: " << e.what() << __E__;
+		throw;
 	}
 }
 
@@ -1764,13 +1629,50 @@ void ROCCosmicRayVetoInterface::FebIISetGateOnSpill(__ARGS__)
 	int      port      = __GET_ARG_IN__("port (Default: -1, current active)", int, -1);
 	uint16_t gateStart = __GET_ARG_IN__("gate start, 6.25ns (Default: 16)", uint16_t, 16);
 	uint16_t gateEnd   = __GET_ARG_IN__("gate end, 6.25ns (Default: 255)", uint16_t, 255);
+	bool     use_broadcast_for_all =
+	    __GET_ARG_IN__("use broadcast when port=0 (Default: true)", bool, true);
+	const bool     all_ports     = (port == 0);
+	const bool     use_broadcast = all_ports && use_broadcast_for_all;
+	const uint32_t active        = GetActivePorts();
+
 	if(port > 0)
 		SetActivePort(port);
-	this->writeRegister(FEBII::GateOnOnSpill, gateStart);
-	this->writeRegister(FEBII::GateOffOnSpill, gateEnd);
+
+	if(all_ports && !use_broadcast)
+	{
+		for(uint16_t p = 1; p <= 24; ++p)
+		{
+			if(!(active & (0x00000001 << (p - 1))))
+				continue;
+			SetActivePort(p);
+			this->writeRegister(FEBII::PortAll, p);
+			this->writeRegister(static_cast<uint16_t>(ROC::FEB) |
+			                        static_cast<uint16_t>(FEBII::GateOnOnSpill),
+			                    gateStart);
+			this->writeRegister(static_cast<uint16_t>(ROC::FEB) |
+			                        static_cast<uint16_t>(FEBII::GateOffOnSpill),
+			                    gateEnd);
+		}
+	}
+	else
+	{
+		uint16_t PORT_ = ROC::FEB;
+		if(use_broadcast)
+			PORT_ = PORT_ | ROC::FEB_Broadcast;
+
+		this->writeRegister(PORT_ | FEBII::GateOnOnSpill, gateStart);
+		this->writeRegister(PORT_ | FEBII::GateOffOnSpill, gateEnd);
+	}
 	std::stringstream ostr;
-	ostr << "Set GateOnOnSpill=0x" << std::hex << gateStart << ", GateOffOnSpill=0x"
-	     << gateEnd << std::endl;
+	if(use_broadcast)
+		ostr << "Set GateOnOnSpill=0x" << std::hex << gateStart << ", GateOffOnSpill=0x"
+		     << gateEnd << " using broadcast" << std::endl;
+	else if(all_ports)
+		ostr << "Set GateOnOnSpill=0x" << std::hex << gateStart << ", GateOffOnSpill=0x"
+		     << gateEnd << " on each active port" << std::endl;
+	else
+		ostr << "Set GateOnOnSpill=0x" << std::hex << gateStart << ", GateOffOnSpill=0x"
+		     << gateEnd << std::endl;
 	__SET_ARG_OUT__("response", ostr.str());
 }
 
@@ -1780,13 +1682,50 @@ void ROCCosmicRayVetoInterface::FebIISetGateOffSpill(__ARGS__)
 	uint16_t gateStart = __GET_ARG_IN__("gate start, 6.25ns (Default: 16)", uint16_t, 16);
 	uint16_t gateEnd =
 	    __GET_ARG_IN__("gate end, 6.25ns (Default: 15000)", uint16_t, 15000);
+	bool use_broadcast_for_all =
+	    __GET_ARG_IN__("use broadcast when port=0 (Default: true)", bool, true);
+	const bool     all_ports     = (port == 0);
+	const bool     use_broadcast = all_ports && use_broadcast_for_all;
+	const uint32_t active        = GetActivePorts();
+
 	if(port > 0)
 		SetActivePort(port);
-	this->writeRegister(FEBII::GateOnOffSpill, gateStart);
-	this->writeRegister(FEBII::GateOffOffSpill, gateEnd);
+
+	if(all_ports && !use_broadcast)
+	{
+		for(uint16_t p = 1; p <= 24; ++p)
+		{
+			if(!(active & (0x00000001 << (p - 1))))
+				continue;
+			SetActivePort(p);
+			this->writeRegister(FEBII::PortAll, p);
+			this->writeRegister(static_cast<uint16_t>(ROC::FEB) |
+			                        static_cast<uint16_t>(FEBII::GateOnOffSpill),
+			                    gateStart);
+			this->writeRegister(static_cast<uint16_t>(ROC::FEB) |
+			                        static_cast<uint16_t>(FEBII::GateOffOffSpill),
+			                    gateEnd);
+		}
+	}
+	else
+	{
+		uint16_t PORT_ = ROC::FEB;
+		if(use_broadcast)
+			PORT_ = PORT_ | ROC::FEB_Broadcast;
+
+		this->writeRegister(PORT_ | FEBII::GateOnOffSpill, gateStart);
+		this->writeRegister(PORT_ | FEBII::GateOffOffSpill, gateEnd);
+	}
 	std::stringstream ostr;
-	ostr << "Set GateOnOffSpill=0x" << std::hex << gateStart << ", GateOffOffSpill=0x"
-	     << gateEnd << std::endl;
+	if(use_broadcast)
+		ostr << "Set GateOnOffSpill=0x" << std::hex << gateStart << ", GateOffOffSpill=0x"
+		     << gateEnd << " using broadcast" << std::endl;
+	else if(all_ports)
+		ostr << "Set GateOnOffSpill=0x" << std::hex << gateStart << ", GateOffOffSpill=0x"
+		     << gateEnd << " on each active port" << std::endl;
+	else
+		ostr << "Set GateOnOffSpill=0x" << std::hex << gateStart << ", GateOffOffSpill=0x"
+		     << gateEnd << std::endl;
 	__SET_ARG_OUT__("response", ostr.str());
 }
 
@@ -1839,6 +1778,130 @@ void ROCCosmicRayVetoInterface::FebIIGetStatus(__ARGS__)
 	ostr << "===============================" << std::endl;
 	__SET_ARG_OUT__("response", ostr.str());
 }
+
+void ROCCosmicRayVetoInterface::TestFebConnection(__ARGS__)
+{
+	uint16_t reg =
+	    __GET_ARG_IN__("register (Default: 0x1023 = CntLO)", uint16_t, FEBII::CntLO);
+	int requestedPort =
+	    __GET_ARG_IN__("port (Default: 0 = all active, >0 = single)", int, 0);
+
+	std::stringstream response;
+	uint32_t          active = GetActivePorts();
+
+	response << "Testing FEB readback for register 0x" << std::hex << std::setw(4)
+	         << std::setfill('0') << reg << std::dec << std::setfill(' ') << std::endl;
+	response << "Active ports mask: 0x" << std::hex << std::setw(6) << std::setfill('0')
+	         << active << std::dec << std::setfill(' ') << std::endl;
+
+	auto testPort = [this, reg, &response](uint16_t port) {
+		response << "Port " << port << ":" << std::endl;
+		try
+		{
+			SetActivePort(port, true);
+		}
+		catch(...)
+		{
+			response << "  failed to select port" << std::endl;
+			return;
+		}
+
+		for(uint16_t fpga = 0; fpga < 4; ++fpga)
+		{
+			try
+			{
+				uint16_t value = this->readRegister(FEBII::FPGA[fpga] | reg);
+				response << "  fpga " << fpga << ": 0x" << std::hex << std::setw(4)
+				         << std::setfill('0') << value << std::dec << std::setfill(' ')
+				         << std::endl;
+			}
+			catch(...)
+			{
+				response << "  fpga " << fpga << ": read failed" << std::endl;
+			}
+		}
+	};
+
+	if(requestedPort > 0)
+	{
+		testPort(static_cast<uint16_t>(requestedPort));
+	}
+	else
+	{
+		bool testedAnyPort = false;
+		for(uint16_t port = 1; port <= 24; ++port)
+		{
+			if(active & (0x00000001u << (port - 1)))
+			{
+				testedAnyPort = true;
+				testPort(port);
+			}
+		}
+
+		if(!testedAnyPort)
+			response << "No active ports found." << std::endl;
+	}
+
+	__SET_ARG_OUT__("response", response.str());
+}
+
+// Reads CntLO from FPGA0 on every active port.
+// Returns true if all active ports respond, false if any read fails.
+bool ROCCosmicRayVetoInterface::testRocLinks()
+{
+	bool     allOk  = true;
+	uint32_t active = GetActivePorts();
+	for(uint16_t port = 1; port <= 24; ++port)
+	{
+		if(!(active & (0x00000001u << (port - 1))))
+			continue;
+		try
+		{
+			SetActivePort(port, true);
+			this->readRegister(FEBII::FPGA[0] | FEBII::CntLO);
+		}
+		catch(...)
+		{
+			__FE_COUT_WARN__ << "testRocLinks: port " << port
+			                 << " did not respond (CntLO read failed)" << __E__;
+			allOk = false;
+		}
+	}
+	return allOk;
+}  // end testRocLinks()
+
+void ROCCosmicRayVetoInterface::TestRocLinks(__ARGS__)
+{
+	std::stringstream response;
+	uint32_t          active = GetActivePorts();
+
+	response << "Testing FEB links (FPGA0 CntLO readback per active port)\n";
+	response << "Active ports mask: 0x" << std::hex << std::setw(6) << std::setfill('0')
+	         << active << std::dec << std::setfill(' ') << "\n";
+
+	bool allOk = true;
+	for(uint16_t port = 1; port <= 24; ++port)
+	{
+		if(!(active & (0x00000001u << (port - 1))))
+			continue;
+		try
+		{
+			SetActivePort(port, true);
+			uint16_t val = this->readRegister(FEBII::FPGA[0] | FEBII::CntLO);
+			response << "  port " << port << ": 0x" << std::hex << std::setw(4)
+			         << std::setfill('0') << val << std::dec << std::setfill(' ') << "\n";
+		}
+		catch(...)
+		{
+			response << "  port " << port << ": read failed\n";
+			allOk = false;
+		}
+	}
+
+	response << (allOk ? "Result: PASS" : "Result: FAIL") << "\n";
+	__SET_ARG_OUT__("result", allOk ? "true" : "false");
+	__SET_ARG_OUT__("response", response.str());
+}  // end TestRocLinks()
 
 void ROCCosmicRayVetoInterface::FebIISetChannel(__ARGS__)
 {
@@ -2029,16 +2092,50 @@ void ROCCosmicRayVetoInterface::FebIITrigBaselines(__ARGS__)
 	__SET_ARG_OUT__("response", ostr.str());
 }
 
-void ROCCosmicRayVetoInterface::ResetPLL(int sleep_ms, bool allPorts)
+void ROCCosmicRayVetoInterface::ResetPLL(int  sleep_us,
+                                         bool allPorts,
+                                         bool runRocClockAlign)
 {
 	uint16_t PORT_ = ROC::FEB;
 	if(allPorts)
 		PORT_ = ROC::FEB_Broadcast;
+
+	// Quiet ROC marker-encoded traffic while we manipulate clocking.
+	bool restore_marker_sync = false;
+	if(runRocClockAlign)
+	{
+		restore_marker_sync = ((this->readRegister(ROC::CR) & (1u << 5)) != 0);
+		SetMarkerSync(false);
+	}
+
+	// 1) Frequency-lock VCXO to ROC clock.
 	this->writeRegister(PORT_ | FEBII::EWTFakeMode, 0x1);  // fake mode, Ph_det off
-	usleep(sleep_ms * 1000);
+	usleep(sleep_us * 1000);
 	this->writeRegister(PORT_ | FEBII::EWTFakeMode,
 	                    0x0);  // back to extenral, Ph_det enabled again
-	usleep(sleep_ms * 1000);
+	usleep(sleep_us * 1000);
+
+	if(runRocClockAlign)
+	{
+		// 2) Pulse FPGA0 bit9 in CR to initiate ROC clock MMCM alignment.
+		this->writeRegister(ROC::FEB | FEBII::FPGA[0] | FEBII::CR, 0x200);
+		usleep(1000);
+		this->writeRegister(ROC::FEB | FEBII::FPGA[0] | FEBII::CR, 0x0);
+		usleep(1000);
+
+		// 3) Confirm MMCM/PLL lock+alignment from FPGA0 status bits 9,5,4.
+		const uint16_t status =
+		    this->readRegister(ROC::FEB | FEBII::FPGA[0] | FEBII::Status);
+		const uint16_t needed = (1u << 9) | (1u << 5) | (1u << 4);
+		if((status & needed) != needed)
+		{
+			__COUT_WARN__ << "ResetPLL ROC clock align check failed: status=0x"
+			              << std::hex << status << " (need bits 9,5,4 set)" << __E__;
+		}
+
+		if(restore_marker_sync)
+			SetMarkerSync(true);
+	}
 }
 
 int16_t ROCCosmicRayVetoInterface::Realign(int sleep_uc)
@@ -2074,20 +2171,24 @@ int16_t ROCCosmicRayVetoInterface::Realign(int sleep_uc)
 
 void ROCCosmicRayVetoInterface::FebIIAlign(__ARGS__)
 {
-	int  port       = __GET_ARG_IN__("port (Default: -1, current active)", int, -1);
-	bool lock       = __GET_ARG_IN__("re-lock PLL (Default: true)", bool, true);
-	int  sleepReset = __GET_ARG_IN__("sleep for lock [ms] (Default: 1000)", int, 1000);
-	int  sleep      = __GET_ARG_IN__("sleep [us] (Default: 1000)", int, 1000);
+	int  port = __GET_ARG_IN__("port (Default: -1, current active)", int, -1);
+	bool lock = __GET_ARG_IN__("re-lock PLL (Default: true)", bool, true);
+	bool run_roc_clock_align =
+	    __GET_ARG_IN__("run ROC clock align sequence (Default: true)", bool, true);
+	int sleepReset = __GET_ARG_IN__("sleep for lock [ms] (Default: 1000)", int, 1000);
+	int sleep      = __GET_ARG_IN__("sleep [us] (Default: 1000)", int, 1000);
 
 	if(port > 0)
 		SetActivePort(port);
 	std::stringstream ostr;
 	ostr << std::endl;
+	ostr << "ROC clock align sequence: " << (run_roc_clock_align ? "enabled" : "disabled")
+	     << std::endl;
 
 	// force PLL to relock
 	if(lock)
 	{
-		ResetPLL(sleepReset);
+		ResetPLL(sleepReset, false, run_roc_clock_align);
 		// this->writeRegister(FEBII::EWTFakeMode, 0x1); // fake mode, Ph_det off
 		// usleep(sleepReset*1000);
 		// this->writeRegister(FEBII::EWTFakeMode, 0x0); // back to extenral, Ph_det
@@ -2138,8 +2239,12 @@ void ROCCosmicRayVetoInterface::SetInputMask(__ARGS__)
 
 void ROCCosmicRayVetoInterface::FebIIConfigure(__ARGS__)
 {
-	int      port = __GET_ARG_IN__("port (Default: -1: current active, 0: all)", int, -1);
-	uint16_t bias = __GET_ARG_IN__("bias (Default: 0xaaf)", uint16_t, 0xaaf);
+	int  port = __GET_ARG_IN__("port (Default: -1: current active, 0: all)", int, -1);
+	bool use_broadcast_for_all =
+	    __GET_ARG_IN__("use broadcast when port=0 (Default: true)", bool, true);
+	bool run_roc_clock_align =
+	    __GET_ARG_IN__("run ROC clock align sequence (Default: true)", bool, true);
+	uint16_t bias        = __GET_ARG_IN__("bias (Default: 0xaaf)", uint16_t, 0xaaf);
 	bool     skip_bias   = __GET_ARG_IN__("skip bias (Default: false)", bool, false);
 	uint16_t threshold   = __GET_ARG_IN__("threshold (Default: 0x50)", uint16_t, 0x50);
 	bool update_baseline = __GET_ARG_IN__("update baseline (Default: true)", bool, true);
@@ -2151,6 +2256,10 @@ void ROCCosmicRayVetoInterface::FebIIConfigure(__ARGS__)
 
 	std::stringstream ostr;
 	ostr << std::endl;
+	const bool all_ports     = (port == 0);
+	const bool use_broadcast = all_ports && use_broadcast_for_all;
+	ostr << "ROC clock align sequence: " << (run_roc_clock_align ? "enabled" : "disabled")
+	     << std::endl;
 	if(port > 0)
 	{
 		ostr << "Selecting port " << port << std::endl;
@@ -2158,80 +2267,104 @@ void ROCCosmicRayVetoInterface::FebIIConfigure(__ARGS__)
 	}
 
 	uint16_t PORT_ = ROC::FEB;
-	if(port == 0)
+	if(use_broadcast)
 	{
 		PORT_ = PORT_ | ROC::FEB_Broadcast;
 		ostr << "Broadcast to all ports" << std::endl;
 	}
+	else if(all_ports)
+	{
+		ostr << "Configuring all active ports one-by-one (broadcast disabled)"
+		     << std::endl;
+	}
+
+	const uint32_t active = GetActivePorts();
 
 	// Reset PLL
 	if(pll_reset)
 	{
 		ostr << "Resetting PLL (wait 1s)" << std::endl;
-		ResetPLL(1000, port == 0);
+		if(!(all_ports && !use_broadcast))
+		{
+			ResetPLL(1000, all_ports, run_roc_clock_align);
+		}
 	}
 
 	// bias
 	if(!skip_bias)
 	{
-		ostr << "Ramping all bias to " << std::hex << bias << "with spacing of 5s"
-		     << std::endl;
-		for(uint16_t fpga = 0; fpga < 4; ++fpga)
+		ostr << "Ramping all bias to " << std::hex << bias << "with spacing of 5s";
+		if(all_ports && !use_broadcast)
+			ostr << " (per active port)";
+		ostr << std::endl;
+
+		if(all_ports && !use_broadcast)
 		{
-			for(uint16_t idx = 0; idx < 2; ++idx)
+			for(uint16_t p = 1; p <= 24; ++p)
 			{
-				this->writeRegister(
-				    PORT_ | FEBII::FPGA[fpga] | (FEBII::BiasBase + (idx & 0x1)), bias);
-				sleep(5);
+				if(!(active & (0x00000001 << (p - 1))))
+					continue;
+				SetActivePort(p);
+				this->writeRegister(FEBII::PortAll, p);
+				for(uint16_t fpga = 0; fpga < 4; ++fpga)
+				{
+					for(uint16_t idx = 0; idx < 2; ++idx)
+					{
+						this->writeRegister(ROC::FEB | FEBII::FPGA[fpga] |
+						                        (FEBII::BiasBase + (idx & 0x1)),
+						                    bias);
+						sleep(5);
+					}
+				}
+			}
+		}
+		else
+		{
+			for(uint16_t fpga = 0; fpga < 4; ++fpga)
+			{
+				for(uint16_t idx = 0; idx < 2; ++idx)
+				{
+					this->writeRegister(
+					    PORT_ | FEBII::FPGA[fpga] | (FEBII::BiasBase + (idx & 0x1)),
+					    bias);
+					sleep(5);
+				}
 			}
 		}
 	}
 
 	// things that can not be done as broadcast
-	uint32_t active = GetActivePorts();
-	for(uint16_t p = 1; p <= 24; p++)
+	if(!(all_ports && !use_broadcast))
 	{
-		if((port > 0) & (p != port))
-			continue;
+		for(uint16_t p = 1; p <= 24; p++)
+		{
+			if((port > 0) && (p != port))
+				continue;
 
-		if(port != -1)
-		{  // not the active port, then set it
-			if(active & (0x00000001 << (p - 1)))
-			{
-				SetActivePort(p);
-				// set port
-				this->writeRegister(FEBII::PortAll, p);
+			if(port != -1)
+			{  // not the active port, then set it
+				if(active & (0x00000001 << (p - 1)))
+				{
+					SetActivePort(p);
+					// set port
+					this->writeRegister(FEBII::PortAll, p);
+				}
 			}
+
+			// forcer AFE to realign
+
+			/*
+			uint16_t status = Realign(1000);
+			ostr << "Forcing AFE realignment: " << ((status & 0x1) ? "inverted" :
+			"default")
+			    << ", " << ((status & 0x2) ? "inverted" : "default") << ", "
+			    << ((status & 0x4) ? "inverted" : "default") << ", "
+			    << ((status & 0x8) ? "inverted" : "default") << std::endl;
+			*/
+
+			if(port != 0)
+				break;  // only do one or the active port
 		}
-
-		// forcer AFE to realign
-
-		/*
-		uint16_t status = Realign(1000);
-		ostr << "Forcing AFE realignment: " << ((status & 0x1) ? "inverted" : "default")
-		    << ", " << ((status & 0x2) ? "inverted" : "default") << ", "
-		    << ((status & 0x4) ? "inverted" : "default") << ", "
-		    << ((status & 0x8) ? "inverted" : "default") << std::endl;
-		*/
-
-		// set port
-		// if(port != -1) {
-		//        this->writeRegister(FEBII::PortAll, p);
-		//}
-
-		// if(port == -1){
-		//     //    int16_t aport = GetActivePorts();
-		//     //    for(unsigned int fpga = 0; fpga < 4; fpga++) {
-		//     //        this->writeRegister(FEBII::FPGA[fpga] | FEBII::Port, aport);
-		//     //    }
-		// } else {
-		//     for(unsigned int fpga = 0; fpga < 4; fpga++) {  // TODO, when avaiable use
-		//     0x329
-		//         this->writeRegister(FEBII::FPGA[fpga] | FEBII::Port, p);
-		//     }
-		// }
-		if(port != 0)
-			break;  // only do one or the active port
 	}
 
 	// and back to broadcastable
@@ -2239,31 +2372,236 @@ void ROCCosmicRayVetoInterface::FebIIConfigure(__ARGS__)
 	ostr << "Enabling channels, and thresholds";
 	if(update_baseline)
 		ostr << ", and triggering baselines";
+	if(all_ports && !use_broadcast)
+		ostr << " (per active port)";
 	ostr << std::endl;
-	for(unsigned int fpga = 0; fpga < 4; fpga++)
+
+	if(all_ports && !use_broadcast)
 	{
-		for(uint16_t ch = 0; ch < 16; ++ch)
+		for(uint16_t p = 1; p <= 24; ++p)
 		{
-			this->writeRegister(
-			    PORT_ | FEBII::FPGA[fpga] | (FEBII::ChannelMapBase + (ch & 0xF)), ch);
-			this->writeRegister(
-			    PORT_ | FEBII::FPGA[fpga] | (FEBII::ThresholdBase + (ch & 0xF)),
-			    threshold);
-			if(update_baseline)
+			if(!(active & (0x00000001 << (p - 1))))
+				continue;
+			SetActivePort(p);
+			this->writeRegister(FEBII::PortAll, p);
+			if(pll_reset)
+				ResetPLL(1000, false, run_roc_clock_align);
+			for(unsigned int fpga = 0; fpga < 4; ++fpga)
+			{
+				for(uint16_t ch = 0; ch < 16; ++ch)
+				{
+					this->writeRegister(ROC::FEB | FEBII::FPGA[fpga] |
+					                        (FEBII::ChannelMapBase + (ch & 0xF)),
+					                    ch);
+					this->writeRegister(ROC::FEB | FEBII::FPGA[fpga] |
+					                        (FEBII::ThresholdBase + (ch & 0xF)),
+					                    threshold);
+					if(update_baseline)
+					{
+						this->writeRegister(ROC::FEB | FEBII::FPGA[fpga] |
+						                        (FEBII::BaselineBase + (ch & 0xF)),
+						                    0x1);
+					}
+				}
+			}
+			this->writeRegister(static_cast<uint16_t>(ROC::FEB) |
+			                        static_cast<uint16_t>(FEBII::GateOffOnSpill),
+			                    onSpillGateEnd);
+			this->writeRegister(static_cast<uint16_t>(ROC::FEB) |
+			                        static_cast<uint16_t>(FEBII::GateOffOffSpill),
+			                    offSpillGateEnd);
+		}
+		ostr << "Setting on-spill gate end to " << onSpillGateEnd
+		     << "(6.25ns) and off-spill gate end to " << offSpillGateEnd
+		     << "(6.25ns) on each active port" << std::endl;
+	}
+	else
+	{
+		for(unsigned int fpga = 0; fpga < 4; fpga++)
+		{
+			for(uint16_t ch = 0; ch < 16; ++ch)
 			{
 				this->writeRegister(
-				    PORT_ | FEBII::FPGA[fpga] | (FEBII::BaselineBase + (ch & 0xF)), 0x1);
+				    PORT_ | FEBII::FPGA[fpga] | (FEBII::ChannelMapBase + (ch & 0xF)), ch);
+				this->writeRegister(
+				    PORT_ | FEBII::FPGA[fpga] | (FEBII::ThresholdBase + (ch & 0xF)),
+				    threshold);
+				if(update_baseline)
+				{
+					this->writeRegister(
+					    PORT_ | FEBII::FPGA[fpga] | (FEBII::BaselineBase + (ch & 0xF)),
+					    0x1);
+				}
 			}
+		}
+
+		ostr << "Setting on-spill gate end to " << onSpillGateEnd
+		     << "(6.25ns) and off-spill gate end to " << offSpillGateEnd << "(6.25ns)"
+		     << std::endl;
+		this->writeRegister(PORT_ | FEBII::GateOffOnSpill, onSpillGateEnd);
+		this->writeRegister(PORT_ | FEBII::GateOffOffSpill, offSpillGateEnd);
+	}
+
+	__SET_ARG_OUT__("response", ostr.str());
+}
+
+//==========================================================================================
+std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(bool skipBias)
+{
+	std::stringstream ostr;
+	ostr << std::endl;
+
+	auto febs =
+	    getSelfNode().getNode("ROCTypeLinkTable").getNode("FEBsLink").getChildren();
+
+	for(const auto& feb : febs)
+	{
+		bool active = feb.second.getNode("Status").getValue<bool>();
+		if(!active)
+			continue;
+
+		uint16_t p = feb.second.getNode("Port").getValue<uint16_t>();
+		ostr << "Configuring FEB II '" << feb.first << "' on port " << p << std::endl;
+		SetActivePort(p);
+
+		// --- Bias (BitMap 1x8: fpga*2 + idx) ---
+		// Each write is followed by a 5s ramp wait (8 writes = ~40s total).
+		// Pass skipBias=true to skip entirely (e.g. bias already ramped).
+		{
+			auto bmp = feb.second.getNode("Bias").getValueAsBitMap<uint16_t>();
+			if(skipBias)
+			{
+				ostr << "  Bias: skipped (skipBias=true)" << std::endl;
+			}
+			else if(bmp.numberOfRows() > 0 && bmp.numberOfColumns(0) == 8)
+			{
+				ostr << "  Bias: ramping (5s per step)..." << std::endl;
+				for(uint16_t fpga = 0; fpga < 4; ++fpga)
+				{
+					for(uint16_t idx = 0; idx < 2; ++idx)
+					{
+						uint16_t val = bmp.get(0, fpga * 2 + idx);
+						this->writeRegister(FEBII::FPGA[fpga] | (FEBII::BiasBase + idx),
+						                    val);
+						sleep(5);
+						uint16_t rb = this->readRegister(FEBII::FPGA[fpga] |
+						                                 (FEBII::BiasBase + idx));
+						ostr << "    FPGA" << fpga << "[" << idx << "]  set=0x"
+						     << std::hex << val << "  readback=0x" << rb << std::dec
+						     << std::endl;
+					}
+				}
+			}
+			else
+			{
+				ostr << "  Bias: not configured in table, skipping" << std::endl;
+			}
+		}
+
+		// --- Trim (BitMap 1x64: fpga*16 + ch) ---
+		{
+			auto bmp = feb.second.getNode("Trim").getValueAsBitMap<uint16_t>();
+			if(bmp.numberOfRows() > 0 && bmp.numberOfColumns(0) == 64)
+			{
+				ostr << "  Trim:" << std::endl;
+				for(uint16_t fpga = 0; fpga < 4; ++fpga)
+				{
+					ostr << "    FPGA" << fpga << ": ";
+					for(uint16_t ch = 0; ch < 16; ++ch)
+					{
+						uint16_t val = bmp.get(0, fpga * 16 + ch);
+						this->writeRegister(FEBII::FPGA[fpga] | (FEBII::TrimBase + ch),
+						                    val);
+						uint16_t rb = this->readRegister(FEBII::FPGA[fpga] |
+						                                 (FEBII::TrimBase + ch));
+						ostr << "ch" << std::dec << ch << "=(0x" << std::hex << val
+						     << "/0x" << rb << ") ";
+					}
+					ostr << std::dec << std::endl;
+				}
+			}
+			else
+			{
+				ostr << "  Trim: not configured in table, skipping" << std::endl;
+			}
+		}
+
+		// --- Threshold (BitMap 1x64: fpga*16 + ch) ---
+		{
+			auto bmp = feb.second.getNode("Threshold").getValueAsBitMap<uint16_t>();
+			if(bmp.numberOfRows() > 0 && bmp.numberOfColumns(0) == 64)
+			{
+				ostr << "  Threshold:" << std::endl;
+				for(uint16_t fpga = 0; fpga < 4; ++fpga)
+				{
+					ostr << "    FPGA" << fpga << ": ";
+					for(uint16_t ch = 0; ch < 16; ++ch)
+					{
+						uint16_t val = bmp.get(0, fpga * 16 + ch);
+						this->writeRegister(
+						    FEBII::FPGA[fpga] | (FEBII::ThresholdBase + ch), val);
+						uint16_t rb = this->readRegister(FEBII::FPGA[fpga] |
+						                                 (FEBII::ThresholdBase + ch));
+						ostr << "ch" << std::dec << ch << "=(0x" << std::hex << val
+						     << "/0x" << rb << ") ";
+					}
+					ostr << std::dec << std::endl;
+				}
+			}
+			else
+			{
+				ostr << "  Threshold: not configured in table, skipping" << std::endl;
+			}
+		}
+
+		// --- Gate settings from SettingsLink ---
+		if(!feb.second.getNode("SettingsLink").isDisconnected())
+		{
+			auto     settings = feb.second.getNode("SettingsLink");
+			uint16_t onStart  = settings.getNode("OnSpillStart").getValue<uint16_t>();
+			uint16_t onEnd    = settings.getNode("OnSpillEnd").getValue<uint16_t>();
+			uint16_t offStart = settings.getNode("OffSpillStart").getValue<uint16_t>();
+			uint16_t offEnd   = settings.getNode("OffSpillEnd").getValue<uint16_t>();
+
+			this->writeRegister(FEBII::GateOnOnSpill, onStart);
+			this->writeRegister(FEBII::GateOffOnSpill, onEnd);
+			this->writeRegister(FEBII::GateOnOffSpill, offStart);
+			this->writeRegister(FEBII::GateOffOffSpill, offEnd);
+
+			uint16_t rbOnStart  = this->readRegister(FEBII::GateOnOnSpill);
+			uint16_t rbOnEnd    = this->readRegister(FEBII::GateOffOnSpill);
+			uint16_t rbOffStart = this->readRegister(FEBII::GateOnOffSpill);
+			uint16_t rbOffEnd   = this->readRegister(FEBII::GateOffOffSpill);
+
+			ostr << "  OnSpill  gate: start=" << onStart << " (rb=" << rbOnStart << ")"
+			     << "  end=" << onEnd << " (rb=" << rbOnEnd << ")  [6.25ns]" << std::endl;
+			ostr << "  OffSpill gate: start=" << offStart << " (rb=" << rbOffStart << ")"
+			     << "  end=" << offEnd << " (rb=" << rbOffEnd << ")  [6.25ns]"
+			     << std::endl;
+		}
+		else
+		{
+			ostr << "  SettingsLink: disconnected, no gate settings applied" << std::endl;
 		}
 	}
 
-	ostr << "Setting on-spill gate end to " << onSpillGateEnd
-	     << "(6.25ns) and off-spill gate end to " << offSpillGateEnd << "(6.25ns)"
-	     << std::endl;
-	this->writeRegister(PORT_ | FEBII::GateOffOnSpill, onSpillGateEnd);
-	this->writeRegister(PORT_ | FEBII::GateOffOffSpill, offSpillGateEnd);
+	return ostr.str();
+}
 
-	__SET_ARG_OUT__("response", ostr.str());
+//==========================================================================================
+void ROCCosmicRayVetoInterface::FebIIConfigureFromTables(__ARGS__)
+{
+	bool        skipBias = __GET_ARG_IN__("skip bias (Default: false)", bool, false);
+	std::string result;
+	try
+	{
+		result = febIIConfigureFromTables(skipBias);
+	}
+	catch(std::exception& e)
+	{
+		result = std::string("\nERROR: ") + e.what() + "\n";
+	}
+	__SET_ARG_OUT__("response", result);
 }
 
 DEFINE_OTS_INTERFACE(ROCCosmicRayVetoInterface)
