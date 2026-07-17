@@ -1,10 +1,9 @@
-#include "mu2e-trig-config/core/trigProducers.fcl"
 #include "Offline/fcl/standardServices.fcl"
 #include "Offline/CRVResponse/fcl/prolog.fcl"
 
 process_name : CrvDQM
 
-services :{
+services : {
   @table::Services.Core
   @table::Services.Reco
   TFileService : {
@@ -19,41 +18,38 @@ source : {
 }
 
 physics : {
-  producers :
-  {
-    crvdigi :
-    {
-      module_type   : CrvDigisFromArtdaqFragmentsFEBII
-      diagLevel     : 0
-      produceNZS : false
-      # useOnlineChannel: true
-
+  producers : {
+    crvdigi : {
+      module_type    : CrvDigisFromArtdaqFragmentsFEBII
+      diagLevel      : 0
+      produceNZS     : false
+      useROC4asROC2  : true
     }
   }
   analyzers : {
     crvdqm : {
-      module_type           : CrvDQM
-      diagLevel             : 1
-      sendHists             : false
-      dummyHist             : false
+      module_type      : CrvDQM
+      crvDigiTag       : "crvdigi"
+      crvStatusTag     : "crvdigi"
+      diagLevel        : 1
+      sendHists        : false
+      enableHttpServer : false
+      dummyHist        : false
+      cfFraction       : 0.20
+      dtBinSize        : 0.5
+      dtRange          : 50.0
+      minAmplitude     : 10
+      saveCanvasesToPdf: true
+      showSameFpgaTimingInCanvas: false
     }
-    CrvDQMcollector: @local::CrvDQMcollector
   }
   t1 : [ crvdigi ]
   a1 : [ crvdqm ]
-  trigger_paths  : [t1]
-  end_paths      : [a1]
+  trigger_paths : [ t1 ]
+  end_paths     : [ a1 ]
 }
 
-outputs: {
-  # out1: {
-  #   module_type: FileDumperOutput
-  #   wantProductFriendlyClassName: true   # Print class names
-  #   onlyIfPresent: true # Only present products
-  # }
-}
-
-services.TimeTracker.printSummary: false
-services.scheduler.wantSummary: false
+services.TimeTracker.printSummary: true
+services.scheduler.wantSummary: true
 services.message.destinations.log.outputStatistics : false
 services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_common_extracted.txt"
