@@ -92,11 +92,11 @@ class CrvDQM : public art::EDAnalyzer
 	float maxTdc_;
 
 	// Timing parameters
-	double cfFraction_;       // constant-fraction threshold (default 0.20)
-	float  dtBinSize_;        // bin width in ns for dt histograms
-	float  dtRange_;          // +/- range in ns for dt histograms
-	int    minAmplitude_;     // minimum amplitude (peak - baseline) to accept a hit
-	int    nBinsDt_;          // number of bins for dt histograms (computed from range/binSize)
+	double cfFraction_;    // constant-fraction threshold (default 0.20)
+	float  dtBinSize_;     // bin width in ns for dt histograms
+	float  dtRange_;       // +/- range in ns for dt histograms
+	int    minAmplitude_;  // minimum amplitude (peak - baseline) to accept a hit
+	int    nBinsDt_;  // number of bins for dt histograms (computed from range/binSize)
 
 	// Block-averaging for g_digisAvgVsEwt_: one point per avgBlockSize_ events,
 	// keep at most avgGraphPoints_ points in the graph (drop oldest).
@@ -112,19 +112,19 @@ class CrvDQM : public art::EDAnalyzer
 	art::ServiceHandle<art::TFileService> tfs_;
 
 	// Histograms
-	TH1F*   h1_dummy_;         // dummy
-	TH1F*   h1_channels_;      // global FEB channel hits
+	TH1F*   h1_dummy_;            // dummy
+	TH1F*   h1_channels_;         // global FEB channel hits
 	TH1F*   h1_channelsLastEwt_;  // channel hits with EWT in [current-window, current]
-	TH2F*   h2_channels_;      // FEB vs channel hits
-	TH1F*   h1_digisPerEvt_;   // digis per event
-	TH1F*   h1_peakAdc_;       // peak ADC per digi
-	TH1F*   h1_tdc_;           // digi start timestamp
-	TGraph* g_digisVsEwt_;     // digis vs event window tag (rolling sum)
+	TH2F*   h2_channels_;         // FEB vs channel hits
+	TH1F*   h1_digisPerEvt_;      // digis per event
+	TH1F*   h1_peakAdc_;          // peak ADC per digi
+	TH1F*   h1_tdc_;              // digi start timestamp
+	TGraph* g_digisVsEwt_;        // digis vs event window tag (rolling sum)
 	TGraph* g_digisAvgVsEwt_;  // mean digis per event, averaged over avgBlockSize_ events
 
 	// MicroBunchStatus vs EWT per ROC link (only updated on change)
-	std::map<uint8_t, TGraph*>  g_ubStatusVsEwt_;     // linkID -> TGraph
-	std::map<uint8_t, uint32_t> lastMicroBunchStatus_; // linkID -> last seen value
+	std::map<uint8_t, TGraph*>  g_ubStatusVsEwt_;       // linkID -> TGraph
+	std::map<uint8_t, uint32_t> lastMicroBunchStatus_;  // linkID -> last seen value
 
 	// Timing histograms (dt between pairs), created on-demand
 	// Key: pair of global FEB IDs (low, high)
@@ -133,8 +133,9 @@ class CrvDQM : public art::EDAnalyzer
 	std::map<std::pair<uint8_t, uint8_t>, TH1F*> h1_dtFpgaPairs_;
 
 	// Timestamp (startTDC) distributions, created on-demand
-	std::map<uint8_t, TH1F*>                     h1_tdcPerFeb_;   // globalFebId -> hist
-	std::map<std::pair<uint8_t, uint8_t>, TH1F*> h1_tdcPerFpga_;  // (globalFebId, fpga) -> hist
+	std::map<uint8_t, TH1F*> h1_tdcPerFeb_;  // globalFebId -> hist
+	std::map<std::pair<uint8_t, uint8_t>, TH1F*>
+	    h1_tdcPerFpga_;  // (globalFebId, fpga) -> hist
 
 	// HTTP server & visualisation
 	bool                                               enableHttpServer_;
@@ -168,8 +169,8 @@ class CrvDQM : public art::EDAnalyzer
 	static constexpr std::size_t kEwtWindow_   = 1000;
 	static constexpr std::size_t kGraphPoints_ = 10000;    // max points kept in TGraph
 	static constexpr double      kEwtXRange_   = 1000000;  // x-axis shows last N EWTs
-	std::deque<std::pair<uint32_t, int>> ewtWindow_;
-	long long                            ewtWindowSum_{0};
+	std::deque<std::pair<uint32_t, int>>                   ewtWindow_;
+	long long                                              ewtWindowSum_{0};
 	std::deque<std::pair<uint32_t, std::vector<uint16_t>>> recentChannelHitsByEwt_;
 
 	// Block-averaging accumulators for g_digisAvgVsEwt_
@@ -195,9 +196,9 @@ CrvDQM::CrvDQM(fhicl::ParameterSet const& ps)
     , outputTag_(ps.get<std::string>("outputTag", "CrvDQM"))
     , sendHists_(ps.get<bool>("sendHists", true))
     , dummyHist_(ps.get<bool>("dummyHist", false))
-	, saveCanvasesToPdf_(ps.get<bool>("saveCanvasesToPdf", false))
-	, showSameFpgaTimingInCanvas_(ps.get<bool>("showSameFpgaTimingInCanvas", true))
-	, canvasPdfFile_(ps.get<std::string>("canvasPdfFile", "CrvDQM.pdf"))
+    , saveCanvasesToPdf_(ps.get<bool>("saveCanvasesToPdf", false))
+    , showSameFpgaTimingInCanvas_(ps.get<bool>("showSameFpgaTimingInCanvas", true))
+    , canvasPdfFile_(ps.get<std::string>("canvasPdfFile", "CrvDQM.pdf"))
     , nBinsDigisPerEvt_(ps.get<int>("nBinsDigisPerEvt", 200))
     , maxDigisPerEvt_(ps.get<float>("maxDigisPerEvt", 4000))
     , nBinsPeakAdc_(ps.get<int>("nBinsPeakAdc", 450))
@@ -210,8 +211,8 @@ CrvDQM::CrvDQM(fhicl::ParameterSet const& ps)
     , minAmplitude_(ps.get<int>("minAmplitude", 10))
     , avgBlockSize_(static_cast<std::size_t>(ps.get<int>("avgBlockSize", 30)))
     , avgGraphPoints_(static_cast<std::size_t>(ps.get<int>("avgGraphPoints", 1000)))
-	    , channelsWindowEwts_(
-		    static_cast<std::size_t>(ps.get<int>("channelsWindowEwts", 50000)))
+    , channelsWindowEwts_(
+          static_cast<std::size_t>(ps.get<int>("channelsWindowEwts", 50000)))
     , sendIntervalSec_(ps.get<float>("sendIntervalSec", 0.5))
     , enableHttpServer_(ps.get<bool>("enableHttpServer", true))
     , httpPort_(ps.get<int>("httpPort", 8877))
@@ -283,16 +284,17 @@ void CrvDQM::beginJob()
 		                                 0.5,
 		                                 maxDigisPerEvt_ + 0.5);
 		h1_digisPerEvt_->SetMinimum(0.5);
-		h1_peakAdc_  = dir.make<TH1F>("h1_peakAdc",
-                                     "Max sample ADC;Max sample ADC;Hits",
-                                     nBinsPeakAdc_,
-                                     0,
-                                     maxPeakAdc_);
-		h1_tdc_  = dir.make<TH1F>("h1_tdc",
-                                     "Start timestamp of digi in units of 12.5ns;Start timestamp of digi;Digis",
-                                     nBinsTdc_,
-                                     0,
-                                     maxTdc_);
+		h1_peakAdc_ = dir.make<TH1F>("h1_peakAdc",
+		                             "Max sample ADC;Max sample ADC;Hits",
+		                             nBinsPeakAdc_,
+		                             0,
+		                             maxPeakAdc_);
+		h1_tdc_     = dir.make<TH1F>(
+            "h1_tdc",
+            "Start timestamp of digi in units of 12.5ns;Start timestamp of digi;Digis",
+            nBinsTdc_,
+            0,
+            maxTdc_);
 		h1_channels_ = dir.make<TH1F>("h1_channels",
 		                              "Channel occupancy;Global channel ID;Hits",
 		                              2112,
@@ -394,12 +396,12 @@ void CrvDQM::Send()
 	}
 	else
 	{
-		hists["crv/h1_channels:replace"]    = {h1_channels_};
+		hists["crv/h1_channels:replace"]        = {h1_channels_};
 		hists["crv/h1_channelsLastEwt:replace"] = {h1_channelsLastEwt_};
-		hists["crv/h2_channels:replace"]    = {h2_channels_};
-		hists["crv/h1_digisPerEvt:replace"] = {h1_digisPerEvt_};
-		hists["crv/h1_peakAdc:replace"]     = {h1_peakAdc_};
-		hists["crv/h1_tdc:replace"]         = {h1_tdc_};
+		hists["crv/h2_channels:replace"]        = {h2_channels_};
+		hists["crv/h1_digisPerEvt:replace"]     = {h1_digisPerEvt_};
+		hists["crv/h1_peakAdc:replace"]         = {h1_peakAdc_};
+		hists["crv/h1_tdc:replace"]             = {h1_tdc_};
 
 		for(const auto& [key, h] : h1_dtFebPairs_)
 		{
@@ -759,7 +761,7 @@ void CrvDQM::analyze(art::Event const& event)
 		art::Handle<mu2e::CrvDigiCollection> crvDigisHandle;
 		event.getByLabel(crvDigiTag_, crvDigisHandle);
 
-		int nDigis = 0;
+		int                   nDigis = 0;
 		std::vector<uint16_t> eventChannelHits;
 
 		if(crvDigisHandle.isValid() && !crvDigisHandle->empty())
@@ -809,8 +811,8 @@ void CrvDQM::analyze(art::Event const& event)
 					double absTime_ns =
 					    cf.time_ns + digi.GetStartTDC() * crv::kDigitizationPeriodNs;
 					uint8_t fpga = febChannel / 16;
-					hitTimes[static_cast<uint8_t>(globalFebId)][fpga]
-					    .push_back({absTime_ns, febChannel});
+					hitTimes[static_cast<uint8_t>(globalFebId)][fpga].push_back(
+					    {absTime_ns, febChannel});
 				}
 
 				activeROCs_.insert(roc);
@@ -837,9 +839,9 @@ void CrvDQM::analyze(art::Event const& event)
 				{
 					for(std::size_t j = i + 1; j < febFirstHit.size(); ++j)
 					{
-						uint8_t lo = febFirstHit[i].first;
-						uint8_t hi = febFirstHit[j].first;
-						double  dt = febFirstHit[j].second - febFirstHit[i].second;
+						uint8_t lo  = febFirstHit[i].first;
+						uint8_t hi  = febFirstHit[j].first;
+						double  dt  = febFirstHit[j].second - febFirstHit[i].second;
 						auto    key = std::make_pair(lo, hi);
 
 						if(h1_dtFebPairs_.find(key) == h1_dtFebPairs_.end())
@@ -849,9 +851,13 @@ void CrvDQM::analyze(art::Event const& event)
 							std::string name = Form("dt_feb%02d_feb%02d", lo, hi);
 							std::string title =
 							    Form("#Deltat FEB %02d - FEB %02d;#Deltat [ns];Entries",
-							         lo, hi);
-							h1_dtFebPairs_[key] = tdir.make<TH1F>(
-							    name.c_str(), title.c_str(), nBinsDt_, -dtRange_, dtRange_);
+							         lo,
+							         hi);
+							h1_dtFebPairs_[key] = tdir.make<TH1F>(name.c_str(),
+							                                      title.c_str(),
+							                                      nBinsDt_,
+							                                      -dtRange_,
+							                                      dtRange_);
 						}
 						h1_dtFebPairs_[key]->Fill(dt);
 					}
@@ -865,13 +871,13 @@ void CrvDQM::analyze(art::Event const& event)
 				{
 					for(auto itB = itA; itB != fpgaMap.end(); ++itB)
 					{
-						uint8_t fpgaA = itA->first;
-						uint8_t fpgaB = itB->first;
+						uint8_t     fpgaA = itA->first;
+						uint8_t     fpgaB = itB->first;
 						const auto& hitsA = itA->second;
 						const auto& hitsB = itB->second;
 
 						uint8_t pairCode = fpgaA * 4 + fpgaB;
-						auto    key = std::make_pair(febId, pairCode);
+						auto    key      = std::make_pair(febId, pairCode);
 
 						if(h1_dtFpgaPairs_.find(key) == h1_dtFpgaPairs_.end())
 						{
@@ -881,9 +887,14 @@ void CrvDQM::analyze(art::Event const& event)
 							    Form("dt_feb%02d_fpga%d_fpga%d", febId, fpgaA, fpgaB);
 							std::string title = Form(
 							    "#Deltat FEB %02d FPGA %d - FPGA %d;#Deltat [ns];Entries",
-							    febId, fpgaA, fpgaB);
-							h1_dtFpgaPairs_[key] = tdir.make<TH1F>(
-							    name.c_str(), title.c_str(), nBinsDt_, -dtRange_, dtRange_);
+							    febId,
+							    fpgaA,
+							    fpgaB);
+							h1_dtFpgaPairs_[key] = tdir.make<TH1F>(name.c_str(),
+							                                       title.c_str(),
+							                                       nBinsDt_,
+							                                       -dtRange_,
+							                                       dtRange_);
 						}
 
 						TH1F* h = h1_dtFpgaPairs_[key];
@@ -1018,7 +1029,8 @@ void CrvDQM::analyze(art::Event const& event)
 		for(const auto channelId : recentChannelHitsByEwt_.back().second)
 		{
 			if(channelId < 2112)
-				h1_channelsLastEwt_->AddBinContent(static_cast<Int_t>(channelId) + 1, 1.0);
+				h1_channelsLastEwt_->AddBinContent(static_cast<Int_t>(channelId) + 1,
+				                                   1.0);
 		}
 
 		const uint32_t minKeepEwt =
@@ -1032,7 +1044,7 @@ void CrvDQM::analyze(art::Event const& event)
 			{
 				if(channelId < 2112)
 					h1_channelsLastEwt_->AddBinContent(static_cast<Int_t>(channelId) + 1,
-					                                  -1.0);
+					                                   -1.0);
 			}
 			recentChannelHitsByEwt_.pop_front();
 		}
@@ -1047,31 +1059,31 @@ void CrvDQM::analyze(art::Event const& event)
 			{
 				uint8_t linkID = status.GetLinkID();
 				// GetROCHeader() is non-const in CrvStatus.hh; const_cast needed
-				auto& rocHeaders =
-				    const_cast<mu2e::CrvStatus&>(status).GetROCHeader();
+				auto& rocHeaders = const_cast<mu2e::CrvStatus&>(status).GetROCHeader();
 				if(rocHeaders.empty())
 					continue;
 
 				uint32_t ubStatus = rocHeaders[0].GetMicroBunchStatus();
-				uint64_t ewt     = status.GetEventWindowTag();
+				uint64_t ewt      = status.GetEventWindowTag();
 
 				// Create graph on first encounter of this link
 				if(g_ubStatusVsEwt_.find(linkID) == g_ubStatusVsEwt_.end())
 				{
-					art::TFileDirectory dir = tfs_->mkdir(outputTag_);
-					std::string name  = Form("g_ubStatusVsEwt_link%d", linkID);
-					std::string title = Form("MicroBunchStatus vs EWT (link %d);"
-					                         "Event window tag;MicroBunchStatus",
-					                         linkID);
+					art::TFileDirectory dir   = tfs_->mkdir(outputTag_);
+					std::string         name  = Form("g_ubStatusVsEwt_link%d", linkID);
+					std::string         title = Form(
+                        "MicroBunchStatus vs EWT (link %d);"
+					            "Event window tag;MicroBunchStatus",
+                        linkID);
 					TGraph* g = dir.make<TGraph>();
 					g->SetName(name.c_str());
 					g->SetTitle(title.c_str());
 					CrvDQMStyle::FormatGraph(g, histColor_);
 					g->SetMarkerColor(g->GetLineColor());
 					g->SetDrawOption("AP");
-					g->SetPoint(0, static_cast<double>(ewt),
-					            static_cast<double>(ubStatus));
-					g_ubStatusVsEwt_[linkID]     = g;
+					g->SetPoint(
+					    0, static_cast<double>(ewt), static_cast<double>(ubStatus));
+					g_ubStatusVsEwt_[linkID]      = g;
 					lastMicroBunchStatus_[linkID] = ubStatus;
 
 					if(enableHttpServer_ && httpServer_)
@@ -1090,17 +1102,16 @@ void CrvDQM::analyze(art::Event const& event)
 				if(ubStatus != lastMicroBunchStatus_[linkID])
 				{
 					TGraph* g = g_ubStatusVsEwt_[linkID];
-					g->SetPoint(g->GetN(), static_cast<double>(ewt),
+					g->SetPoint(g->GetN(),
+					            static_cast<double>(ewt),
 					            static_cast<double>(ubStatus));
 					lastMicroBunchStatus_[linkID] = ubStatus;
 
 					if(diagLevel_ > 1)
 					{
-						std::cout << outputPrefix_
-						          << "MicroBunchStatus changed on link "
-						          << (int)linkID << ": 0x" << std::hex
-						          << ubStatus << std::dec
-						          << " at EWT " << ewt << std::endl;
+						std::cout << outputPrefix_ << "MicroBunchStatus changed on link "
+						          << (int)linkID << ": 0x" << std::hex << ubStatus
+						          << std::dec << " at EWT " << ewt << std::endl;
 					}
 				}
 			}
@@ -1175,8 +1186,7 @@ void CrvDQM::endJob()
 			for(auto& [linkID, g] : g_ubStatusVsEwt_)
 			{
 				std::cout << outputPrefix_ << "MicroBunchStatus link " << (int)linkID
-				          << ": " << g->GetN() << " status changes recorded"
-				          << std::endl;
+				          << ": " << g->GetN() << " status changes recorded" << std::endl;
 			}
 		}
 		std::cout << outputPrefix_
@@ -1193,13 +1203,16 @@ void CrvDQM::endJob()
 	if(!dummyHist_)
 	{
 		art::TFileDirectory dir = tfs_->mkdir(outputTag_);
-		dir.makeAndRegister<TGraph>(
-		    g_digisVsEwt_->GetName(), g_digisVsEwt_->GetTitle(),
-		    g_digisVsEwt_->GetN(), g_digisVsEwt_->GetX(), g_digisVsEwt_->GetY());
-		dir.makeAndRegister<TGraph>(
-		    g_digisAvgVsEwt_->GetName(), g_digisAvgVsEwt_->GetTitle(),
-		    g_digisAvgVsEwt_->GetN(), g_digisAvgVsEwt_->GetX(),
-		    g_digisAvgVsEwt_->GetY());
+		dir.makeAndRegister<TGraph>(g_digisVsEwt_->GetName(),
+		                            g_digisVsEwt_->GetTitle(),
+		                            g_digisVsEwt_->GetN(),
+		                            g_digisVsEwt_->GetX(),
+		                            g_digisVsEwt_->GetY());
+		dir.makeAndRegister<TGraph>(g_digisAvgVsEwt_->GetName(),
+		                            g_digisAvgVsEwt_->GetTitle(),
+		                            g_digisAvgVsEwt_->GetN(),
+		                            g_digisAvgVsEwt_->GetX(),
+		                            g_digisAvgVsEwt_->GetY());
 		for(auto& [linkID, g] : g_ubStatusVsEwt_)
 			dir.makeAndRegister<TGraph>(
 			    g->GetName(), g->GetTitle(), g->GetN(), g->GetX(), g->GetY());
@@ -1230,13 +1243,14 @@ void CrvDQM::endJob()
 		for(auto& [key, h] : h1_dtFpgaPairs_)
 			febsWithTiming.insert(key.first);
 
-		art::TFileDirectory canvasDir = tfs_->mkdir(outputTag_).mkdir("timing_feb_canvases");
+		art::TFileDirectory canvasDir =
+		    tfs_->mkdir(outputTag_).mkdir("timing_feb_canvases");
 
 		for(uint8_t febId : febsWithTiming)
 		{
-			std::string cName = Form("c_timing_feb%02d", febId);
+			std::string cName  = Form("c_timing_feb%02d", febId);
 			std::string cTitle = Form("FPGA timing FEB %02d", febId);
-			TCanvas* c =
+			TCanvas*    c =
 			    canvasDir.make<TCanvas>(cName.c_str(), cTitle.c_str(), 1200, 1200);
 			TDirectory* saveDir = gDirectory;
 			c->Divide(4, 4);
@@ -1247,10 +1261,10 @@ void CrvDQM::endJob()
 				{
 					if(!showSameFpgaTimingInCanvas_ && fpgaA == fpgaB)
 						continue;
-					int pad = fpgaA * 4 + fpgaB + 1;
+					int     pad      = fpgaA * 4 + fpgaB + 1;
 					uint8_t pairCode = fpgaA * 4 + fpgaB;
-					auto key = std::make_pair(febId, pairCode);
-					auto it = h1_dtFpgaPairs_.find(key);
+					auto    key      = std::make_pair(febId, pairCode);
+					auto    it       = h1_dtFpgaPairs_.find(key);
 					if(it != h1_dtFpgaPairs_.end())
 					{
 						c->cd(pad);

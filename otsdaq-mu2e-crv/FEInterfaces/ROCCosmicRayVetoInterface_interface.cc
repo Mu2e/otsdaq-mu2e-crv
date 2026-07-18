@@ -41,7 +41,7 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                        std::vector<std::string>{"Which Step"},
 	                        std::vector<std::string>{"Random Result"},
 	                        1);  // requiredUserPermissions
-    */
+	*/
 
 	registerFEMacroFunction("Get Firmware Version",
 	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
@@ -87,7 +87,7 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                                                 "spill length (Default: 0xff)"},
 	                        std::vector<std::string>{"response"},
 	                        1);  // requiredUserPermissions
-    */
+	*/
 
 	registerFEMacroFunction(
 	    "Configure ROC",
@@ -108,7 +108,7 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                        std::vector<std::string>{},
 	                        std::vector<std::string>{},
 	                        1);  // requiredUserPermissions
-    */
+	*/
 
 	registerFEMacroFunction("Soft Reset",
 	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
@@ -170,7 +170,7 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                        std::vector<std::string>{"Port (Default: -1)"},
 	                        std::vector<std::string>{},
 	                        1);  // requiredUserPermissions
-    */
+	*/
 
 	registerFEMacroFunction("Read Fiber Rx",
 	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
@@ -229,7 +229,7 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                        std::vector<std::string>{"pipeline delay (Default 5)"},
 	                        std::vector<std::string>{},
 	                        1);  // requiredUserPermissions
-    */
+	*/
 
 	registerFEMacroFunction("FEBs CMBENA",
 	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
@@ -244,8 +244,8 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                        std::vector<std::string>{"port (Default 25 - all)"},
 	                        std::vector<std::string>{},
 	                        1);  // requiredUserPermissions
-	
-    /*registerFEMacroFunction(
+
+	/*registerFEMacroFunction(
 	    "Histogram",
 	    static_cast<FEVInterface::frontEndMacroFunction_t>(
 	        &ROCCosmicRayVetoInterface::GetHistograms),
@@ -257,7 +257,7 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                             "number of bins (Default all: 0x400)"},
 	    std::vector<std::string>{"buffer"},
 	    1);  // requiredUserPermissions
-    */
+	*/
 
 	registerFEMacroFunction("Register Dump",
 	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
@@ -377,13 +377,14 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                                                 "re-measure (Default: false)"},
 	                        std::vector<std::string>{"response"},
 	                        1);  // requiredUserPermissions
-	registerFEMacroFunction("FEB II Currents",
-	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
-	                            &ROCCosmicRayVetoInterface::FebIIGetCurrents),
-	                        std::vector<std::string>{"port (Default: -1, current active)",
-	                                                 "number of measurements (Default: 3)"},
-	                        std::vector<std::string>{"response"},
-	                        1);  // requiredUserPermissions
+	registerFEMacroFunction(
+	    "FEB II Currents",
+	    static_cast<FEVInterface::frontEndMacroFunction_t>(
+	        &ROCCosmicRayVetoInterface::FebIIGetCurrents),
+	    std::vector<std::string>{"port (Default: -1, current active)",
+	                             "number of measurements (Default: 3)"},
+	    std::vector<std::string>{"response"},
+	    1);  // requiredUserPermissions
 	registerFEMacroFunction("FEB II Trigger Baselines",
 	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
 	                            &ROCCosmicRayVetoInterface::FebIITrigBaselines),
@@ -420,13 +421,12 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	    std::vector<std::string>{"response"},
 	    1);  // requiredUserPermissions
 
-	registerFEMacroFunction(
-	    "FEB II Get Align Score",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-	        &ROCCosmicRayVetoInterface::GetAlignScore),
-	    std::vector<std::string>{"port (Default: -1, all active)"},
-	    std::vector<std::string>{"response"},
-	    1);  // requiredUserPermissions
+	registerFEMacroFunction("FEB II Get Align Score",
+	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
+	                            &ROCCosmicRayVetoInterface::GetAlignScore),
+	                        std::vector<std::string>{"port (Default: -1, all active)"},
+	                        std::vector<std::string>{"response"},
+	                        1);  // requiredUserPermissions
 
 	registerFEMacroFunction("FEB II Configure from Tables",
 	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
@@ -434,7 +434,6 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                        std::vector<std::string>{"skip bias (Default: false)"},
 	                        std::vector<std::string>{"response"},
 	                        1);  // requiredUserPermissions
-
 }
 
 //==========================================================================================
@@ -598,7 +597,8 @@ void ROCCosmicRayVetoInterface::start(std::string)
 		{
 			__FE_COUT_WARN__
 			    << "FEB link test failed at start: one or more active ports did not "
-			       "respond to CntLO readback. Check FEB connections - this might just be a "
+			       "respond to CntLO readback. Check FEB connections - this might just "
+			       "be a "
 			       "readback issue."
 			    << __E__;
 		}
@@ -619,11 +619,10 @@ void ROCCosmicRayVetoInterface::start(std::string)
 	if(startIteration <
 	   RunControlIterationConstants::RUN_START_READY_FOR_TRIGGERS_ITERATION - 1)
 	{
-		__FE_COUT__ << "Delaying DTC soft reset until start iteration "
-		            << (RunControlIterationConstants::
-		                    RUN_START_READY_FOR_TRIGGERS_ITERATION -
-		                1)
-		            << __E__;
+		__FE_COUT__
+		    << "Delaying DTC soft reset until start iteration "
+		    << (RunControlIterationConstants::RUN_START_READY_FOR_TRIGGERS_ITERATION - 1)
+		    << __E__;
 		indicateIterationWork();
 		return;
 	}
@@ -2114,8 +2113,9 @@ void ROCCosmicRayVetoInterface::FebIIGetBaselines(__ARGS__)
 
 void ROCCosmicRayVetoInterface::FebIIGetCurrents(__ARGS__)
 {
-	int  port         = __GET_ARG_IN__("port (Default: -1, current active)", int, -1);
-	int measurements __attribute__((unused)) = __GET_ARG_IN__("number of measurements (Default: 3)", int, 3);
+	int port = __GET_ARG_IN__("port (Default: -1, current active)", int, -1);
+	int measurements __attribute__((unused)) =
+	    __GET_ARG_IN__("number of measurements (Default: 3)", int, 3);
 	if(port > 0)
 		SetActivePort(port);
 
@@ -2125,15 +2125,16 @@ void ROCCosmicRayVetoInterface::FebIIGetCurrents(__ARGS__)
 	{
 		for(uint16_t ch = 0; ch < 16; ++ch)
 		{
-			this->writeRegister(FEBII::MUX, fpga);  //set mux
-			this->writeRegister(FEBII::FPGA[fpga] | 0x20, 0x10 | ch);  //enable mux
+			this->writeRegister(FEBII::MUX, fpga);                     // set mux
+			this->writeRegister(FEBII::FPGA[fpga] | 0x20, 0x10 | ch);  // enable mux
 			this->writeRegister(FEBII::GAIN, 8);
-			//get new register from Terry
-			//float avg = this->readRegister(Terry's new register) * conversionFactor;
-			//if(avg > 4.096) avg = 8.192 - avg
-                        //current = avg / 8 * 250;  //in uA
-	                //ostr << "Channel "<< current << " uA" << std::endl;
-			this->writeRegister(FEBII::FPGA[fpga] | 0x20, 0x0);  //disable mux (required before data taking)
+			// get new register from Terry
+			// float avg = this->readRegister(Terry's new register) * conversionFactor;
+			// if(avg > 4.096) avg = 8.192 - avg
+			// current = avg / 8 * 250;  //in uA
+			// ostr << "Channel "<< current << " uA" << std::endl;
+			this->writeRegister(FEBII::FPGA[fpga] | 0x20,
+			                    0x0);  // disable mux (required before data taking)
 		}
 	}
 
@@ -2182,8 +2183,8 @@ void ROCCosmicRayVetoInterface::ResetPLL(int  sleep_ms,
 		PORT_ = ROC::FEB_Broadcast;
 
 	// Quiet ROC marker-encoded traffic while we manipulate clocking.
-	//bool restore_marker_sync = false;
-	//if(runRocClockAlign)
+	// bool restore_marker_sync = false;
+	// if(runRocClockAlign)
 	//{
 	//	restore_marker_sync = ((this->readRegister(ROC::CR) & (1u << 5)) != 0);
 	//	SetMarkerSync(false);
@@ -2199,39 +2200,45 @@ void ROCCosmicRayVetoInterface::ResetPLL(int  sleep_ms,
 	if(runRocClockAlign)
 	{
 		// 2) Pulse FPGA0 bit9 in CR to initiate ROC clock MMCM alignment.
-                for(int i = 0; i < 4; i++) {
-		      this->writeRegister(PORT_ | FEBII::FPGA[i] | FEBII::CR, 0x200);
-                }
-      		usleep(1000);
-                for(int i = 0; i < 4; i++) {
-		      this->writeRegister(PORT_ | FEBII::FPGA[i] | FEBII::CR, 0x0);
-                }
+		for(int i = 0; i < 4; i++)
+		{
+			this->writeRegister(PORT_ | FEBII::FPGA[i] | FEBII::CR, 0x200);
+		}
+		usleep(1000);
+		for(int i = 0; i < 4; i++)
+		{
+			this->writeRegister(PORT_ | FEBII::FPGA[i] | FEBII::CR, 0x0);
+		}
 		usleep(1000);
 
 		// 3) Confirm MMCM/PLL lock+alignment from FPGA0 status bits 9,5,4.
 		if(checkStatus && !allPorts)
 		{
-                   for(int i = 0; i < 4; i++) {
-			const uint16_t status =
-			    this->readRegister(ROC::FEB | FEBII::FPGA[i] | FEBII::Status);
-			const uint16_t needed = (1u << 9) | (1u << 5) | (1u << 4);
-			if((status & needed) != needed)
+			for(int i = 0; i < 4; i++)
 			{
-				__COUT_WARN__ << "ResetPLL ROC clock align check for FPGA " << i << " failed: status=0x" 
-				              << std::hex << status << " (need bits 9,5,4 set)" << __E__;
+				const uint16_t status =
+				    this->readRegister(ROC::FEB | FEBII::FPGA[i] | FEBII::Status);
+				const uint16_t needed = (1u << 9) | (1u << 5) | (1u << 4);
+				if((status & needed) != needed)
+				{
+					__COUT_WARN__ << "ResetPLL ROC clock align check for FPGA " << i
+					              << " failed: status=0x" << std::hex << status
+					              << " (need bits 9,5,4 set)" << __E__;
+				}
 			}
-		   }
 		}
 
-        // 5) force AFE data alignment/calibration on FPGA0
-        for(int i = 0; i < 4; i++) {
-            this->writeRegister(PORT_ | FEBII::FPGA[i] | FEBII::CR, 0x4);
-        }
-        usleep(1000);
-        for(int i = 0; i < 4; i++) {
-            this->writeRegister(PORT_ | FEBII::FPGA[i] | FEBII::CR, 0x0);
-        }
-        usleep(1000);
+		// 5) force AFE data alignment/calibration on FPGA0
+		for(int i = 0; i < 4; i++)
+		{
+			this->writeRegister(PORT_ | FEBII::FPGA[i] | FEBII::CR, 0x4);
+		}
+		usleep(1000);
+		for(int i = 0; i < 4; i++)
+		{
+			this->writeRegister(PORT_ | FEBII::FPGA[i] | FEBII::CR, 0x0);
+		}
+		usleep(1000);
 
 		// 6) Confirm AFE alignment from status bits 3,2 (set) and 1,0 (low).
 		if(checkStatus && !allPorts)
@@ -2251,7 +2258,7 @@ void ROCCosmicRayVetoInterface::ResetPLL(int  sleep_ms,
 			}
 		}
 
-		//if(restore_marker_sync)
+		// if(restore_marker_sync)
 		//	SetMarkerSync(true);
 	}
 }
@@ -2286,7 +2293,6 @@ int16_t ROCCosmicRayVetoInterface::Realign(int sleep_uc)
 	}
 	return out;
 }
-
 
 void ROCCosmicRayVetoInterface::SetInputMask(__ARGS__)
 {
@@ -2667,9 +2673,10 @@ void ROCCosmicRayVetoInterface::FebIIConfigureFromTables(__ARGS__)
 //==========================================================================================
 void ROCCosmicRayVetoInterface::PLLReset(__ARGS__)
 {
-	int  port             = __GET_ARG_IN__("port (Default: -1, all active ports)", int, -1);
-	int  sleep_ms         = __GET_ARG_IN__("sleep [ms] (Default: 1000)", int, 1000);
-	bool runRocClockAlign = __GET_ARG_IN__("run ROC clock align sequence (Default: true)", bool, true);
+	int  port     = __GET_ARG_IN__("port (Default: -1, all active ports)", int, -1);
+	int  sleep_ms = __GET_ARG_IN__("sleep [ms] (Default: 1000)", int, 1000);
+	bool runRocClockAlign =
+	    __GET_ARG_IN__("run ROC clock align sequence (Default: true)", bool, true);
 	bool use_broadcast_for_all =
 	    __GET_ARG_IN__("use broadcast when port<0 (Default: true)", bool, true);
 	bool checkStatus = __GET_ARG_IN__("check status (Default: false)", bool, false);
@@ -2718,7 +2725,7 @@ void ROCCosmicRayVetoInterface::GetAlignScore(__ARGS__)
 	int port = __GET_ARG_IN__("port (Default: -1, all active)", int, -1);
 
 	std::stringstream ostr;
-	const uint32_t active = GetActivePorts();
+	const uint32_t    active = GetActivePorts();
 
 	for(uint16_t p = 1; p <= 24; ++p)
 	{
@@ -2729,8 +2736,8 @@ void ROCCosmicRayVetoInterface::GetAlignScore(__ARGS__)
 
 		SetActivePort(p);
 		uint16_t score = this->readRegister(FEBII::FPGA[0] | FEBII::AlignScore);
-		ostr << "Port " << std::dec << p << ": AlignScore = 0x"
-		     << std::hex << score << " (" << std::dec << score << ")" << std::endl;
+		ostr << "Port " << std::dec << p << ": AlignScore = 0x" << std::hex << score
+		     << " (" << std::dec << score << ")" << std::endl;
 	}
 	__SET_ARG_OUT__("response", ostr.str());
 }

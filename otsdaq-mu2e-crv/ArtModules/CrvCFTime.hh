@@ -20,16 +20,17 @@ constexpr double kDigitizationPeriodNs = 12.5;  // ns per TDC count / ADC sample
 
 struct CFResult
 {
-	double  time_ns{std::numeric_limits<double>::quiet_NaN()};  // time within waveform [ns]
+	double time_ns{
+	    std::numeric_limits<double>::quiet_NaN()};  // time within waveform [ns]
 	bool    valid{false};
 	int16_t baseline{0};
 	int16_t peak{0};
 };
 
 inline CFResult cfTime(const std::vector<int16_t>& adcs,
-                       double                      fraction = 0.20,
+                       double                      fraction     = 0.20,
                        int                         minAmplitude = 0,
-                       double                      digitizationPeriod = kDigitizationPeriodNs)
+                       double digitizationPeriod                = kDigitizationPeriodNs)
 {
 	CFResult r;
 	if(adcs.size() < 3)
@@ -53,11 +54,9 @@ inline CFResult cfTime(const std::vector<int16_t>& adcs,
 		if(adcs[i] >= threshold && adcs[i - 1] < threshold)
 		{
 			double denom = static_cast<double>(adcs[i]) - adcs[i - 1];
-			double frac  = (denom != 0.0)
-			                   ? (threshold - adcs[i - 1]) / denom
-			                   : 0.0;
-			r.time_ns = ((i - 1) + frac) * digitizationPeriod;
-			r.valid   = true;
+			double frac  = (denom != 0.0) ? (threshold - adcs[i - 1]) / denom : 0.0;
+			r.time_ns    = ((i - 1) + frac) * digitizationPeriod;
+			r.valid      = true;
 			return r;
 		}
 	}
