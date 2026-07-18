@@ -88,6 +88,8 @@ class CrvDQM : public art::EDAnalyzer
 	float maxDigisPerEvt_;
 	int   nBinsPeakAdc_;
 	float maxPeakAdc_;
+	int   nBinsTdc_;
+	float maxTdc_;
 
 	// Timing parameters
 	double cfFraction_;       // constant-fraction threshold (default 0.20)
@@ -116,6 +118,7 @@ class CrvDQM : public art::EDAnalyzer
 	TH2F*   h2_channels_;      // FEB vs channel hits
 	TH1F*   h1_digisPerEvt_;   // digis per event
 	TH1F*   h1_peakAdc_;       // peak ADC per digi
+	TH1F*   h1_tdc_;           // digi start timestamp
 	TGraph* g_digisVsEwt_;     // digis vs event window tag (rolling sum)
 	TGraph* g_digisAvgVsEwt_;  // mean digis per event, averaged over avgBlockSize_ events
 
@@ -199,6 +202,8 @@ CrvDQM::CrvDQM(fhicl::ParameterSet const& ps)
     , maxDigisPerEvt_(ps.get<float>("maxDigisPerEvt", 4000))
     , nBinsPeakAdc_(ps.get<int>("nBinsPeakAdc", 450))
     , maxPeakAdc_(ps.get<float>("maxPeakAdc", 4500))
+    , nBinsTdc_(ps.get<int>("nBinsTdc", 400))
+    , maxTdc_(ps.get<float>("maxTdc", 40000))
     , cfFraction_(ps.get<double>("cfFraction", 0.20))
     , dtBinSize_(ps.get<float>("dtBinSize", 0.5))
     , dtRange_(ps.get<float>("dtRange", 100.0))
@@ -283,6 +288,11 @@ void CrvDQM::beginJob()
                                      nBinsPeakAdc_,
                                      0,
                                      maxPeakAdc_);
+		h1_tdc_  = dir.make<TH1F>("h1_tdc",
+                                     "Start timestamp of digi in units of 12.5ns;Start timestamp of digi;Digis",
+                                     nBinsTdc_,
+                                     0,
+                                     maxTdc_);
 		h1_channels_ = dir.make<TH1F>("h1_channels",
 		                              "Channel occupancy;Global channel ID;Hits",
 		                              2112,
@@ -389,6 +399,7 @@ void CrvDQM::Send()
 		hists["crv/h2_channels:replace"]    = {h2_channels_};
 		hists["crv/h1_digisPerEvt:replace"] = {h1_digisPerEvt_};
 		hists["crv/h1_peakAdc:replace"]     = {h1_peakAdc_};
+		hists["crv/h1_tdc:replace"]         = {h1_tdc_};
 
 		for(const auto& [key, h] : h1_dtFebPairs_)
 		{
@@ -494,7 +505,13 @@ void CrvDQM::startHttpServer()
 		seedFrame(h1_peakAdc_);
 		h1_peakAdc_->Draw("HIST");
 
-		// Pad 4: global channel occupancy
+		// Pad 4: TDC
+		webCanvas_->cd(padIdx++);
+		CrvDQMStyle::FormatHist(h1_tdc_, histColor_);
+		seedFrame(h1_tdc_);
+		h1_tdc_->Draw("HIST");
+
+		// Pad 5: global channel occupancy
 		webCanvas_->cd(padIdx++);
 		// gPad->SetLogy();
 		CrvDQMStyle::FormatHist(h1_channels_, histColor_);
@@ -513,7 +530,7 @@ void CrvDQM::startHttpServer()
 			st->SetOptStat(111110);
 		}
 
-		// Pad 5: channel vs FEB hit map
+		// Pad 6: channel vs FEB hit map
 		webCanvas_->cd(padIdx++);
 		// gPad->SetLogz();
 		gPad->SetRightMargin(0.14);
@@ -526,7 +543,7 @@ void CrvDQM::startHttpServer()
 			h2_channels_->Draw("COLZ");
 		}
 
-		// Pad 6: block-averaged hits per event (points only, no connecting line)
+		// Pad 7: block-averaged hits per event (points only, no connecting line)
 		webCanvas_->cd(padIdx);
 		CrvDQMStyle::FormatGraph(g_digisAvgVsEwt_, histColor_);
 		if(TH1F* frame = g_digisAvgVsEwt_->GetHistogram())
@@ -544,6 +561,7 @@ void CrvDQM::startHttpServer()
 	{
 		httpServer_->Register("/", h1_digisPerEvt_);
 		httpServer_->Register("/", h1_peakAdc_);
+		httpServer_->Register("/", h1_tdc_);
 		httpServer_->Register("/", h1_channels_);
 		httpServer_->Register("/", h1_channelsLastEwt_);
 		httpServer_->Register("/", h2_channels_);
@@ -639,6 +657,7 @@ void CrvDQM::updateWebDisplay(bool force)
 	{
 		CrvDQMStyle::FormatHist(h1_digisPerEvt_, histColor_);
 		CrvDQMStyle::FormatHist(h1_peakAdc_, histColor_);
+		CrvDQMStyle::FormatHist(h1_tdc_, histColor_);
 		CrvDQMStyle::FormatHist(h1_channels_, histColor_);
 		CrvDQMStyle::FormatHist(h1_channelsLastEwt_, histColor_);
 		CrvDQMStyle::FormatHist2D(h2_channels_);
@@ -779,6 +798,9 @@ void CrvDQM::analyze(art::Event const& event)
 					int16_t maxSample = *std::max_element(adcs.begin(), adcs.end());
 					h1_peakAdc_->Fill(maxSample);
 				}
+
+				uint16_t tdc = digi.GetStartTDC();
+				h1_tdc_->Fill(tdc);
 
 				// CF timing
 				crv::CFResult cf = crv::cfTime(adcs, cfFraction_, minAmplitude_);
