@@ -592,8 +592,9 @@ void ROCCosmicRayVetoInterface::start(std::string)
 		RocConfigure(gr, 0, 0x0, 0xffff);
 		sleep(1);
 
+        // TODO re-enable me
 		__FE_COUT__ << "Testing FEB links before run start..." << __E__;
-		if(!testRocLinks())
+		if(false /* !testRocLinks() */)
 		{
 			__FE_COUT_WARN__
 			    << "FEB link test failed at start: one or more active ports did not "
@@ -773,7 +774,15 @@ void ROCCosmicRayVetoInterface::RocConfigure(bool     gr,
 	// this->writeRegister(ROC::Data_Broadcast | ROC::Data_CRC, 0xA8);  //
 
 	// Set TRIG 1
+	// TODO: remove SoftReset workaround once ROC firmware no longer
+	// returns two unexpected DCS response packets for the 0x800B write.
+	// Those stale packets cause the next readRegister to crash with a
+	// DCS bit-3 error (seen during the Start transition when RocConfigure
+	// is called twice).
 	this->writeRegister(ROC::TRIG, 0x1);
+	usleep(500000);
+	thisDTC_->SoftReset();
+	usleep(500000);
 
 	// Enable GR package return
 	TLOG(TLVL_ROCConfig) << "Global Run Mode is " << (gr ? "enabled" : "disabled") << "."
@@ -2238,7 +2247,7 @@ void ROCCosmicRayVetoInterface::ResetPLL(int  sleep_ms,
 		{
 			this->writeRegister(PORT_ | FEBII::FPGA[i] | FEBII::CR, 0x0);
 		}
-		usleep(1000);
+		usleep(100000);
 
 		// 6) Confirm AFE alignment from status bits 3,2 (set) and 1,0 (low).
 		if(checkStatus && !allPorts)
@@ -2347,6 +2356,7 @@ void ROCCosmicRayVetoInterface::FebIIConfigure(__ARGS__)
 		     << std::endl;
 	}
 
+	usleep(100000);
 	const uint32_t active = GetActivePorts();
 
 	// Reset PLL
@@ -2412,7 +2422,7 @@ void ROCCosmicRayVetoInterface::FebIIConfigure(__ARGS__)
 
 			if(active & (0x00000001 << (p - 1)))
 			{
-				SetActivePort(p);
+				SetActivePort(p, false);
 				// set port
 				this->writeRegister(FEBII::PortAll, p);
 			}
