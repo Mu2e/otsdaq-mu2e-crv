@@ -3,8 +3,6 @@
 #include "otsdaq-mu2e-crv/FEInterfaces/FEB_Registers.h"
 #include "otsdaq-mu2e-crv/FEInterfaces/ROCCosmicRayVetoInterface.h"
 #include "otsdaq-mu2e-crv/FEInterfaces/ROC_Registers.h"
-#
-#include "otsdaq/FiniteStateMachine/RunControlIterationConstants.h"
 #include "otsdaq/Macros/InterfacePluginMacros.h"
 
 using namespace ots;
@@ -583,7 +581,7 @@ void ROCCosmicRayVetoInterface::resume(void) {}
 //==============================================================================
 void ROCCosmicRayVetoInterface::start(std::string)
 {  // runNumber)
-	const int startIteration = getIterationIndex();
+	const unsigned int startIteration = getIterationIndex();
 	__FE_COUTV__(startIteration);
 
 	if(startIteration == 0 && getSubIterationIndex() == 0)
@@ -614,15 +612,15 @@ void ROCCosmicRayVetoInterface::start(std::string)
 	}
 
 	// Hold the DTC soft reset until the iteration just before
-	// RUN_START_READY_FOR_TRIGGERS_ITERATION, so it lands after all other
+	// getMinReadyForEventGenerationStartIteration, so it lands after all other
 	// start-up work in the system but strictly before the CFO launches the
 	// run plan (triggers).
 	if(startIteration <
-	   RunControlIterationConstants::RUN_START_READY_FOR_TRIGGERS_ITERATION - 1)
+	   getMinReadyForEventGenerationStartIteration() - 1)
 	{
 		__FE_COUT__
 		    << "Delaying DTC soft reset until start iteration "
-		    << (RunControlIterationConstants::RUN_START_READY_FOR_TRIGGERS_ITERATION - 1)
+		    << (getMinReadyForEventGenerationStartIteration() - 1)
 		    << __E__;
 		indicateIterationWork();
 		return;
