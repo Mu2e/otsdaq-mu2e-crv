@@ -56,7 +56,8 @@ public:
 	void Reset();
 	void RocConfigure(bool gr=false, uint16_t grn=0, uint16_t uBoffset = 0x0, uint16_t timeout = 0xffff);
 	void FebConfigure(bool useOtsConfig = true);
-	std::string febIIConfigureFromTables(bool skipBias = false);  // called from configure() and macro
+	std::string febIIConfigureFromTables(int portFilter = -1, bool skipBias = false, bool biasOnly = false, int biasOverwrite = -1, bool skipReadbacks = true);  // called from configure() and macro
+	uint16_t    readRegisterWithRetry(uint16_t address, int maxRetries = 15, int retryInterval_ms = 1000);
 	void ResetRxBuffers();
 	void SetMarkerSync(bool enable=true);
     int16_t Realign(int sleep_uc = 1000);
@@ -108,7 +109,8 @@ public:
 	void                                    FebIIGetStatus          (__ARGS__);
 	void                                    TestFebConnection       (__ARGS__);
 	void                                    TestRocLinks            (__ARGS__);
-	bool                                    testRocLinks            ();
+	bool                                    testRocLinks            (std::string* response = nullptr,
+	                                                                  bool         logFailures = true);
 	void                                    FebIISetChannel         (__ARGS__);
     void                                    FebIISetAFEOffset       (__ARGS__);
     void                                    FebIIGetBaselines       (__ARGS__);
@@ -117,6 +119,7 @@ public:
     void                                    SetInputMask            (__ARGS__);
     void                                    PLLReset                (__ARGS__);
     void                                    GetAlignScore           (__ARGS__);
+    void                                    BurstWriteTest          (__ARGS__);
 	// clang-format on
   private:
 	bool gr;
