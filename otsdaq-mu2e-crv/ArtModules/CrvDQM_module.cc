@@ -27,6 +27,7 @@
 #include <TGraph.h>
 #include <TH1.h>
 #include <TH2.h>
+#include <TBox.h>
 #include <THttpServer.h>
 #include <TPaveStats.h>
 #include <TRandom3.h>
@@ -49,6 +50,24 @@
 
 namespace ots
 {
+
+namespace
+{
+constexpr uint8_t     kLinkStatusBits[]     = {0, 2, 3, 6, 7};
+constexpr const char* kLinkStatusBitNames[] = {
+    "ROCTimeout", "SeqNumErr", "CRCErr", "FatalErr", "Error"};
+constexpr std::size_t kNLinkStatusBits = 5;
+
+// ROC status (MicroBunchStatus) summary bits [24:31]
+constexpr uint8_t     kRocStatusBits[]     = {24, 25, 26, 27, 28, 29, 30, 31};
+constexpr const char* kRocStatusBitNames[] = {
+    "FEBuBMismatch", "FEBBufferIssue", "FEBOverflow",
+    "Group1Issue",   "Group2Issue",    "Group3Issue",
+    "uBMatchErr",    "Truncation"};
+constexpr std::size_t kNRocStatusBits = 8;
+
+constexpr double kLatencyTickToUs = 0.064;  // DTC tick → microseconds
+}  // namespace
 
 class CrvDQM : public art::EDAnalyzer
 {
@@ -81,6 +100,7 @@ class CrvDQM : public art::EDAnalyzer
 	bool          dummyHist_;
 	bool          saveCanvasesToPdf_;
 	bool          showSameFpgaTimingInCanvas_;
+	bool          statusGraphs_;
 	std::string   canvasPdfFile_;
 
 	// Histogram binning
@@ -103,6 +123,7 @@ class CrvDQM : public art::EDAnalyzer
 	std::size_t avgBlockSize_;
 	std::size_t avgGraphPoints_;
 	std::size_t channelsWindowEwts_;
+	std::size_t maxLatencyGraphPoints_;  // cap on latency graph length
 
 	// HISTOGRAM SENDING
 	std::unique_ptr<HistoSender> histoSender_;
@@ -122,9 +143,40 @@ class CrvDQM : public art::EDAnalyzer
 	TGraph* g_digisVsEwt_;        // digis vs event window tag (rolling sum)
 	TGraph* g_digisAvgVsEwt_;  // mean digis per event, averaged over avgBlockSize_ events
 
-	// MicroBunchStatus vs EWT per ROC link (only updated on change)
+	// ROC status (MicroBunchStatus) vs EWT per link (only updated on change)
 	std::map<uint8_t, TGraph*>  g_ubStatusVsEwt_;       // linkID -> TGraph
 	std::map<uint8_t, uint32_t> lastMicroBunchStatus_;  // linkID -> last seen value
+
+	// Per-link, per-bit ROC status vs EWT (summary bits 24-31)
+	// One point per EWT where the bit is set (non-zero only)
+	// Key: (linkID, bitIndex)
+	std::map<std::pair<uint8_t, uint8_t>, TGraph*> g_rocStatusBitVsEwt_;
+
+	// Per-link port flags (MicroBunchStatus bits [0:23])
+	std::map<uint8_t, TGraph*>  g_portFlagsVsEwt_;      // linkID -> step graph
+	std::map<uint8_t, uint32_t> lastPortFlags_;          // linkID -> last seen value
+	// Summary bit-occupancy histograms (per link, one bin per error flag)
+	std::map<uint8_t, TH1F*>   h1_linkStatusSummary_;   // linkID -> 5-bin (link status bits)
+	std::map<uint8_t, TH1F*>   h1_rocStatusSummary_;    // linkID -> 8-bin (ROC status bits 24-31)
+	std::map<uint8_t, TH1F*>   h1_portFlagsBitOccupancy_;  // linkID -> 24-bin histogram
+	TH2F*                      h2_rocStatusSummary_{nullptr};  // x=error flag, y=link
+	TH2F*                      h2_portFlagsBitOccupancy_{nullptr};  // x=port bit, y=link
+	std::map<uint8_t, TH1F*>   h1_latency_;             // linkID -> latency distribution
+
+	// Header-level status and latency histograms
+	// TODO: re-enable once CrvStatus._linkLatency is widened to uint16_t
+	// TH1F* h1_dtcStatus_;    // DTC data-header status byte
+	// TH1F* h1_linkStatus_;   // per-link status from subevent header
+	// TH1F* h1_linkLatency_;  // per-link DRP RX latency
+
+	// Per-link latency vs EWT (only updated on change)
+	std::map<uint8_t, TGraph*>  g_linkLatencyVsEwt_;   // linkID -> TGraph
+	std::map<uint8_t, uint16_t> lastLinkLatency_;       // linkID -> last seen value
+
+	// Per-link, per-bit link-status vs EWT
+	// One point per EWT where the bit is set (non-zero only)
+	// Key: (linkID, bitIndex).  Non-reserved bits only: 0,2,3,6,7
+	std::map<std::pair<uint8_t, uint8_t>, TGraph*> g_linkStatusBitVsEwt_;
 
 	// Timing histograms (dt between pairs), created on-demand
 	// Key: pair of global FEB IDs (low, high)
@@ -188,8 +240,8 @@ class CrvDQM : public art::EDAnalyzer
 // Constructor impl
 CrvDQM::CrvDQM(fhicl::ParameterSet const& ps)
     : art::EDAnalyzer(ps)
-    , crvDigiTag_(ps.get<std::string>("crvDigiTag", "crvdigi"))
-    , crvStatusTag_(ps.get<std::string>("crvStatusTag", "crvdigi"))
+    , crvDigiTag_(ps.get<std::string>("crvDigiTag", "CrvDigi"))
+    , crvStatusTag_(ps.get<std::string>("crvStatusTag", crvDigiTag_.label()))
     , diagLevel_(ps.get<int>("diagLevel", 3))
     , port_(ps.get<int>("port", 6000))
     , address_(ps.get<std::string>("address", "localhost"))
@@ -198,6 +250,7 @@ CrvDQM::CrvDQM(fhicl::ParameterSet const& ps)
     , dummyHist_(ps.get<bool>("dummyHist", false))
     , saveCanvasesToPdf_(ps.get<bool>("saveCanvasesToPdf", false))
     , showSameFpgaTimingInCanvas_(ps.get<bool>("showSameFpgaTimingInCanvas", true))
+    , statusGraphs_(ps.get<bool>("statusGraphs", true))
     , canvasPdfFile_(ps.get<std::string>("canvasPdfFile", "CrvDQM.pdf"))
     , nBinsDigisPerEvt_(ps.get<int>("nBinsDigisPerEvt", 200))
     , maxDigisPerEvt_(ps.get<float>("maxDigisPerEvt", 4000))
@@ -213,6 +266,8 @@ CrvDQM::CrvDQM(fhicl::ParameterSet const& ps)
     , avgGraphPoints_(static_cast<std::size_t>(ps.get<int>("avgGraphPoints", 1000)))
     , channelsWindowEwts_(
           static_cast<std::size_t>(ps.get<int>("channelsWindowEwts", 50000)))
+    , maxLatencyGraphPoints_(
+          static_cast<std::size_t>(ps.get<int>("maxLatencyGraphPoints", 10000)))
     , sendIntervalSec_(ps.get<float>("sendIntervalSec", 0.5))
     , enableHttpServer_(ps.get<bool>("enableHttpServer", true))
     , httpPort_(ps.get<int>("httpPort", 8877))
@@ -309,6 +364,23 @@ void CrvDQM::beginJob()
 		                   -0.5,
 		                   2111.5);
 		h1_channelsLastEwt_->SetMinimum(0.5);
+
+		// Gray-out port-0 regions (FEB 0 should never have hits)
+		// ROC 1: globalChannelId 0-63, ROC 2: globalChannelId 1600-1663
+		auto addPort0Boxes = [](TH1* h) {
+			for(auto [lo, hi] : {std::make_pair(-0.5, 63.5),
+			                     std::make_pair(1599.5, 1663.5)})
+			{
+				auto* box = new TBox(lo, 0.0, hi, 1e9);
+				box->SetFillColor(kGray);
+				box->SetFillStyle(3004);
+				box->SetLineWidth(0);
+				h->GetListOfFunctions()->Add(box, "");
+			}
+		};
+		addPort0Boxes(h1_channels_);
+		addPort0Boxes(h1_channelsLastEwt_);
+
 		h2_channels_  = dir.make<TH2F>("h2_channels",
                                       "FEB vs channel hit map;Channel;FEB",
                                       64,
@@ -317,6 +389,15 @@ void CrvDQM::beginJob()
                                       32,
                                       0.5,
                                       32.5);
+		// Gray-out port-0 rows (globalFebId 0 and 25)
+		for(int febId : {0, 25})
+		{
+			auto* box = new TBox(0.5, febId - 0.5, 64.5, febId + 0.5);
+			box->SetFillColor(kGray);
+			box->SetFillStyle(3004);
+			box->SetLineWidth(0);
+			h2_channels_->GetListOfFunctions()->Add(box, "");
+		}
 		g_digisVsEwt_ = dir.make<TGraph>();
 		g_digisVsEwt_->SetName("g_digisVsEwt");
 		g_digisVsEwt_->SetTitle(
@@ -347,6 +428,39 @@ void CrvDQM::beginJob()
 
 		// MicroBunchStatus graphs are created on-demand per ROC link
 		// in analyze() when a new link ID is first encountered.
+
+		// Header-level status and latency
+		// TODO: re-enable once CrvStatus._linkLatency is widened to uint16_t
+		// h1_dtcStatus_ = dir.make<TH1F>("h1_dtcStatus",
+		//                                "DTC header status;Status;Entries",
+		//                                256, -0.5, 255.5);
+		// h1_linkStatus_ = dir.make<TH1F>("h1_linkStatus",
+		//                                 "Link status;Status;Entries",
+		//                                 256, -0.5, 255.5);
+		// h1_linkLatency_ = dir.make<TH1F>("h1_linkLatency",
+		//                                  "Link DRP RX latency;Latency;Entries",
+		//                                  256, -0.5, 255.5);
+		// Latency-vs-EWT graphs are created on-demand per link in analyze()
+
+		// 2D summary histograms: x = error flag / port bit, y = link
+		art::TFileDirectory sdir = tfs_->mkdir(outputTag_ + "/status");
+		h2_rocStatusSummary_ = sdir.make<TH2F>(
+		    "h2_rocStatusSummary",
+		    "ROC status bit occupancy;Error flag;Link",
+		    kNRocStatusBits, 0.5, kNRocStatusBits + 0.5,
+		    6, -0.5, 5.5);
+		for(std::size_t bi = 0; bi < kNRocStatusBits; ++bi)
+			h2_rocStatusSummary_->GetXaxis()->SetBinLabel(bi + 1, kRocStatusBitNames[bi]);
+		CrvDQMStyle::FormatHist2D(h2_rocStatusSummary_);
+		h2_rocStatusSummary_->SetOption("COLZ");
+
+		h2_portFlagsBitOccupancy_ = sdir.make<TH2F>(
+		    "h2_portFlagBits",
+		    "Port flag bit occupancy;Port (bit);Link",
+		    24, 0.5, 24.5,
+		    6, -0.5, 5.5);
+		CrvDQMStyle::FormatHist2D(h2_portFlagsBitOccupancy_);
+		h2_portFlagsBitOccupancy_->SetOption("COLZ");
 	}
 
 	// Seed TRandom3
@@ -402,6 +516,18 @@ void CrvDQM::Send()
 		hists["crv/h1_digisPerEvt:replace"]     = {h1_digisPerEvt_};
 		hists["crv/h1_peakAdc:replace"]         = {h1_peakAdc_};
 		hists["crv/h1_tdc:replace"]             = {h1_tdc_};
+		for(auto& [linkID, h] : h1_linkStatusSummary_)
+			if(h) hists["crv/status:replace"].push_back(h);
+		for(auto& [linkID, h] : h1_rocStatusSummary_)
+			if(h) hists["crv/status:replace"].push_back(h);
+		for(auto& [linkID, h] : h1_portFlagsBitOccupancy_)
+			if(h) hists["crv/status:replace"].push_back(h);
+		if(h2_rocStatusSummary_)
+			hists["crv/status:replace"].push_back(h2_rocStatusSummary_);
+		if(h2_portFlagsBitOccupancy_)
+			hists["crv/status:replace"].push_back(h2_portFlagsBitOccupancy_);
+		for(auto& [linkID, h] : h1_latency_)
+			if(h) hists["crv/status:replace"].push_back(h);
 
 		for(const auto& [key, h] : h1_dtFebPairs_)
 		{
@@ -427,10 +553,18 @@ void CrvDQM::Send()
 	{
 		std::map<std::string, std::vector<TGraph*>> graphs;
 		graphs["crv/graphs:replace"] = {g_digisVsEwt_, g_digisAvgVsEwt_};
-		for(auto& [linkID, g] : g_ubStatusVsEwt_)
+		if(statusGraphs_)
 		{
-			if(g != nullptr)
-				graphs["crv/graphs:replace"].push_back(g);
+			for(auto& [linkID, g] : g_ubStatusVsEwt_)
+				if(g) graphs["crv/graphs:replace"].push_back(g);
+			for(auto& [linkID, g] : g_linkLatencyVsEwt_)
+				if(g) graphs["crv/graphs:replace"].push_back(g);
+			for(auto& [key, g] : g_linkStatusBitVsEwt_)
+				if(g) graphs["crv/graphs:replace"].push_back(g);
+			for(auto& [key, g] : g_rocStatusBitVsEwt_)
+				if(g) graphs["crv/graphs:replace"].push_back(g);
+			for(auto& [linkID, g] : g_portFlagsVsEwt_)
+				if(g) graphs["crv/graphs:replace"].push_back(g);
 		}
 		histoSender_->sendGraphs(graphs);
 	}
@@ -569,6 +703,12 @@ void CrvDQM::startHttpServer()
 		httpServer_->Register("/", h2_channels_);
 		httpServer_->Register("/", g_digisVsEwt_);
 		httpServer_->Register("/", g_digisAvgVsEwt_);
+		httpServer_->Register("/", h2_rocStatusSummary_);
+		httpServer_->Register("/", h2_portFlagsBitOccupancy_);
+		// TODO: re-enable once CrvStatus._linkLatency is widened to uint16_t
+		// httpServer_->Register("/", h1_dtcStatus_);
+		// httpServer_->Register("/", h1_linkStatus_);
+		// httpServer_->Register("/", h1_linkLatency_);
 	}
 
 	// Publish refresh period so the HTML page can read it
@@ -1058,60 +1198,379 @@ void CrvDQM::analyze(art::Event const& event)
 			for(const auto& status : *crvStatusHandle)
 			{
 				uint8_t linkID = status.GetLinkID();
+
+				uint16_t latency = status.GetLinkLatency();
+				uint64_t ewt     = status.GetEventWindowTag();
+
+				// Latency distribution histogram (created once per link)
+				if(h1_latency_.find(linkID) == h1_latency_.end())
+				{
+					art::TFileDirectory hdir = tfs_->mkdir(outputTag_ + "/status");
+					std::string hname  = Form("h1_latency_link%d", linkID);
+					std::string htitle = Form(
+					    "Link latency distribution (link %d);"
+					    "Latency [#mus];Entries",
+					    linkID);
+					TH1F* h = hdir.make<TH1F>(hname.c_str(), htitle.c_str(),
+					                           300, 0.0, 150.0);
+					CrvDQMStyle::FormatHist(h, histColor_);
+					h->SetStatOverflows(TH1::kConsider);
+					h->SetStats(1);
+					h1_latency_[linkID] = h;
+
+					if(enableHttpServer_ && httpServer_)
+						httpServer_->Register("/", h);
+				}
+				h1_latency_[linkID]->Fill(latency * kLatencyTickToUs);
+
+				// Per-link latency vs EWT (on change only)
+				if(statusGraphs_)
+				{
+					if(g_linkLatencyVsEwt_.find(linkID) == g_linkLatencyVsEwt_.end())
+					{
+						art::TFileDirectory ldir = tfs_->mkdir(outputTag_ + "/status/graphs");
+						std::string         name  = Form("g_linkLatencyVsEwt_link%d", linkID);
+						std::string         title = Form(
+						    "Link latency vs EWT (link %d);"
+						    "Event window tag;Latency [#mus]",
+						    linkID);
+						TGraph* g = ldir.make<TGraph>();
+						g->SetName(name.c_str());
+						g->SetTitle(title.c_str());
+						CrvDQMStyle::FormatGraph(g, histColor_);
+						g->SetMarkerColor(g->GetLineColor());
+						g->SetDrawOption("AP");
+						g->SetPoint(0, static_cast<double>(ewt),
+						            latency * kLatencyTickToUs);
+						g_linkLatencyVsEwt_[linkID] = g;
+						lastLinkLatency_[linkID]    = latency;
+
+						if(enableHttpServer_ && httpServer_)
+							httpServer_->Register("/", g);
+
+						if(diagLevel_ > 0)
+						{
+							std::cout << outputPrefix_
+							          << "Created link-latency graph for link "
+							          << (int)linkID << std::endl;
+						}
+					}
+					else if(latency != lastLinkLatency_[linkID])
+					{
+						TGraph* g = g_linkLatencyVsEwt_[linkID];
+						g->SetPoint(g->GetN(), static_cast<double>(ewt),
+						            lastLinkLatency_[linkID] * kLatencyTickToUs);
+						g->SetPoint(g->GetN(), static_cast<double>(ewt),
+						            latency * kLatencyTickToUs);
+						lastLinkLatency_[linkID] = latency;
+						while(static_cast<std::size_t>(g->GetN()) > maxLatencyGraphPoints_)
+							g->RemovePoint(0);
+					}
+					else
+					{
+						TGraph* g = g_linkLatencyVsEwt_[linkID];
+						if(g->GetN() > 0)
+							g->SetPoint(g->GetN() - 1, static_cast<double>(ewt),
+							            latency * kLatencyTickToUs);
+					}
+				}
+
+				// Link-status summary histogram (created once per link)
+				uint8_t linkStatus = status.GetLinkStatus();
+				if(h1_linkStatusSummary_.find(linkID) == h1_linkStatusSummary_.end())
+				{
+					art::TFileDirectory hdir = tfs_->mkdir(outputTag_ + "/status");
+					std::string hname  = Form("h1_linkStatusSummary_link%d", linkID);
+					std::string htitle = Form(
+					    "Link status bit occupancy (link %d);"
+					    "Error flag;Events with flag set",
+					    linkID);
+					TH1F* h = hdir.make<TH1F>(hname.c_str(), htitle.c_str(),
+					                           kNLinkStatusBits, 0.5,
+					                           kNLinkStatusBits + 0.5);
+					for(std::size_t bi = 0; bi < kNLinkStatusBits; ++bi)
+						h->GetXaxis()->SetBinLabel(bi + 1, kLinkStatusBitNames[bi]);
+					CrvDQMStyle::FormatHist(h, histColor_);
+					h1_linkStatusSummary_[linkID] = h;
+
+					if(enableHttpServer_ && httpServer_)
+						httpServer_->Register("/", h);
+				}
+
+				// Per-link, per-bit link-status vs EWT
+				if(statusGraphs_)
+				{
+					if(g_linkStatusBitVsEwt_.find(std::make_pair(linkID, kLinkStatusBits[0]))
+					    == g_linkStatusBitVsEwt_.end())
+					{
+						art::TFileDirectory gdir = tfs_->mkdir(outputTag_ + "/status/graphs");
+						for(std::size_t bi = 0; bi < kNLinkStatusBits; ++bi)
+						{
+							uint8_t bit = kLinkStatusBits[bi];
+							auto    key = std::make_pair(linkID, bit);
+							std::string name = Form("g_linkStatus_link%d_%s",
+							                        linkID, kLinkStatusBitNames[bi]);
+							std::string title = Form(
+							    "Link %d %s (bit %d) vs EWT;"
+							    "Event window tag;Bit value",
+							    linkID, kLinkStatusBitNames[bi], bit);
+							TGraph* g = gdir.make<TGraph>();
+							g->SetName(name.c_str());
+							g->SetTitle(title.c_str());
+							CrvDQMStyle::FormatGraph(g, histColor_);
+							g->SetMarkerColor(g->GetLineColor());
+							g->SetDrawOption("AP");
+							g_linkStatusBitVsEwt_[key] = g;
+
+							if(enableHttpServer_ && httpServer_)
+								httpServer_->Register("/", g);
+						}
+						if(diagLevel_ > 0)
+						{
+							std::cout << outputPrefix_
+							          << "Created link-status bit graphs for link "
+							          << (int)linkID << std::endl;
+						}
+					}
+				}
+				// Fill summary histogram; add graph points when enabled
+				for(std::size_t bi = 0; bi < kNLinkStatusBits; ++bi)
+				{
+					uint8_t bit = kLinkStatusBits[bi];
+					if((linkStatus >> bit) & 1)
+					{
+						h1_linkStatusSummary_[linkID]->Fill(bi + 1);
+						if(statusGraphs_)
+						{
+							auto    key = std::make_pair(linkID, bit);
+							TGraph* g   = g_linkStatusBitVsEwt_[key];
+							g->SetPoint(g->GetN(), static_cast<double>(ewt), 1.0);
+							while(static_cast<std::size_t>(g->GetN()) > maxLatencyGraphPoints_)
+								g->RemovePoint(0);
+						}
+					}
+				}
+
 				// GetROCHeader() is non-const in CrvStatus.hh; const_cast needed
 				auto& rocHeaders = const_cast<mu2e::CrvStatus&>(status).GetROCHeader();
 				if(rocHeaders.empty())
 					continue;
 
 				uint32_t ubStatus = rocHeaders[0].GetMicroBunchStatus();
-				uint64_t ewt      = status.GetEventWindowTag();
 
-				// Create graph on first encounter of this link
-				if(g_ubStatusVsEwt_.find(linkID) == g_ubStatusVsEwt_.end())
+				// --- Raw ROC status (32-bit) vs EWT ---
+				if(statusGraphs_)
 				{
-					art::TFileDirectory dir   = tfs_->mkdir(outputTag_);
-					std::string         name  = Form("g_ubStatusVsEwt_link%d", linkID);
-					std::string         title = Form(
-                        "MicroBunchStatus vs EWT (link %d);"
-					            "Event window tag;MicroBunchStatus",
-                        linkID);
-					TGraph* g = dir.make<TGraph>();
-					g->SetName(name.c_str());
-					g->SetTitle(title.c_str());
-					CrvDQMStyle::FormatGraph(g, histColor_);
-					g->SetMarkerColor(g->GetLineColor());
-					g->SetDrawOption("AP");
-					g->SetPoint(
-					    0, static_cast<double>(ewt), static_cast<double>(ubStatus));
-					g_ubStatusVsEwt_[linkID]      = g;
-					lastMicroBunchStatus_[linkID] = ubStatus;
-
-					if(enableHttpServer_ && httpServer_)
-						httpServer_->Register("/", g);
-
-					if(diagLevel_ > 0)
+					if(g_ubStatusVsEwt_.find(linkID) == g_ubStatusVsEwt_.end())
 					{
-						std::cout << outputPrefix_
-						          << "Created MicroBunchStatus graph for link "
-						          << (int)linkID << std::endl;
+						art::TFileDirectory gdir = tfs_->mkdir(outputTag_ + "/status/graphs");
+						std::string         name  = Form("g_rocStatus_link%d", linkID);
+						std::string         title = Form(
+						    "ROC status vs EWT (link %d);"
+						    "Event window tag;ROC status",
+						    linkID);
+						TGraph* g = gdir.make<TGraph>();
+						g->SetName(name.c_str());
+						g->SetTitle(title.c_str());
+						CrvDQMStyle::FormatGraph(g, histColor_);
+						g->SetMarkerColor(g->GetLineColor());
+						g->SetDrawOption("AP");
+						g->SetPoint(
+						    0, static_cast<double>(ewt), static_cast<double>(ubStatus));
+						g_ubStatusVsEwt_[linkID]      = g;
+						lastMicroBunchStatus_[linkID] = ubStatus;
+
+						if(enableHttpServer_ && httpServer_)
+							httpServer_->Register("/", g);
+
+						if(diagLevel_ > 0)
+						{
+							std::cout << outputPrefix_
+							          << "Created ROC status graph for link "
+							          << (int)linkID << std::endl;
+						}
 					}
-					continue;
+					else if(ubStatus != lastMicroBunchStatus_[linkID])
+					{
+						TGraph* g = g_ubStatusVsEwt_[linkID];
+						g->SetPoint(g->GetN(),
+						            static_cast<double>(ewt),
+						            static_cast<double>(lastMicroBunchStatus_[linkID]));
+						g->SetPoint(g->GetN(),
+						            static_cast<double>(ewt),
+						            static_cast<double>(ubStatus));
+						lastMicroBunchStatus_[linkID] = ubStatus;
+
+						if(diagLevel_ > 1)
+						{
+							std::cout << outputPrefix_ << "ROC status changed on link "
+							          << (int)linkID << ": 0x" << std::hex << ubStatus
+							          << std::dec << " at EWT " << ewt << std::endl;
+						}
+					}
+					else
+					{
+						TGraph* g = g_ubStatusVsEwt_[linkID];
+						if(g->GetN() > 0)
+							g->SetPoint(g->GetN() - 1, static_cast<double>(ewt),
+							            static_cast<double>(ubStatus));
+					}
 				}
 
-				// Only add a point when the status changes
-				if(ubStatus != lastMicroBunchStatus_[linkID])
+				// ROC status summary histogram (1D, created once per link)
+				if(h1_rocStatusSummary_.find(linkID) == h1_rocStatusSummary_.end())
 				{
-					TGraph* g = g_ubStatusVsEwt_[linkID];
-					g->SetPoint(g->GetN(),
-					            static_cast<double>(ewt),
-					            static_cast<double>(ubStatus));
-					lastMicroBunchStatus_[linkID] = ubStatus;
+					art::TFileDirectory hdir = tfs_->mkdir(outputTag_ + "/status");
+					std::string hname  = Form("h1_rocStatusSummary_link%d", linkID);
+					std::string htitle = Form(
+					    "ROC status bit occupancy (link %d);"
+					    "Error flag;Events with flag set",
+					    linkID);
+					TH1F* h = hdir.make<TH1F>(hname.c_str(), htitle.c_str(),
+					                           kNRocStatusBits, 0.5,
+					                           kNRocStatusBits + 0.5);
+					for(std::size_t bi = 0; bi < kNRocStatusBits; ++bi)
+						h->GetXaxis()->SetBinLabel(bi + 1, kRocStatusBitNames[bi]);
+					CrvDQMStyle::FormatHist(h, histColor_);
+					h1_rocStatusSummary_[linkID] = h;
 
-					if(diagLevel_ > 1)
+					if(enableHttpServer_ && httpServer_)
+						httpServer_->Register("/", h);
+				}
+
+				// Per-bit ROC status vs EWT graphs
+				if(statusGraphs_)
+				{
+					if(g_rocStatusBitVsEwt_.find(std::make_pair(linkID, kRocStatusBits[0]))
+					    == g_rocStatusBitVsEwt_.end())
 					{
-						std::cout << outputPrefix_ << "MicroBunchStatus changed on link "
-						          << (int)linkID << ": 0x" << std::hex << ubStatus
-						          << std::dec << " at EWT " << ewt << std::endl;
+						art::TFileDirectory gdir = tfs_->mkdir(outputTag_ + "/status/graphs");
+						for(std::size_t bi = 0; bi < kNRocStatusBits; ++bi)
+						{
+							uint8_t bit = kRocStatusBits[bi];
+							auto    key = std::make_pair(linkID, bit);
+							std::string name = Form("g_rocStatus_link%d_%s",
+							                        linkID, kRocStatusBitNames[bi]);
+							std::string title = Form(
+							    "Link %d %s (bit %d) vs EWT;"
+							    "Event window tag;Bit value",
+							    linkID, kRocStatusBitNames[bi], bit);
+							TGraph* g = gdir.make<TGraph>();
+							g->SetName(name.c_str());
+							g->SetTitle(title.c_str());
+							CrvDQMStyle::FormatGraph(g, histColor_);
+							g->SetMarkerColor(g->GetLineColor());
+							g->SetDrawOption("AP");
+							g_rocStatusBitVsEwt_[key] = g;
+
+							if(enableHttpServer_ && httpServer_)
+								httpServer_->Register("/", g);
+						}
+						if(diagLevel_ > 0)
+						{
+							std::cout << outputPrefix_
+							          << "Created ROC status bit graphs for link "
+							          << (int)linkID << std::endl;
+						}
+					}
+				}
+				// Fill summary histograms; add graph points when enabled
+				for(std::size_t bi = 0; bi < kNRocStatusBits; ++bi)
+				{
+					uint8_t bit = kRocStatusBits[bi];
+					if((ubStatus >> bit) & 1)
+					{
+						h1_rocStatusSummary_[linkID]->Fill(bi + 1);
+						h2_rocStatusSummary_->Fill(bi + 1, linkID);
+						if(statusGraphs_)
+						{
+							auto    key = std::make_pair(linkID, bit);
+							TGraph* g   = g_rocStatusBitVsEwt_[key];
+							g->SetPoint(g->GetN(), static_cast<double>(ewt), 1.0);
+							while(static_cast<std::size_t>(g->GetN()) > maxLatencyGraphPoints_)
+								g->RemovePoint(0);
+						}
+					}
+				}
+
+				// --- Port flags (bits [0:23]) ---
+				uint32_t portFlags = ubStatus & 0x00FFFFFFu;
+
+				// Port flag bit occupancy histogram (1D, created once per link)
+				if(h1_portFlagsBitOccupancy_.find(linkID) == h1_portFlagsBitOccupancy_.end())
+				{
+					art::TFileDirectory hdir = tfs_->mkdir(outputTag_ + "/status");
+					std::string hname  = Form("h1_portFlagBits_link%d", linkID);
+					std::string htitle = Form(
+					    "Port flag bit occupancy (link %d);"
+					    "Port (bit);Events with bit set",
+					    linkID);
+					TH1F* h = hdir.make<TH1F>(hname.c_str(), htitle.c_str(),
+					                           24, 0.5, 24.5);
+					CrvDQMStyle::FormatHist(h, histColor_);
+					h1_portFlagsBitOccupancy_[linkID] = h;
+
+					if(enableHttpServer_ && httpServer_)
+						httpServer_->Register("/", h);
+				}
+
+				// Port flags vs EWT step graph
+				if(statusGraphs_)
+				{
+					if(g_portFlagsVsEwt_.find(linkID) == g_portFlagsVsEwt_.end())
+					{
+						art::TFileDirectory gdir = tfs_->mkdir(outputTag_ + "/status/graphs");
+						std::string name  = Form("g_portFlags_link%d", linkID);
+						std::string title = Form(
+						    "Port flags vs EWT (link %d);"
+						    "Event window tag;Port flags",
+						    linkID);
+						TGraph* g = gdir.make<TGraph>();
+						g->SetName(name.c_str());
+						g->SetTitle(title.c_str());
+						CrvDQMStyle::FormatGraph(g, histColor_);
+						g->SetMarkerColor(g->GetLineColor());
+						g->SetDrawOption("AP");
+						g->SetPoint(0, static_cast<double>(ewt),
+						            static_cast<double>(portFlags));
+						g_portFlagsVsEwt_[linkID] = g;
+						lastPortFlags_[linkID]    = portFlags;
+
+						if(enableHttpServer_ && httpServer_)
+							httpServer_->Register("/", g);
+
+						if(diagLevel_ > 0)
+						{
+							std::cout << outputPrefix_
+							          << "Created port flags graph for link "
+							          << (int)linkID << std::endl;
+						}
+					}
+					else if(portFlags != lastPortFlags_[linkID])
+					{
+						TGraph* g = g_portFlagsVsEwt_[linkID];
+						g->SetPoint(g->GetN(), static_cast<double>(ewt),
+						            static_cast<double>(lastPortFlags_[linkID]));
+						g->SetPoint(g->GetN(), static_cast<double>(ewt),
+						            static_cast<double>(portFlags));
+						lastPortFlags_[linkID] = portFlags;
+					}
+					else
+					{
+						TGraph* g = g_portFlagsVsEwt_[linkID];
+						if(g->GetN() > 0)
+							g->SetPoint(g->GetN() - 1, static_cast<double>(ewt),
+							            static_cast<double>(portFlags));
+					}
+				}
+
+				// Fill bit occupancy histograms for every event
+				for(int bit = 0; bit < 24; ++bit)
+				{
+					if((portFlags >> bit) & 1)
+					{
+						h1_portFlagsBitOccupancy_[linkID]->Fill(bit + 1);
+						h2_portFlagsBitOccupancy_->Fill(bit + 1, linkID);
 					}
 				}
 			}
@@ -1185,8 +1644,25 @@ void CrvDQM::endJob()
 			}
 			for(auto& [linkID, g] : g_ubStatusVsEwt_)
 			{
-				std::cout << outputPrefix_ << "MicroBunchStatus link " << (int)linkID
-				          << ": " << g->GetN() << " status changes recorded" << std::endl;
+				std::cout << outputPrefix_ << "ROC status link " << (int)linkID
+				          << ": " << g->GetN() << " points recorded" << std::endl;
+			}
+			for(auto& [linkID, g] : g_linkLatencyVsEwt_)
+			{
+				std::cout << outputPrefix_ << "Link latency link " << (int)linkID
+				          << ": " << g->GetN() << " points recorded" << std::endl;
+			}
+			for(auto& [key, g] : g_linkStatusBitVsEwt_)
+			{
+				std::cout << outputPrefix_ << "Link status link " << (int)key.first
+				          << " bit " << (int)key.second
+				          << ": " << g->GetN() << " points recorded" << std::endl;
+			}
+			for(auto& [key, g] : g_rocStatusBitVsEwt_)
+			{
+				std::cout << outputPrefix_ << "ROC status link " << (int)key.first
+				          << " bit " << (int)key.second
+				          << ": " << g->GetN() << " points recorded" << std::endl;
 			}
 		}
 		std::cout << outputPrefix_
@@ -1213,9 +1689,25 @@ void CrvDQM::endJob()
 		                            g_digisAvgVsEwt_->GetN(),
 		                            g_digisAvgVsEwt_->GetX(),
 		                            g_digisAvgVsEwt_->GetY());
-		for(auto& [linkID, g] : g_ubStatusVsEwt_)
-			dir.makeAndRegister<TGraph>(
-			    g->GetName(), g->GetTitle(), g->GetN(), g->GetX(), g->GetY());
+		if(statusGraphs_)
+		{
+			art::TFileDirectory sdir = tfs_->mkdir(outputTag_ + "/status/graphs");
+			for(auto& [linkID, g] : g_ubStatusVsEwt_)
+				sdir.makeAndRegister<TGraph>(
+				    g->GetName(), g->GetTitle(), g->GetN(), g->GetX(), g->GetY());
+			for(auto& [linkID, g] : g_linkLatencyVsEwt_)
+				sdir.makeAndRegister<TGraph>(
+				    g->GetName(), g->GetTitle(), g->GetN(), g->GetX(), g->GetY());
+			for(auto& [key, g] : g_linkStatusBitVsEwt_)
+				sdir.makeAndRegister<TGraph>(
+				    g->GetName(), g->GetTitle(), g->GetN(), g->GetX(), g->GetY());
+			for(auto& [key, g] : g_rocStatusBitVsEwt_)
+				sdir.makeAndRegister<TGraph>(
+				    g->GetName(), g->GetTitle(), g->GetN(), g->GetX(), g->GetY());
+			for(auto& [linkID, g] : g_portFlagsVsEwt_)
+				sdir.makeAndRegister<TGraph>(
+				    g->GetName(), g->GetTitle(), g->GetN(), g->GetX(), g->GetY());
+		}
 	}
 
 	// Send final histograms & clean up
