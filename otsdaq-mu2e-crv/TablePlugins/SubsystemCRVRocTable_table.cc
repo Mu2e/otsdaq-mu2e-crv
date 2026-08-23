@@ -9,26 +9,26 @@
 
 using namespace ots;
 
-namespace
-{
-std::string getCRVDummyCSVFormat(std::map<uint16_t, uint16_t>& mapChannels)
-{
-	mapChannels.clear();
-
-	std::stringstream offlineTable;
-	offlineTable << "TABLE CRVBadChan" << __E__;
-
-	for(uint16_t i = 0; i < 16; ++i)
-	{
-		mapChannels[i] = i;
-		offlineTable << i << ", "
-		             << "1"
-		             << "\n";
-	}
-
-	return offlineTable.str();
-}
-}  // namespace
+// namespace
+// {
+// std::string getCRVDummyCSVFormat(std::map<uint16_t, uint16_t>& mapChannels)
+// {
+// 	mapChannels.clear();
+//
+// 	std::stringstream offlineTable;
+// 	offlineTable << "TABLE CRVBadChan" << __E__;
+//
+// 	for(uint16_t i = 0; i < 16; ++i)
+// 	{
+// 		mapChannels[i] = i;
+// 		offlineTable << i << ", "
+// 		             << "1"
+// 		             << "\n";
+// 	}
+//
+// 	return offlineTable.str();
+// }
+// }  // namespace
 
 //==============================================================================
 SubsystemCRVRocTable::SubsystemCRVRocTable(void) : TableBase("SubsystemCRVRocTable") {}
@@ -84,7 +84,8 @@ void SubsystemCRVRocTable::generateOfflineTableMap(
     const ConfigurationManager* /*configManager*/)
 {
 	mapOfflineTables_.clear();
-	mapOfflineTables_["CRVDummy"] = getCRVDummyCSVFormat(mapChannels_);
+	// this was just a test case, commented out to not polute Offline DB
+    //mapOfflineTables_["CRVDummy"] = getCRVDummyCSVFormat(mapChannels_);
 }
 
 //==============================================================================
