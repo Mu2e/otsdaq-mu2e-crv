@@ -2343,6 +2343,9 @@ void ROCCosmicRayVetoInterface::ResetPLL(int  sleep_ms,
 		// if(restore_marker_sync)
 		//	SetMarkerSync(true);
 	}
+
+	if(!allPorts)
+		waitForFebResponsive();
 }
 
 int16_t ROCCosmicRayVetoInterface::Realign(int sleep_uc)
@@ -2614,6 +2617,20 @@ uint16_t ROCCosmicRayVetoInterface::readRegisterWithRetry(uint16_t address, int 
 }
 
 //==========================================================================================
+bool ROCCosmicRayVetoInterface::waitForFebResponsive(int maxRetries, int retryInterval_ms)
+{
+	try
+	{
+		readRegisterWithRetry(FEBII::FPGA[0] | FEBII::Status, maxRetries, retryInterval_ms);
+		return true;
+	}
+	catch(...)
+	{
+		return false;
+	}
+}
+
+//==========================================================================================
 std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(int portFilter, bool skipBias, bool biasOnly, int biasOverwrite, bool skipReadbacks)
 {
 	std::stringstream ostr;
@@ -2659,21 +2676,16 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(int portFilter, 
 		SetActivePort(p);
 		this->writeRegister(FEBII::PortAll, p);
 
-		if(!biasOnly)
-		{
-			// --- PLL reset + clock align ---
-			ostr << "  PLL reset (wait 1s)..." << std::endl;
-			ResetPLL(1000, false, true);
-		}
-
 		// --- Bias (BitMap 1x8: fpga*2 + idx) ---
 		// Each write is followed by a 5s ramp wait (8 writes = ~40s total).
 		// Pass skipBias=true to skip entirely (e.g. bias already ramped).
 		{
 			auto bmp = feb.second.getNode("Bias").getValueAsBitMap<uint16_t>();
-			if(skipBias)
+			if(skipBias || biasOverwrite >= 0)
 			{
-				ostr << "  Bias: skipped (skipBias=true)" << std::endl;
+				ostr << "  Bias: skipped ("
+				     << (biasOverwrite >= 0 ? "broadcast overwrite active" : "skipBias=true")
+				     << ")" << std::endl;
 			}
 			else if(bmp.numberOfRows() > 0 && bmp.numberOfColumns(0) == 8)
 			{
@@ -2832,24 +2844,25 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(int portFilter, 
 		}
 		}  // end if(!biasOnly)
 
+		if(!biasOnly)
+		{
+			// --- PLL reset + clock align (after all register writes) ---
+			ostr << "  PLL reset (wait 1s)..." << std::endl;
+			ResetPLL(1000, false, true);
+		}
+
 		{
 			ostr << "  Waiting for port " << p << " to become responsive..." << std::endl;
 			auto t0 = std::chrono::steady_clock::now();
-			try
-			{
-				readRegisterWithRetry(FEBII::FPGA[0] | FEBII::Status, 7, 2000);
-				auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-				    std::chrono::steady_clock::now() - t0).count();
+			bool responsive = waitForFebResponsive();
+			auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+			    std::chrono::steady_clock::now() - t0).count();
+			if(responsive)
 				ostr << "  Port " << p << " responsive after " << elapsed_ms << " ms."
 				     << std::endl;
-			}
-			catch(...)
-			{
-				auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-				    std::chrono::steady_clock::now() - t0).count();
+			else
 				ostr << "  WARNING: port " << p << " not responsive after "
 				     << elapsed_ms << " ms!" << std::endl;
-			}
 		}
 	}
 
