@@ -58,13 +58,18 @@ constexpr const char* kLinkStatusBitNames[] = {
     "ROCTimeout", "SeqNumErr", "CRCErr", "FatalErr", "Error"};
 constexpr std::size_t kNLinkStatusBits = 5;
 
-// ROC status (MicroBunchStatus) summary bits [24:31]
-constexpr uint8_t     kRocStatusBits[]     = {24, 25, 26, 27, 28, 29, 30, 31};
+// ROC status (MicroBunchStatus) summary bits [24:31], split into
+// error flags and informational group-occurrence bits.
+constexpr uint8_t     kRocStatusBits[]     = {24, 25, 26, 30, 31};
 constexpr const char* kRocStatusBitNames[] = {
     "FEBuBMismatch", "FEBBufferIssue", "FEBOverflow",
-    "Group1Issue",   "Group2Issue",    "Group3Issue",
     "uBMatchErr",    "Truncation"};
-constexpr std::size_t kNRocStatusBits = 8;
+constexpr std::size_t kNRocStatusBits = 5;
+
+constexpr uint8_t     kRocGroupBits[]     = {27, 28, 29};
+constexpr const char* kRocGroupBitNames[] = {
+    "Group1Issue", "Group2Issue", "Group3Issue"};
+constexpr std::size_t kNRocGroupBits = 3;
 
 constexpr double kLatencyTickToUs = 0.064;  // DTC tick → microseconds
 }  // namespace
@@ -157,9 +162,11 @@ class CrvDQM : public art::EDAnalyzer
 	std::map<uint8_t, uint32_t> lastPortFlags_;          // linkID -> last seen value
 	// Summary bit-occupancy histograms (per link, one bin per error flag)
 	std::map<uint8_t, TH1F*>   h1_linkStatusSummary_;   // linkID -> 5-bin (link status bits)
-	std::map<uint8_t, TH1F*>   h1_rocStatusSummary_;    // linkID -> 8-bin (ROC status bits 24-31)
+	std::map<uint8_t, TH1F*>   h1_rocStatusSummary_;    // linkID -> 5-bin (ROC error bits)
+	std::map<uint8_t, TH1F*>   h1_rocGroupSummary_;     // linkID -> 3-bin (ROC group bits)
 	std::map<uint8_t, TH1F*>   h1_portFlagsBitOccupancy_;  // linkID -> 24-bin histogram
 	TH2F*                      h2_rocStatusSummary_{nullptr};  // x=error flag, y=link
+	TH2F*                      h2_rocGroupSummary_{nullptr};   // x=group flag, y=link
 	TH2F*                      h2_portFlagsBitOccupancy_{nullptr};  // x=port bit, y=link
 	std::map<uint8_t, TH1F*>   h1_latency_;             // linkID -> latency distribution
 
@@ -454,6 +461,16 @@ void CrvDQM::beginJob()
 		CrvDQMStyle::FormatHist2D(h2_rocStatusSummary_);
 		h2_rocStatusSummary_->SetOption("COLZ");
 
+		h2_rocGroupSummary_ = sdir.make<TH2F>(
+		    "h2_rocGroupSummary",
+		    "ROC group bit occupancy;Group flag;Link",
+		    kNRocGroupBits, 0.5, kNRocGroupBits + 0.5,
+		    6, -0.5, 5.5);
+		for(std::size_t bi = 0; bi < kNRocGroupBits; ++bi)
+			h2_rocGroupSummary_->GetXaxis()->SetBinLabel(bi + 1, kRocGroupBitNames[bi]);
+		CrvDQMStyle::FormatHist2D(h2_rocGroupSummary_);
+		h2_rocGroupSummary_->SetOption("COLZ");
+
 		h2_portFlagsBitOccupancy_ = sdir.make<TH2F>(
 		    "h2_portFlagBits",
 		    "Port flag bit occupancy;Port (bit);Link",
@@ -520,10 +537,14 @@ void CrvDQM::Send()
 			if(h) hists["crv/status:replace"].push_back(h);
 		for(auto& [linkID, h] : h1_rocStatusSummary_)
 			if(h) hists["crv/status:replace"].push_back(h);
+		for(auto& [linkID, h] : h1_rocGroupSummary_)
+			if(h) hists["crv/status:replace"].push_back(h);
 		for(auto& [linkID, h] : h1_portFlagsBitOccupancy_)
 			if(h) hists["crv/status:replace"].push_back(h);
 		if(h2_rocStatusSummary_)
 			hists["crv/status:replace"].push_back(h2_rocStatusSummary_);
+		if(h2_rocGroupSummary_)
+			hists["crv/status:replace"].push_back(h2_rocGroupSummary_);
 		if(h2_portFlagsBitOccupancy_)
 			hists["crv/status:replace"].push_back(h2_portFlagsBitOccupancy_);
 		for(auto& [linkID, h] : h1_latency_)
@@ -704,6 +725,7 @@ void CrvDQM::startHttpServer()
 		httpServer_->Register("/", g_digisVsEwt_);
 		httpServer_->Register("/", g_digisAvgVsEwt_);
 		httpServer_->Register("/", h2_rocStatusSummary_);
+		httpServer_->Register("/", h2_rocGroupSummary_);
 		httpServer_->Register("/", h2_portFlagsBitOccupancy_);
 		// TODO: re-enable once CrvStatus._linkLatency is widened to uint16_t
 		// httpServer_->Register("/", h1_dtcStatus_);
@@ -1438,7 +1460,28 @@ void CrvDQM::analyze(art::Event const& event)
 						httpServer_->Register("/", h);
 				}
 
-				// Per-bit ROC status vs EWT graphs
+				// ROC group summary histogram (1D, created once per link)
+				if(h1_rocGroupSummary_.find(linkID) == h1_rocGroupSummary_.end())
+				{
+					art::TFileDirectory hdir = tfs_->mkdir(outputTag_ + "/status");
+					std::string hname  = Form("h1_rocGroupSummary_link%d", linkID);
+					std::string htitle = Form(
+					    "ROC group bit occupancy (link %d);"
+					    "Group flag;Events with flag set",
+					    linkID);
+					TH1F* h = hdir.make<TH1F>(hname.c_str(), htitle.c_str(),
+					                           kNRocGroupBits, 0.5,
+					                           kNRocGroupBits + 0.5);
+					for(std::size_t bi = 0; bi < kNRocGroupBits; ++bi)
+						h->GetXaxis()->SetBinLabel(bi + 1, kRocGroupBitNames[bi]);
+					CrvDQMStyle::FormatHist(h, histColor_);
+					h1_rocGroupSummary_[linkID] = h;
+
+					if(enableHttpServer_ && httpServer_)
+						httpServer_->Register("/", h);
+				}
+
+				// Per-bit ROC status vs EWT graphs (error bits)
 				if(statusGraphs_)
 				{
 					if(g_rocStatusBitVsEwt_.find(std::make_pair(linkID, kRocStatusBits[0]))
@@ -1466,6 +1509,27 @@ void CrvDQM::analyze(art::Event const& event)
 							if(enableHttpServer_ && httpServer_)
 								httpServer_->Register("/", g);
 						}
+						for(std::size_t bi = 0; bi < kNRocGroupBits; ++bi)
+						{
+							uint8_t bit = kRocGroupBits[bi];
+							auto    key = std::make_pair(linkID, bit);
+							std::string name = Form("g_rocStatus_link%d_%s",
+							                        linkID, kRocGroupBitNames[bi]);
+							std::string title = Form(
+							    "Link %d %s (bit %d) vs EWT;"
+							    "Event window tag;Bit value",
+							    linkID, kRocGroupBitNames[bi], bit);
+							TGraph* g = gdir.make<TGraph>();
+							g->SetName(name.c_str());
+							g->SetTitle(title.c_str());
+							CrvDQMStyle::FormatGraph(g, histColor_);
+							g->SetMarkerColor(g->GetLineColor());
+							g->SetDrawOption("AP");
+							g_rocStatusBitVsEwt_[key] = g;
+
+							if(enableHttpServer_ && httpServer_)
+								httpServer_->Register("/", g);
+						}
 						if(diagLevel_ > 0)
 						{
 							std::cout << outputPrefix_
@@ -1474,7 +1538,7 @@ void CrvDQM::analyze(art::Event const& event)
 						}
 					}
 				}
-				// Fill summary histograms; add graph points when enabled
+				// Fill error summary histograms; add graph points when enabled
 				for(std::size_t bi = 0; bi < kNRocStatusBits; ++bi)
 				{
 					uint8_t bit = kRocStatusBits[bi];
@@ -1482,6 +1546,24 @@ void CrvDQM::analyze(art::Event const& event)
 					{
 						h1_rocStatusSummary_[linkID]->Fill(bi + 1);
 						h2_rocStatusSummary_->Fill(bi + 1, linkID);
+						if(statusGraphs_)
+						{
+							auto    key = std::make_pair(linkID, bit);
+							TGraph* g   = g_rocStatusBitVsEwt_[key];
+							g->SetPoint(g->GetN(), static_cast<double>(ewt), 1.0);
+							while(static_cast<std::size_t>(g->GetN()) > maxLatencyGraphPoints_)
+								g->RemovePoint(0);
+						}
+					}
+				}
+				// Fill group summary histograms; add graph points when enabled
+				for(std::size_t bi = 0; bi < kNRocGroupBits; ++bi)
+				{
+					uint8_t bit = kRocGroupBits[bi];
+					if((ubStatus >> bit) & 1)
+					{
+						h1_rocGroupSummary_[linkID]->Fill(bi + 1);
+						h2_rocGroupSummary_->Fill(bi + 1, linkID);
 						if(statusGraphs_)
 						{
 							auto    key = std::make_pair(linkID, bit);
