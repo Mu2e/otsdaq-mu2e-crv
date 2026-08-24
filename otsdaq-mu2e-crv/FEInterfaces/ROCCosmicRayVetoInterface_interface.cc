@@ -456,7 +456,8 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                            "port (Default: -1, all active ports)",
 	                            "address (Default: 0x35)",
 	                            "value (Default: 0)",
-	                            "count (Default: 10)"},
+	                            "count (Default: 10)",
+	                            "broadcast (Default: true)"},
 	                        std::vector<std::string>{"response"},
 	                        1);  // requiredUserPermissions
 }
@@ -2966,10 +2967,11 @@ void ROCCosmicRayVetoInterface::GetAlignScore(__ARGS__)
 
 void ROCCosmicRayVetoInterface::BurstWriteTest(__ARGS__)
 {
-	int      port    = __GET_ARG_IN__("port (Default: -1, all active ports)", int, -1);
-	uint16_t address = __GET_ARG_IN__("address (Default: 0x35)", uint16_t, 0x35);
-	uint16_t value   = __GET_ARG_IN__("value (Default: 0)", uint16_t, 0);
-	int      count   = __GET_ARG_IN__("count (Default: 10)", int, 10);
+	int      port      = __GET_ARG_IN__("port (Default: -1, all active ports)", int, -1);
+	uint16_t address   = __GET_ARG_IN__("address (Default: 0x35)", uint16_t, 0x35);
+	uint16_t value     = __GET_ARG_IN__("value (Default: 0)", uint16_t, 0);
+	int      count     = __GET_ARG_IN__("count (Default: 10)", int, 10);
+	bool     broadcast = __GET_ARG_IN__("broadcast (Default: true)", bool, true);
 
 	std::stringstream ostr;
 
@@ -2980,25 +2982,61 @@ void ROCCosmicRayVetoInterface::BurstWriteTest(__ARGS__)
 
 	if(isFebAddress && port != 0)
 	{
-		const uint32_t active = GetActivePorts();
-
-		for(uint16_t p = 1; p <= 24; ++p)
+		if(port < 0 && broadcast)
 		{
-			if(port > 0 && p != port)
-				continue;
-			if(port < 0 && !(active & (0x00000001 << (p - 1))))
-				continue;
+			uint16_t writeAddress = (address & ~ROC::FEB) | ROC::FEB_Broadcast;
 
-			SetActivePort(p);
+			ostr << "Broadcast: writing 0x" << std::hex << value
+			     << " to 0x" << writeAddress << " x" << std::dec << count << std::endl;
 
-			ostr << "Port " << std::dec << p << ": writing 0x" << std::hex << value
-			     << " to 0x" << address << " x" << std::dec << count << std::endl;
+			auto t0 = std::chrono::steady_clock::now();
 
 			for(int i = 0; i < count; ++i)
-				this->writeRegister(address, value);
+				this->writeRegister(writeAddress, value);
 
 			uint16_t bufAfter = this->readRegister(ROC::DcsBufferWdCnt);
-			ostr << "  DcsBufferWdCnt after: " << std::dec << bufAfter << std::endl;
+			ostr << "  DcsBufferWdCnt after writes: " << std::dec << bufAfter << std::endl;
+
+			bool responsive = waitForFebResponsive();
+
+			auto t1 = std::chrono::steady_clock::now();
+			auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+
+			ostr << "  waitForFebResponsive: " << (responsive ? "ok" : "TIMEOUT") << std::endl;
+			ostr << "  Elapsed: " << elapsed_ms << " ms" << std::endl;
+		}
+		else
+		{
+			const uint32_t active = GetActivePorts();
+
+			for(uint16_t p = 1; p <= 24; ++p)
+			{
+				if(port > 0 && p != port)
+					continue;
+				if(port < 0 && !(active & (0x00000001 << (p - 1))))
+					continue;
+
+				SetActivePort(p);
+
+				ostr << "Port " << std::dec << p << ": writing 0x" << std::hex << value
+				     << " to 0x" << address << " x" << std::dec << count << std::endl;
+
+				auto t0 = std::chrono::steady_clock::now();
+
+				for(int i = 0; i < count; ++i)
+					this->writeRegister(address, value);
+
+				uint16_t bufAfter = this->readRegister(ROC::DcsBufferWdCnt);
+				ostr << "  DcsBufferWdCnt after writes: " << std::dec << bufAfter << std::endl;
+
+				bool responsive = waitForFebResponsive();
+
+				auto t1 = std::chrono::steady_clock::now();
+				auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+
+				ostr << "  waitForFebResponsive: " << (responsive ? "ok" : "TIMEOUT") << std::endl;
+				ostr << "  Elapsed: " << elapsed_ms << " ms" << std::endl;
+			}
 		}
 	}
 	else
@@ -3006,11 +3044,21 @@ void ROCCosmicRayVetoInterface::BurstWriteTest(__ARGS__)
 		ostr << "ROC: writing 0x" << std::hex << value << " to 0x" << address
 		     << " x" << std::dec << count << std::endl;
 
+		auto t0 = std::chrono::steady_clock::now();
+
 		for(int i = 0; i < count; ++i)
 			this->writeRegister(address, value);
 
 		uint16_t bufAfter = this->readRegister(ROC::DcsBufferWdCnt);
-		ostr << "DcsBufferWdCnt after: " << std::dec << bufAfter << std::endl;
+		ostr << "DcsBufferWdCnt after writes: " << std::dec << bufAfter << std::endl;
+
+		bool responsive = waitForFebResponsive();
+
+		auto t1 = std::chrono::steady_clock::now();
+		auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+
+		ostr << "waitForFebResponsive: " << (responsive ? "ok" : "TIMEOUT") << std::endl;
+		ostr << "Elapsed: " << elapsed_ms << " ms" << std::endl;
 	}
 
 	__SET_ARG_OUT__("response", ostr.str());
