@@ -302,10 +302,12 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
 	                            &ROCCosmicRayVetoInterface::FebIISetBias),
 	                        std::vector<std::string>{
-	                            "port (Default: -1, current active)",
-	                            "fpga [0,1,2,3]",
-	                            "number [0,1]",
+	                            "port (Default: -1, all active ports)",
+	                            "fpga [0,1,2,3], -1 all (Default)",
+	                            "number [0,1], -1 all (Default)",
 	                            "bias",
+	                            "sleep [s] (Default: 5)",
+	                            "use broadcast for all ports (Default: true)",
 	                        },
 	                        std::vector<std::string>{"response"},
 	                        1);  // requiredUserPermissions
@@ -313,10 +315,11 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
 	                            &ROCCosmicRayVetoInterface::FebIISetBiasTrim),
 	                        std::vector<std::string>{
-	                            "port (Default: -1, current active)",
-	                            "fpga [0,1,2,3]",
-	                            "channel [0-15]",
+	                            "port (Default: -1, all active ports)",
+	                            "fpga [0,1,2,3], -1 all (Default)",
+	                            "channel [0-15], -1 all (Default)",
 	                            "bias trim",
+	                            "use broadcast for all ports (Default: true)",
 	                        },
 	                        std::vector<std::string>{"response"},
 	                        1);  // requiredUserPermissions
@@ -343,11 +346,12 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	registerFEMacroFunction("FEB II Set Channel",
 	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
 	                            &ROCCosmicRayVetoInterface::FebIISetChannel),
-	                        std::vector<std::string>{"port (Default: -1, current active)",
+	                        std::vector<std::string>{"port (Default: -1, all active ports)",
 	                                                 "fpga [0,1,2,3], -1 all (Default)",
 	                                                 "channel [0-15], -1 all (Default)",
 	                                                 "fake (Default: false)",
-	                                                 "off (Default: false)"},
+	                                                 "off (Default: false)",
+	                                                 "use broadcast for all ports (Default: true)"},
 	                        std::vector<std::string>{"response"},
 	                        1);  // requiredUserPermissions
 	registerFEMacroFunction("FEB II Get Status",
@@ -1732,33 +1736,131 @@ void ROCCosmicRayVetoInterface::FebIISetThreshold(__ARGS__)
 
 void ROCCosmicRayVetoInterface::FebIISetBias(__ARGS__)
 {
-	int      port   = __GET_ARG_IN__("port (Default: -1, current active)", int, -1);
-	uint16_t fpga   = __GET_ARG_IN__("fpga [0,1,2,3]", uint16_t, 0);
-	uint16_t number = __GET_ARG_IN__("number [0,1]", uint16_t, 0);
-	uint16_t bias   = __GET_ARG_IN__("bias", uint16_t, 0);
+	int      port      = __GET_ARG_IN__("port (Default: -1, all active ports)", int, -1);
+	uint16_t fpga      = __GET_ARG_IN__("fpga [0,1,2,3], -1 all (Default)", uint16_t, -1);
+	uint16_t number    = __GET_ARG_IN__("number [0,1], -1 all (Default)", uint16_t, -1);
+	uint16_t bias      = __GET_ARG_IN__("bias", uint16_t, 0);
+	int      sleep_s   = __GET_ARG_IN__("sleep [s] (Default: 5)", int, 5);
+	bool     use_broadcast_for_all =
+	    __GET_ARG_IN__("use broadcast for all ports (Default: true)", bool, true);
+	const bool     all_ports     = (port <= 0);
+	const bool     use_broadcast = all_ports && use_broadcast_for_all;
+	const uint32_t active        = GetActivePorts();
+
 	if(port > 0)
 		SetActivePort(port);
-	this->writeRegister(FEBII::FPGA[fpga] | (FEBII::BiasBase + (number & 0x1)),
-	                    bias);  // Adjust register if needed
+
 	std::stringstream ostr;
-	ostr << "FPGA " << fpga << ", number " << number << ": Set CR=0x" << std::hex << bias
-	     << std::endl;
+
+	auto setBiasRegisters = [&](uint16_t PORT_)
+	{
+		uint16_t fpga_start = (fpga == uint16_t(-1)) ? 0 : fpga;
+		uint16_t fpga_end   = (fpga == uint16_t(-1)) ? 4 : fpga + 1;
+		for(uint16_t f = fpga_start; f < fpga_end; ++f)
+		{
+			uint16_t num_start = (number == uint16_t(-1)) ? 0 : number;
+			uint16_t num_end   = (number == uint16_t(-1)) ? 2 : number + 1;
+			for(uint16_t idx = num_start; idx < num_end; ++idx)
+			{
+				this->writeRegister(
+				    PORT_ | FEBII::FPGA[f] | (FEBII::BiasBase + (idx & 0x1)),
+				    bias);
+				if(sleep_s > 0)
+					sleep(sleep_s);
+				ostr << "  FPGA" << f << "[" << idx << "] = 0x" << std::hex << bias
+				     << std::dec << std::endl;
+			}
+		}
+	};
+
+	if(all_ports && !use_broadcast)
+	{
+		for(uint16_t p = 1; p <= 24; ++p)
+		{
+			if(!(active & (0x00000001 << (p - 1))))
+				continue;
+			SetActivePort(p);
+			this->writeRegister(FEBII::PortAll, p);
+			ostr << "Port " << p << ":" << std::endl;
+			setBiasRegisters(ROC::FEB);
+		}
+	}
+	else
+	{
+		uint16_t PORT_ = ROC::FEB;
+		if(use_broadcast)
+		{
+			PORT_ = PORT_ | ROC::FEB_Broadcast;
+			ostr << "Broadcast:" << std::endl;
+		}
+		setBiasRegisters(PORT_);
+	}
+
+	ostr << "Set bias=0x" << std::hex << bias << std::dec
+	     << " (sleep=" << sleep_s << "s per step)" << std::endl;
 	__SET_ARG_OUT__("response", ostr.str());
 }
 
 void ROCCosmicRayVetoInterface::FebIISetBiasTrim(__ARGS__)
 {
-	int      port     = __GET_ARG_IN__("port (Default: -1, current active)", int, -1);
-	uint16_t fpga     = __GET_ARG_IN__("fpga [0,1,2,3]", uint16_t, 0);
-	uint16_t channel  = __GET_ARG_IN__("channel [0-15]", uint16_t, 0);
+	int      port     = __GET_ARG_IN__("port (Default: -1, all active ports)", int, -1);
+	uint16_t fpga     = __GET_ARG_IN__("fpga [0,1,2,3], -1 all (Default)", uint16_t, -1);
+	uint16_t channel  = __GET_ARG_IN__("channel [0-15], -1 all (Default)", uint16_t, -1);
 	uint16_t biasTrim = __GET_ARG_IN__("bias trim", uint16_t, 0);
+	bool     use_broadcast_for_all =
+	    __GET_ARG_IN__("use broadcast for all ports (Default: true)", bool, true);
+	const bool     all_ports     = (port <= 0);
+	const bool     use_broadcast = all_ports && use_broadcast_for_all;
+	const uint32_t active        = GetActivePorts();
+
 	if(port > 0)
 		SetActivePort(port);
-	this->writeRegister(FEBII::FPGA[fpga] | (FEBII::TrimBase + (channel & 0xF)),
-	                    biasTrim);
+
 	std::stringstream ostr;
-	ostr << "FPGA " << fpga << ", channel " << channel << ": Set TrimBase=0x" << std::hex
-	     << biasTrim << std::endl;
+
+	auto setTrimRegisters = [&](uint16_t PORT_)
+	{
+		uint16_t fpga_start = (fpga == uint16_t(-1)) ? 0 : fpga;
+		uint16_t fpga_end   = (fpga == uint16_t(-1)) ? 4 : fpga + 1;
+		for(uint16_t f = fpga_start; f < fpga_end; ++f)
+		{
+			uint16_t ch_start = (channel == uint16_t(-1)) ? 0 : channel;
+			uint16_t ch_end   = (channel == uint16_t(-1)) ? 16 : channel + 1;
+			for(uint16_t ch = ch_start; ch < ch_end; ++ch)
+			{
+				this->writeRegister(
+				    PORT_ | FEBII::FPGA[f] | (FEBII::TrimBase + (ch & 0xF)),
+				    biasTrim);
+			}
+		}
+	};
+
+	if(all_ports && !use_broadcast)
+	{
+		for(uint16_t p = 1; p <= 24; ++p)
+		{
+			if(!(active & (0x00000001 << (p - 1))))
+				continue;
+			SetActivePort(p);
+			this->writeRegister(FEBII::PortAll, p);
+			setTrimRegisters(ROC::FEB);
+		}
+		ostr << "Set bias trim=0x" << std::hex << biasTrim
+		     << " on each active port" << std::endl;
+	}
+	else
+	{
+		uint16_t PORT_ = ROC::FEB;
+		if(use_broadcast)
+			PORT_ = PORT_ | ROC::FEB_Broadcast;
+		setTrimRegisters(PORT_);
+		if(use_broadcast)
+			ostr << "Set bias trim=0x" << std::hex << biasTrim
+			     << " using broadcast" << std::endl;
+		else
+			ostr << "Set bias trim=0x" << std::hex << biasTrim << std::endl;
+	}
+
 	__SET_ARG_OUT__("response", ostr.str());
 }
 
@@ -2058,64 +2160,67 @@ void ROCCosmicRayVetoInterface::TestRocLinks(__ARGS__)
 
 void ROCCosmicRayVetoInterface::FebIISetChannel(__ARGS__)
 {
-	int      port    = __GET_ARG_IN__("port (Default: -1, current active)", int, -1);
+	int      port    = __GET_ARG_IN__("port (Default: -1, all active ports)", int, -1);
 	uint16_t fpga    = __GET_ARG_IN__("fpga [0,1,2,3], -1 all (Default)", uint16_t, -1);
 	uint16_t channel = __GET_ARG_IN__("channel [0-15], -1 all (Default)", uint16_t, -1);
 	bool     fake    = __GET_ARG_IN__("fake (Default: false)", bool, false);
 	bool     off     = __GET_ARG_IN__("off (Default: false)", bool, false);
+	bool     use_broadcast_for_all =
+	    __GET_ARG_IN__("use broadcast for all ports (Default: true)", bool, true);
+	const bool     all_ports     = (port <= 0);
+	const bool     use_broadcast = all_ports && use_broadcast_for_all;
+	const uint32_t active        = GetActivePorts();
+
 	if(port > 0)
 		SetActivePort(port);
-	// Example: Write to Status register to indicate channel set (replace with correct
-	// register if needed)
+
 	std::stringstream ostr;
-	ostr << "Set ";
-	if(fpga == uint16_t(-1))
+
+	auto setChannelRegisters = [&](uint16_t PORT_)
 	{
-		ostr << "all FPGAs, ";
-		for(unsigned int fpga_ = 0; fpga_ < 4; fpga_++)
+		uint16_t fpga_start = (fpga == uint16_t(-1)) ? 0 : fpga;
+		uint16_t fpga_end   = (fpga == uint16_t(-1)) ? 4 : fpga + 1;
+		for(uint16_t f = fpga_start; f < fpga_end; ++f)
 		{
-			if(channel == uint16_t(-1))
+			uint16_t ch_start = (channel == uint16_t(-1)) ? 0 : channel;
+			uint16_t ch_end   = (channel == uint16_t(-1)) ? 16 : channel + 1;
+			for(uint16_t ch = ch_start; ch < ch_end; ++ch)
 			{
-				ostr << "all channels ";
-				for(unsigned int ch_ = 0; ch_ < 16; ++ch_)
-				{
-					uint16_t val = fake ? 0x10 : (off ? 0x11 : ch_);
-					this->writeRegister(
-					    FEBII::FPGA[fpga_] | (FEBII::ChannelMapBase + (ch_ & 0xF)), val);
-				}
-			}
-			else
-			{
-				ostr << "channel " << channel << " ";
-				uint16_t val = fake ? 0x10 : (off ? 0x11 : channel);
+				uint16_t val = fake ? 0x10 : (off ? 0x11 : ch);
 				this->writeRegister(
-				    FEBII::FPGA[fpga_] | (FEBII::ChannelMapBase + (channel & 0xF)), val);
+				    PORT_ | FEBII::FPGA[f] | (FEBII::ChannelMapBase + (ch & 0xF)),
+				    val);
 			}
 		}
+	};
+
+	if(all_ports && !use_broadcast)
+	{
+		for(uint16_t p = 1; p <= 24; ++p)
+		{
+			if(!(active & (0x00000001 << (p - 1))))
+				continue;
+			SetActivePort(p);
+			this->writeRegister(FEBII::PortAll, p);
+			setChannelRegisters(ROC::FEB);
+		}
+		ostr << "Set channels on each active port";
 	}
 	else
 	{
-		ostr << "FPGA, " << fpga << " ";
-		if(channel == uint16_t(-1))
+		uint16_t PORT_ = ROC::FEB;
+		if(use_broadcast)
 		{
-			ostr << "all channels ";
-			for(unsigned int ch_ = 0; ch_ < 16; ++ch_)
-			{
-				uint16_t val = fake ? 0x10 : (off ? 0x11 : ch_);
-				this->writeRegister(
-				    FEBII::FPGA[fpga] | (FEBII::ChannelMapBase + (ch_ & 0xF)), val);
-			}
+			PORT_ = PORT_ | ROC::FEB_Broadcast;
+			ostr << "Set channels using broadcast";
 		}
 		else
-		{
-			ostr << "channel " << channel << " ";
-			uint16_t val = fake ? 0x10 : (off ? 0x11 : channel);
-			this->writeRegister(
-			    FEBII::FPGA[fpga] | (FEBII::ChannelMapBase + (channel & 0xF)), val);
-		}
+			ostr << "Set channels";
+		setChannelRegisters(PORT_);
 	}
-	ostr << "to " << (fake ? "0x10 (fake mode)" : (off ? "0x11 (off)" : "ch-idx")) << "."
-	     << std::endl;
+
+	ostr << " to " << (fake ? "0x10 (fake mode)" : (off ? "0x11 (off)" : "ch-idx"))
+	     << "." << std::endl;
 	__SET_ARG_OUT__("response", ostr.str());
 }
 
@@ -2678,7 +2783,7 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(int portFilter, 
 				sleep(5);
 			}
 		}
-		ostr << "Bias overwrite complete." << std::endl;
+		//ostr << "Bias overwrite complete." << std::endl;
 	}
 
 	unsigned int activeFebCount = 0;
@@ -2802,7 +2907,10 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(int portFilter, 
 			}
 		}
 
-		// --- Channel map (identity: ch -> ch) ---
+		// --- Channel map & baseline trigger ---
+		// When configuring all ports (portFilter <= 0), these are broadcast once after
+		// the per-FEB loop.  For a single port, do them here.
+		if(portFilter > 0)
 		{
 			ostr << "  ChannelMap:" << std::endl;
 			for(uint16_t fpga = 0; fpga < 4; ++fpga)
@@ -2814,10 +2922,7 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(int portFilter, 
 				}
 			}
 			ostr << "    Set identity map for all 4 FPGAs x 16 channels" << std::endl;
-		}
 
-		// --- Baseline trigger ---
-		{
 			ostr << "  Baseline update:" << std::endl;
 			for(uint16_t fpga = 0; fpga < 4; ++fpga)
 			{
@@ -2845,18 +2950,10 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(int portFilter, 
 			this->writeRegister(FEBII::GateOnOffSpill, offStart);
 			this->writeRegister(FEBII::GateOffOffSpill, offEnd);
 
-			/*
-            uint16_t rbOnStart  = this->readRegister(FEBII::GateOnOnSpill);
-			uint16_t rbOnEnd    = this->readRegister(FEBII::GateOffOnSpill);
-			uint16_t rbOffStart = this->readRegister(FEBII::GateOnOffSpill);
-			uint16_t rbOffEnd   = this->readRegister(FEBII::GateOffOffSpill);
-
-			ostr << "  OnSpill  gate: start=" << onStart << " (rb=" << rbOnStart << ")"
-			     << "  end=" << onEnd << " (rb=" << rbOnEnd << ")  [6.25ns]" << std::endl;
-			ostr << "  OffSpill gate: start=" << offStart << " (rb=" << rbOffStart << ")"
-			     << "  end=" << offEnd << " (rb=" << rbOffEnd << ")  [6.25ns]"
-			     << std::endl;
-            */
+			ostr << "  OnSpill  gate: start=" << onStart
+			     << "  end=" << onEnd << "  [6.25ns]" << std::endl;
+			ostr << "  OffSpill gate: start=" << offStart
+			     << "  end=" << offEnd << "  [6.25ns]" << std::endl;
 		}
 		else
 		{
@@ -2864,13 +2961,13 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(int portFilter, 
 		}
 		}  // end if(!biasOnly)
 
-		if(!biasOnly)
+		if(!biasOnly && portFilter > 0)
 		{
-			// --- PLL reset + clock align (after all register writes) ---
 			ostr << "  PLL reset (wait 1s)..." << std::endl;
 			ResetPLL(1000, false, true);
 		}
 
+		if(portFilter > 0)
 		{
 			ostr << "  Waiting for port " << p << " to become responsive..." << std::endl;
 			auto t0 = std::chrono::steady_clock::now();
@@ -2888,6 +2985,57 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(int portFilter, 
 
 	if(activeFebCount == 0)
 		ostr << "WARNING: no active FEBs found in FEBsLink table!" << std::endl;
+
+	// --- Broadcast channel map, baseline, PLL reset for all-port config ---
+	if(portFilter <= 0 && !biasOnly && activeFebCount > 0)
+	{
+		uint16_t PORT_ = ROC::FEB | ROC::FEB_Broadcast;
+
+		ostr << "Broadcast ChannelMap (identity) to all ports..." << std::endl;
+		for(uint16_t fpga = 0; fpga < 4; ++fpga)
+		{
+			for(uint16_t ch = 0; ch < 16; ++ch)
+			{
+				this->writeRegister(
+				    PORT_ | FEBII::FPGA[fpga] | (FEBII::ChannelMapBase + (ch & 0xF)),
+				    ch);
+			}
+		}
+
+		ostr << "Broadcast baseline trigger to all ports..." << std::endl;
+		for(uint16_t fpga = 0; fpga < 4; ++fpga)
+		{
+			for(uint16_t ch = 0; ch < 16; ++ch)
+			{
+				this->writeRegister(
+				    PORT_ | FEBII::FPGA[fpga] | (FEBII::BaselineBase + (ch & 0xF)),
+				    0x1);
+			}
+		}
+
+		ostr << "Broadcast PLL reset (wait 1s)..." << std::endl;
+		ResetPLL(1000, true, true);
+
+		for(const auto& feb : febs)
+		{
+			if(!feb.second.getNode("Status").getValue<bool>())
+				continue;
+			uint16_t p = feb.second.getNode("Port").getValue<uint16_t>();
+			SetActivePort(p);
+
+			ostr << "  Waiting for port " << p << " to become responsive..." << std::endl;
+			auto t0 = std::chrono::steady_clock::now();
+			bool responsive = waitForFebResponsive();
+			auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+			    std::chrono::steady_clock::now() - t0).count();
+			if(responsive)
+				ostr << "  Port " << p << " responsive after " << elapsed_ms << " ms."
+				     << std::endl;
+			else
+				ostr << "  WARNING: port " << p << " not responsive after "
+				     << elapsed_ms << " ms!" << std::endl;
+		}
+	}
 
 	return ostr.str();
 }
