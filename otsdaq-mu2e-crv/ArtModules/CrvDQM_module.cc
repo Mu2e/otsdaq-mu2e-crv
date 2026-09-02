@@ -169,6 +169,7 @@ class CrvDQM : public art::EDAnalyzer
 	TH2F*                      h2_rocGroupSummary_{nullptr};   // x=group flag, y=link
 	TH2F*                      h2_portFlagsBitOccupancy_{nullptr};  // x=port bit, y=link
 	std::map<uint8_t, TH1F*>   h1_latency_;             // linkID -> latency distribution
+	std::map<uint8_t, TH1F*>   h1_latency2_;             // linkID -> latency distribution
 
 	// Header-level status and latency histograms
 	// TODO: re-enable once CrvStatus._linkLatency is widened to uint16_t
@@ -549,7 +550,8 @@ void CrvDQM::Send()
 			hists["crv/status:replace"].push_back(h2_portFlagsBitOccupancy_);
 		for(auto& [linkID, h] : h1_latency_)
 			if(h) hists["crv/status:replace"].push_back(h);
-
+		for(auto& [linkID, h] : h1_latency2_)
+			if(h) hists["crv/status:replace"].push_back(h);
 		for(const auto& [key, h] : h1_dtFebPairs_)
 		{
 			if(h == nullptr)
@@ -1244,6 +1246,28 @@ void CrvDQM::analyze(art::Event const& event)
 						httpServer_->Register("/", h);
 				}
 				h1_latency_[linkID]->Fill(latency * kLatencyTickToUs);
+
+
+				// Latency distribution histogram (created once per link)
+				if(h1_latency2_.find(linkID) == h1_latency2_.end())
+				{
+					art::TFileDirectory hdir = tfs_->mkdir(outputTag_ + "/status");
+					std::string hname  = Form("h1_latency2_link%d", linkID);
+					std::string htitle = Form(
+					    "Link latency distribution (link %d);"
+					    "Latency [#mus];Entries",
+					    linkID);
+					TH1F* h = hdir.make<TH1F>(hname.c_str(), htitle.c_str(),
+					                           2000, 0.0, 10000.0);
+					CrvDQMStyle::FormatHist(h, histColor_);
+					h->SetStatOverflows(TH1::kConsider);
+					h->SetStats(1);
+					h1_latency2_[linkID] = h;
+
+					if(enableHttpServer_ && httpServer_)
+						httpServer_->Register("/", h);
+				}
+				h1_latency2_[linkID]->Fill(latency * kLatencyTickToUs);
 
 				// Per-link latency vs EWT (on change only)
 				if(statusGraphs_)

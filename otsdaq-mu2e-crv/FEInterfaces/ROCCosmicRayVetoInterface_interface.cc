@@ -1740,7 +1740,7 @@ void ROCCosmicRayVetoInterface::FebIISetBias(__ARGS__)
 	uint16_t fpga      = __GET_ARG_IN__("fpga [0,1,2,3], -1 all (Default)", uint16_t, -1);
 	uint16_t number    = __GET_ARG_IN__("number [0,1], -1 all (Default)", uint16_t, -1);
 	uint16_t bias      = __GET_ARG_IN__("bias", uint16_t, 0);
-	int      sleep_s   = __GET_ARG_IN__("sleep [s] (Default: 5)", int, 5);
+	int      sleep_s   = __GET_ARG_IN__("sleep [s] (Default: 0)", int, 0);
 	bool     use_broadcast_for_all =
 	    __GET_ARG_IN__("use broadcast for all ports (Default: true)", bool, true);
 	const bool     all_ports     = (port <= 0);
@@ -2012,6 +2012,14 @@ void ROCCosmicRayVetoInterface::FebIIGetStatus(__ARGS__)
 			ostr << "    Channel Map " << j << ":  "
 			     << " 0x" << std::setfill('0') << std::setw(4) << std::hex
 			     << this->readRegister((FEBII::FPGA[n] | FEBII::ChannelMapBase) + j)
+			     << std::endl;
+		}
+		ostr << "Bias Trim" << std::endl;
+		for(int j = 0; j < 16; j++)
+		{
+			ostr << "    Trim " << j << ":  "
+			     << " 0x" << std::setfill('0') << std::setw(4) << std::hex
+			     << this->readRegister((FEBII::FPGA[n] | FEBII::TrimBase) + j)
 			     << std::endl;
 		}
 	}
@@ -2593,7 +2601,7 @@ void ROCCosmicRayVetoInterface::FebIIConfigure(__ARGS__)
 						this->writeRegister(ROC::FEB | FEBII::FPGA[fpga] |
 						                        (FEBII::BiasBase + (idx & 0x1)),
 						                    bias);
-						sleep(5);
+						// sleep(5);
 					}
 				}
 			}
@@ -2607,7 +2615,7 @@ void ROCCosmicRayVetoInterface::FebIIConfigure(__ARGS__)
 					this->writeRegister(
 					    PORT_ | FEBII::FPGA[fpga] | (FEBII::BiasBase + (idx & 0x1)),
 					    bias);
-					sleep(5);
+					// sleep(5);
 				}
 			}
 		}
@@ -2771,7 +2779,7 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(int portFilter, 
 	{
 		uint16_t bias = static_cast<uint16_t>(biasOverwrite);
 		ostr << "Bias overwrite via broadcast: 0x" << std::hex << bias << std::dec
-		     << " (5s ramp per step)..." << std::endl;
+		     << std::endl;
 		uint16_t PORT_ = ROC::FEB | ROC::FEB_Broadcast;
 		for(uint16_t fpga = 0; fpga < 4; ++fpga)
 		{
@@ -2780,7 +2788,7 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(int portFilter, 
 				this->writeRegister(
 				    PORT_ | FEBII::FPGA[fpga] | (FEBII::BiasBase + (idx & 0x1)),
 				    bias);
-				sleep(5);
+				// sleep(5);
 			}
 		}
 		//ostr << "Bias overwrite complete." << std::endl;
@@ -2802,7 +2810,6 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(int portFilter, 
 		this->writeRegister(FEBII::PortAll, p);
 
 		// --- Bias (BitMap 1x8: fpga*2 + idx) ---
-		// Each write is followed by a 5s ramp wait (8 writes = ~40s total).
 		// Pass skipBias=true to skip entirely (e.g. bias already ramped).
 		{
 			auto bmp = feb.second.getNode("Bias").getValueAsBitMap<uint16_t>();
@@ -2814,7 +2821,7 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(int portFilter, 
 			}
 			else if(bmp.numberOfRows() > 0 && bmp.numberOfColumns(0) == 8)
 			{
-				ostr << "  Bias: ramping (5s per step)..." << std::endl;
+				ostr << "  Bias: ramping..." << std::endl;
 				for(uint16_t fpga = 0; fpga < 4; ++fpga)
 				{
 					for(uint16_t idx = 0; idx < 2; ++idx)
@@ -2822,7 +2829,7 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(int portFilter, 
 						uint16_t val = bmp.get(0, fpga * 2 + idx);
 						this->writeRegister(FEBII::FPGA[fpga] | (FEBII::BiasBase + idx),
 						                    val);
-						sleep(5);
+						// sleep(5);
 						ostr << "    FPGA" << fpga << "[" << idx << "]  set=0x"
 						     << std::hex << val;
 						if(!skipReadbacks)
