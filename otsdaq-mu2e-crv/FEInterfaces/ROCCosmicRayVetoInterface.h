@@ -107,6 +107,7 @@ public:
 	void                                    FebIISetBiasTrim        (__ARGS__);
 	void                                    FebIISetGateOnSpill     (__ARGS__);
 	void                                    FebIISetGateOffSpill    (__ARGS__);
+	void                                    FebIISetLED             (__ARGS__);
 	void                                    FebIIGetStatus          (__ARGS__);
 	void                                    TestFebConnection       (__ARGS__);
 	void                                    TestRocLinks            (__ARGS__);
