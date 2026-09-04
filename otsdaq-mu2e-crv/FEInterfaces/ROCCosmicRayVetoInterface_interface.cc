@@ -465,6 +465,19 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                            "broadcast (Default: true)"},
 	                        std::vector<std::string>{"response"},
 	                        1);  // requiredUserPermissions
+
+registerFEMacroFunction("FEB II LED setting",
+	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
+	                            &ROCCosmicRayVetoInterface::FebIISetLED),
+	                        std::vector<std::string>{
+	                            "port (Default: -1, current active)",
+	                            "offset, 0 (Default)",
+	                            "LED bias",
+	                            "on (Default: true)"},
+	                        std::vector<std::string>{"response"},
+	                        1);  // requiredUserPermissions
+										
+
 }
 
 //==========================================================================================
@@ -1056,6 +1069,53 @@ void ROCCosmicRayVetoInterface::GetPool(__ARGS__)
 		}
 	}
 	__SET_ARG_OUT__("response", ostr.str());
+}
+
+void ROCCosmicRayVetoInterface::FebIISetLED(__ARGS__)
+{
+   int      port    = __GET_ARG_IN__("port (Default: -1, current active)", int, -1);
+   uint16_t offset = __GET_ARG_IN__("offset, 0 (Default)", uint16_t, 0);
+   uint16_t LEDbias = __GET_ARG_IN__("LED bias", uint16_t, 0);
+   uint16_t onoff    = __GET_ARG_IN__("on (Default: true)", bool, true);
+
+// broadcast loop
+   if(port > 0)
+       SetActivePort(port);
+// pulse selection and on/off 01 is led on 
+this->writeRegister(
+       FEBII::FlashGateEn
+, onoff) 
+	// pulse offset time / duration time set 
+       // 0x318 	LED Pulser turn on time value, 16 bits, default = 48
+	 // A write to this address sets the LED pulser turn on time in 6.25ns steps
+	// relative to the start of the microbunch. The pulse width is fixed at 12.5ns.
+this->writeRegister(
+       FEBII::LEDOn
+, offset );
+
+// LED voltage loop 
+// because one FEB's channels are all in one side, don't need to select FEBs, but just ports
+// and also by the same reason, don't need to select LEDs.  
+
+   std::stringstream ostr;
+   ostr << "Set ";
+   if(fpga == uint16_t(-1))
+   {
+       ostr << "all FPGAs, ";
+       for(unsigned int fpga_ = 0; fpga_ < 4; fpga_++)
+       {
+      for(unsigned int i = 0; i < 4; i++){ 
+		   {
+               ostr << "all LEDs ";
+                   this->writeRegister(
+                       FEBII::FPGA[fpga_] | (FEBII::LEDBias + i), LEDbias);
+               ostr<< "FPGA["<<fpga_<< "] LED bias 0x "<< std::hex<<LEDBias <<" channel" << std::dec << i <<", ";
+			   
+					}
+			}
+		}
+   __SET_ARG_OUT__("response", ostr.str());
+}
 }
 
 void ROCCosmicRayVetoInterface::GetStatusPretty(__ARGS__)
