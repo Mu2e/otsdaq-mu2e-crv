@@ -72,6 +72,20 @@ constexpr const char* kRocGroupBitNames[] = {
 constexpr std::size_t kNRocGroupBits = 3;
 
 constexpr double kLatencyTickToUs = 0.064;  // DTC tick → microseconds
+
+// Workaround for ROOT fatal "TPad::Range: y1 == y2 == 0" on empty histograms drawn
+// in the web canvas. Put a tiny entry into bin 1 so max_bin_content > 0; it is
+// overwritten as soon as real data arrives.
+void seedEmptyFrame(TH1* h)
+{
+	if(!h)
+		return;
+	if(h->GetMaximum() <= h->GetMinimum())
+	{
+		h->SetBinContent(1, 1e-9);
+		h->SetEntries(0);
+	}
+}
 }  // namespace
 
 class CrvDQM : public art::EDAnalyzer
@@ -86,6 +100,7 @@ class CrvDQM : public art::EDAnalyzer
 	// Standard art methods
 	void analyze(art::Event const& event) override;
 	void beginJob() override;
+	void beginRun(art::Run const& run) override;
 	void endJob() override;
 
 	/// Module methods
@@ -505,6 +520,100 @@ void CrvDQM::beginJob()
 
 	updateWebDisplay();
 }
+
+void CrvDQM::beginRun(art::Run const& run)
+{
+	// The DQM art process can outlive a run, and everything here is streamed in replace
+	// mode without ever being cleared, so a new run would otherwise inherit the previous
+	// run's contents. Objects stay booked (and registered with the HTTP server); only
+	// their contents and the rolling windows behind them are cleared.
+	std::cout << outputPrefix_ << "Run " << run.run()
+	          << ": resetting histograms, graphs, and rolling windows" << std::endl;
+
+	// "ICESM" keeps function lists (gray port-0 boxes) and axis labels intact.
+	auto resetHist = [](TH1* h) {
+		if(h)
+			h->Reset("ICESM");
+	};
+	auto resetHistMap = [&resetHist](auto& hists) {
+		for(auto& [key, h] : hists)
+			resetHist(h);
+	};
+	auto resetGraphMap = [](auto& graphs) {
+		for(auto& [key, g] : graphs)
+			if(g)
+				g->Set(0);
+	};
+
+	if(dummyHist_)
+	{
+		// Only the dummy histogram is booked in this mode.
+		resetHist(h1_dummy_);
+		return;
+	}
+
+	resetHist(h1_channels_);
+	resetHist(h1_channelsLastEwt_);
+	resetHist(h2_channels_);
+	resetHist(h1_digisPerEvt_);
+	resetHist(h1_peakAdc_);
+	resetHist(h1_tdc_);
+	resetHist(h2_rocStatusSummary_);
+	resetHist(h2_rocGroupSummary_);
+	resetHist(h2_portFlagsBitOccupancy_);
+
+	resetHistMap(h1_linkStatusSummary_);
+	resetHistMap(h1_rocStatusSummary_);
+	resetHistMap(h1_rocGroupSummary_);
+	resetHistMap(h1_portFlagsBitOccupancy_);
+	resetHistMap(h1_latency_);
+	resetHistMap(h1_latency2_);
+	resetHistMap(h1_dtFebPairs_);
+	resetHistMap(h1_dtFpgaPairs_);
+	resetHistMap(h1_tdcPerFeb_);
+	resetHistMap(h1_tdcPerFpga_);
+
+	// Rolling hit graphs go back to the two-point seed used at booking (so the frame
+	// stays drawable), together with the windows and block accumulators behind them.
+	for(TGraph* g : {g_digisVsEwt_, g_digisAvgVsEwt_})
+	{
+		if(!g)
+			continue;
+		g->Set(0);
+		g->SetPoint(0, 0, 0);
+		g->SetPoint(1, 1, 1);
+	}
+	ewtWindow_.clear();
+	ewtWindowSum_ = 0;
+	recentChannelHitsByEwt_.clear();
+	avgBlockSum_      = 0;
+	avgBlockCount_    = 0;
+	avgBlockFirstEwt_ = 0;
+	avgSeedsCleared_  = false;
+
+	// Status-vs-EWT graphs are updated on change. Emptying them and forgetting the last
+	// seen values makes the first status of the new run re-seed each graph.
+	resetGraphMap(g_ubStatusVsEwt_);
+	resetGraphMap(g_portFlagsVsEwt_);
+	resetGraphMap(g_linkLatencyVsEwt_);
+	resetGraphMap(g_linkStatusBitVsEwt_);
+	resetGraphMap(g_rocStatusBitVsEwt_);
+	lastMicroBunchStatus_.clear();
+	lastPortFlags_.clear();
+	lastLinkLatency_.clear();
+
+	// The web canvas draws these directly; keep them drawable while empty.
+	if(enableHttpServer_ && webCanvas_)
+	{
+		for(TH1* h : {static_cast<TH1*>(h1_digisPerEvt_),
+		              static_cast<TH1*>(h1_peakAdc_),
+		              static_cast<TH1*>(h1_tdc_),
+		              static_cast<TH1*>(h1_channels_),
+		              static_cast<TH1*>(h2_channels_)})
+			seedEmptyFrame(h);
+	}
+}
+
 void CrvDQM::Send()
 {
 	// Check flag
@@ -616,18 +725,8 @@ void CrvDQM::startHttpServer()
 	}
 
 	int padIdx = 1;
-	// Workaround for ROOT fatal "TPad::Range: y1 == y2 == 0" on empty
-	// histograms. Put a tiny entry into bin 1 so max_bin_content > 0.
-	// This is overwritten as soon as real data arrives.
-	auto seedFrame = [](TH1* h) {
-		if(!h)
-			return;
-		if(h->GetMaximum() <= h->GetMinimum())
-		{
-			h->SetBinContent(1, 1e-9);
-			h->SetEntries(0);
-		}
-	};
+	// Keep empty histograms drawable (see seedEmptyFrame); also re-applied in beginRun.
+	auto seedFrame = &seedEmptyFrame;
 
 	if(dummyHist_)
 	{
@@ -1301,6 +1400,14 @@ void CrvDQM::analyze(art::Event const& event)
 							          << (int)linkID << std::endl;
 						}
 					}
+					else if(lastLinkLatency_.find(linkID) == lastLinkLatency_.end())
+					{
+						// First status after a run boundary: re-seed the emptied graph.
+						TGraph* g = g_linkLatencyVsEwt_[linkID];
+						g->SetPoint(g->GetN(), static_cast<double>(ewt),
+						            latency * kLatencyTickToUs);
+						lastLinkLatency_[linkID] = latency;
+					}
 					else if(latency != lastLinkLatency_[linkID])
 					{
 						TGraph* g = g_linkLatencyVsEwt_[linkID];
@@ -1435,6 +1542,14 @@ void CrvDQM::analyze(art::Event const& event)
 							          << "Created ROC status graph for link "
 							          << (int)linkID << std::endl;
 						}
+					}
+					else if(lastMicroBunchStatus_.find(linkID) == lastMicroBunchStatus_.end())
+					{
+						// First status after a run boundary: re-seed the emptied graph.
+						TGraph* g = g_ubStatusVsEwt_[linkID];
+						g->SetPoint(g->GetN(), static_cast<double>(ewt),
+						            static_cast<double>(ubStatus));
+						lastMicroBunchStatus_[linkID] = ubStatus;
 					}
 					else if(ubStatus != lastMicroBunchStatus_[linkID])
 					{
@@ -1651,6 +1766,14 @@ void CrvDQM::analyze(art::Event const& event)
 							          << "Created port flags graph for link "
 							          << (int)linkID << std::endl;
 						}
+					}
+					else if(lastPortFlags_.find(linkID) == lastPortFlags_.end())
+					{
+						// First status after a run boundary: re-seed the emptied graph.
+						TGraph* g = g_portFlagsVsEwt_[linkID];
+						g->SetPoint(g->GetN(), static_cast<double>(ewt),
+						            static_cast<double>(portFlags));
+						lastPortFlags_[linkID] = portFlags;
 					}
 					else if(portFlags != lastPortFlags_[linkID])
 					{
