@@ -94,6 +94,16 @@ physics : {
           # for nothing. Add `publish : true` here to change that -- no rebuild.
         ]
       }
+
+      # Per-link status plots (CRVStatusDQM, under status/), shipped together
+      # as crv/status. The per-link histograms are h1_*_link<N>, the summaries
+      # h2_*; the helper's other status histograms are not shipped.
+      statusSegmentation : {
+        rules : [
+          { match : "h1_*"  modes : [ "job" ]  publish : true  group : "status" },
+          { match : "h2_*"  modes : [ "job" ]  publish : true  group : "status" }
+        ]
+      }
     }
   }
   t1 : [ crvdigi ]

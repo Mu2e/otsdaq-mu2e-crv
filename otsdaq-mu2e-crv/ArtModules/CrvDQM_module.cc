@@ -2,9 +2,9 @@
 // Sends histograms to otsdaq visualizer and standalone THttpServer
 // Sam Grant, Simon Corrodi
 //
-// Digi histogram booking/filling is owned by mu2e::CRVDigiDQM
-// (Offline/DQMHelpers). This module keeps I/O, HistoSender, THttpServer,
-// styling, and PDF export.
+// Histogram booking/filling is owned by mu2e::CRVDigiDQM (digis) and
+// mu2e::CRVStatusDQM (per-link status, under status/) in Offline/DQMHelpers.
+// This module keeps I/O, HistoSender, THttpServer, styling, and PDF export.
 
 // C++ includes
 #include <algorithm>
@@ -31,6 +31,7 @@
 #include "art_root_io/TFileService.h"
 
 // ROOT includes
+#include <TBox.h>
 #include <TCanvas.h>
 #include <TColor.h>
 #include <TDirectory.h>
@@ -51,6 +52,7 @@
 
 // Offline includes
 #include "Offline/DQMHelpers/inc/CRVDigiDQM.hh"
+#include "Offline/DQMHelpers/inc/CRVStatusDQM.hh"
 #include "Offline/DQMHelpers/inc/DQMSegmentationConfig.hh"
 #include "Offline/RecoDataProducts/inc/CrvDigi.hh"
 #include "Offline/RecoDataProducts/inc/CrvStatus.hh"
@@ -90,6 +92,46 @@ constexpr int kCanvasRows = 3;
 static_assert(kCanvasCols * kCanvasRows >= kPadDigisAvgVsEwt,
               "canvas division is too small for the declared pads");
 
+// Workaround for ROOT fatal "TPad::Range: y1 == y2 == 0" on empty histograms drawn
+// in the web canvas. Put a tiny entry into bin 1 so max_bin_content > 0; it is
+// overwritten as soon as real data arrives.
+void seedEmptyFrame(TH1* h)
+{
+	if(!h)
+		return;
+	if(h->GetMaximum() <= h->GetMinimum())
+	{
+		h->SetBinContent(1, 1e-9);
+		h->SetEntries(0);
+	}
+}
+
+// Gray-out port-0 regions (FEB 0 should never have hits): ROC 1 globalChannelId
+// 0-63 and ROC 2 1600-1663 on the channel axis, globalFebId 0 and 25 on the FEB axis.
+// Segment rotations rebuild window copies, so this is idempotent and re-applied.
+void addPort0Boxes(TH1* h)
+{
+	if(!h || h->GetListOfFunctions()->FindObject("TBox"))
+		return;
+	auto addBox = [h](double x1, double y1, double x2, double y2) {
+		auto* box = new TBox(x1, y1, x2, y2);
+		box->SetFillColor(kGray);
+		box->SetFillStyle(3004);
+		box->SetLineWidth(0);
+		h->GetListOfFunctions()->Add(box, "");
+	};
+	if(h->GetDimension() == 1)
+	{
+		addBox(-0.5, 0.0, 63.5, 1e9);
+		addBox(1599.5, 0.0, 1663.5, 1e9);
+	}
+	else
+	{
+		for(int febId : {0, 25})
+			addBox(0.5, febId - 0.5, 64.5, febId + 0.5);
+	}
+}
+
 }  // namespace
 
 namespace ots
@@ -104,11 +146,13 @@ class CrvDQM : public art::EDAnalyzer
 	~CrvDQM() override;
 
   private:
-	static mu2e::CRVDigiDQM::Config makeHelperConfig(fhicl::ParameterSet const& ps);
+	static mu2e::CRVDigiDQM::Config   makeHelperConfig(fhicl::ParameterSet const& ps);
+	static mu2e::CRVStatusDQM::Config makeStatusConfig(fhicl::ParameterSet const& ps);
 
 	// Standard art methods
 	void analyze(art::Event const& event) override;
 	void beginJob() override;
+	void beginRun(art::Run const& run) override;
 	void beginSubRun(art::SubRun const& subRun) override;
 	void endSubRun(art::SubRun const& subRun) override;
 	void endJob() override;
@@ -121,6 +165,9 @@ class CrvDQM : public art::EDAnalyzer
 	void logPublished();
 	// The job copy of a booked histogram, or nullptr if the FHiCL disabled it.
 	TH1* jobCopy(const char* name);
+	// Style and register with the HTTP server any status object the helper
+	// booked since the last call (per-link objects appear on a link's first status).
+	void registerNewStatusObjects();
 	void startHttpServer();
 	void stopHttpServer();
 	void updateWebDisplay(bool force = false);
@@ -136,6 +183,7 @@ class CrvDQM : public art::EDAnalyzer
 	bool          dummyHist_;
 	bool          saveCanvasesToPdf_;
 	bool          showSameFpgaTimingInCanvas_;
+	bool          statusGraphs_;
 	std::string   canvasPdfFile_;
 
 	// HISTOGRAM SENDING
@@ -147,6 +195,9 @@ class CrvDQM : public art::EDAnalyzer
 
 	// Digi DQM histograms (occupancy, ADC, TDC, CF timing, EWT graphs)
 	mu2e::CRVDigiDQM dqm_;
+	// Per-link status summaries and graphs (status/, status/graphs/)
+	mu2e::CRVStatusDQM statusDqm_;
+	std::set<TObject*> registeredStatus_;
 
 	// Dummy histogram for HistoSender/THttpServer plumbing tests
 	TH1F* h1_dummy_;
@@ -211,11 +262,24 @@ mu2e::CRVDigiDQM::Config CrvDQM::makeHelperConfig(fhicl::ParameterSet const& ps)
 	return c;
 }
 
+mu2e::CRVStatusDQM::Config CrvDQM::makeStatusConfig(fhicl::ParameterSet const& ps)
+{
+	mu2e::CRVStatusDQM::Config c;
+	c.fillLinkPlots  = true;
+	c.fillLinkGraphs = ps.get<bool>("statusGraphs", true);
+	c.maxLinkGraphPoints =
+	    static_cast<std::size_t>(ps.get<int>("maxLatencyGraphPoints", 10000));
+	// Publishing of the status/ histograms, same grammar as `segmentation`.
+	c.segmentation =
+	    mu2e::parseSegmentation(ps.get<fhicl::ParameterSet>("statusSegmentation", {}));
+	return c;
+}
+
 // Constructor impl
 CrvDQM::CrvDQM(fhicl::ParameterSet const& ps)
     : art::EDAnalyzer(ps)
-    , crvDigiTag_(ps.get<std::string>("crvDigiTag", "crvdigi"))
-    , crvStatusTag_(ps.get<std::string>("crvStatusTag", "crvdigi"))
+    , crvDigiTag_(ps.get<std::string>("crvDigiTag", "CrvDigi"))
+    , crvStatusTag_(ps.get<std::string>("crvStatusTag", crvDigiTag_.label()))
     , diagLevel_(ps.get<int>("diagLevel", 3))
     , port_(ps.get<int>("port", 6000))
     , address_(ps.get<std::string>("address", "localhost"))
@@ -224,9 +288,11 @@ CrvDQM::CrvDQM(fhicl::ParameterSet const& ps)
     , dummyHist_(ps.get<bool>("dummyHist", false))
     , saveCanvasesToPdf_(ps.get<bool>("saveCanvasesToPdf", false))
     , showSameFpgaTimingInCanvas_(ps.get<bool>("showSameFpgaTimingInCanvas", true))
+    , statusGraphs_(ps.get<bool>("statusGraphs", true))
     , canvasPdfFile_(ps.get<std::string>("canvasPdfFile", "CrvDQM.pdf"))
     , sendIntervalSec_(ps.get<float>("sendIntervalSec", 0.5))
     , dqm_(makeHelperConfig(ps))
+    , statusDqm_(makeStatusConfig(ps))
     , h1_dummy_(nullptr)
     , enableHttpServer_(ps.get<bool>("enableHttpServer", true))
     , httpPort_(ps.get<int>("httpPort", 8877))
@@ -252,11 +318,52 @@ CrvDQM::~CrvDQM()
 
 void CrvDQM::beginSubRun(art::SubRun const& subRun)
 {
-	dqm_.BeginSubRun(static_cast<int>(subRun.run()),
-	                 static_cast<int>(subRun.subRun()));
+	if(dummyHist_)
+		return;
+	const int run    = static_cast<int>(subRun.run());
+	const int subrun = static_cast<int>(subRun.subRun());
+	dqm_.BeginSubRun(run, subrun);
+	statusDqm_.BeginSubRun(run, subrun);
 }
 
-void CrvDQM::endSubRun(art::SubRun const&) { dqm_.EndSubRun(); }
+void CrvDQM::endSubRun(art::SubRun const& subRun)
+{
+	if(dummyHist_)
+		return;
+	dqm_.EndSubRun();
+	statusDqm_.EndSubRun(static_cast<int>(subRun.run()), static_cast<int>(subRun.subRun()));
+}
+
+void CrvDQM::beginRun(art::Run const& run)
+{
+	// The DQM art process can outlive a run, and everything here is streamed in replace
+	// mode without ever being cleared, so a new run would otherwise inherit the previous
+	// run's contents. Objects stay booked (and registered with the HTTP server); only
+	// their contents and the rolling windows behind them are cleared.
+	std::cout << outputPrefix_ << "Run " << run.run()
+	          << ": resetting histograms, graphs, and rolling windows" << std::endl;
+
+	if(dummyHist_)
+	{
+		if(h1_dummy_)
+			h1_dummy_->Reset("ICES");
+		return;
+	}
+
+	dqm_.ResetForNewRun();
+	statusDqm_.ResetForNewRun();
+
+	for(const char* name : {"h1_channels", "h2_channels"})
+		for(TH1* h : dqm_.segments().copies(name))
+			addPort0Boxes(h);
+
+	// The web canvas draws these directly; keep them drawable while empty.
+	if(enableHttpServer_ && webCanvas_)
+	{
+		for(const auto& spec : kHistPads)
+			seedEmptyFrame(jobCopy(spec.name));
+	}
+}
 
 void CrvDQM::beginJob()
 {
@@ -294,6 +401,10 @@ void CrvDQM::beginJob()
 	else
 	{
 		dqm_.Book(dir);
+		for(const char* name : {"h1_channels", "h2_channels"})
+			for(TH1* h : dqm_.segments().copies(name))
+				addPort0Boxes(h);
+		statusDqm_.Book(tfs_->mkdir(outputTag_ + "/status"));
 		CrvDQMStyle::FormatGraph(dqm_.g_digisVsEwt(), histColor_);
 		dqm_.g_digisVsEwt()->SetMarkerColor(dqm_.g_digisVsEwt()->GetLineColor());
 		dqm_.g_digisVsEwt()->SetDrawOption("AP");
@@ -324,6 +435,9 @@ void CrvDQM::beginJob()
 		}
 	}
 
+	// The 2D status summaries exist from booking; per-link objects follow per link.
+	registerNewStatusObjects();
+
 	updateWebDisplay();
 }
 void CrvDQM::Send()
@@ -344,6 +458,7 @@ void CrvDQM::Send()
 	// The live segment copies are labelled with the range they hold; refresh
 	// that before shipping, so a title read on the GUI is never behind.
 	dqm_.segments().RefreshLabels();
+	statusDqm_.segments().RefreshLabels();
 
 	// Use the map method (three methods in HistoSender.cc)
 	std::map<std::string, std::vector<TH1*>> hists;
@@ -353,9 +468,13 @@ void CrvDQM::Send()
 	}
 	else
 	{
-		for(const auto& [group, copies] : dqm_.segments().publishedCopies())
+		for(const auto* segments : {&dqm_.segments(), &statusDqm_.segments()})
 		{
-			hists["crv/" + group + ":replace"] = copies;
+			for(const auto& [group, copies] : segments->publishedCopies())
+			{
+				auto& out = hists["crv/" + group + ":replace"];
+				out.insert(out.end(), copies.begin(), copies.end());
+			}
 		}
 	}
 
@@ -368,9 +487,9 @@ void CrvDQM::Send()
 	{
 		std::map<std::string, std::vector<TGraph*>> graphs;
 		graphs["crv/graphs:replace"] = {dqm_.g_digisVsEwt(), dqm_.g_digisAvgVsEwt()};
-		for(auto& [linkID, g] : dqm_.ubStatusVsEwt())
+		if(statusGraphs_)
 		{
-			if(g != nullptr)
+			for(TGraph* g : statusDqm_.linkGraphs())
 				graphs["crv/graphs:replace"].push_back(g);
 		}
 		histoSender_->sendGraphs(graphs);
@@ -385,7 +504,12 @@ void CrvDQM::Send()
 
 void CrvDQM::logPublished()
 {
-	const auto published = dqm_.segments().publishedCopies();
+	auto published = dqm_.segments().publishedCopies();
+	for(const auto& [group, copies] : statusDqm_.segments().publishedCopies())
+	{
+		auto& out = published[group];
+		out.insert(out.end(), copies.begin(), copies.end());
+	}
 	std::cout << outputPrefix_ << "publishing " << published.size()
 	          << " HistoSender group(s):" << std::endl;
 	for(const auto& [group, copies] : published)
@@ -408,6 +532,43 @@ TH1* CrvDQM::jobCopy(const char* name)
 	return copies.empty() ? nullptr : copies.front();
 }
 
+void CrvDQM::registerNewStatusObjects()
+{
+	if(dummyHist_)
+		return;
+	for(TH1* h : statusDqm_.segments().allCopies())
+	{
+		if(!registeredStatus_.insert(h).second)
+			continue;
+		if(auto* h2 = dynamic_cast<TH2*>(h))
+		{
+			CrvDQMStyle::FormatHist2D(h2);
+			h2->SetOption("COLZ");
+		}
+		else
+		{
+			CrvDQMStyle::FormatHist(h, histColor_);
+			if(std::string(h->GetName()).rfind("h1_latency", 0) == 0)
+			{
+				h->SetStatOverflows(TH1::kConsider);
+				h->SetStats(1);
+			}
+		}
+		if(enableHttpServer_ && httpServer_)
+			httpServer_->Register("/", h);
+	}
+	for(TGraph* g : statusDqm_.linkGraphs())
+	{
+		if(!registeredStatus_.insert(g).second)
+			continue;
+		CrvDQMStyle::FormatGraph(g, histColor_);
+		g->SetMarkerColor(g->GetLineColor());
+		g->SetDrawOption("AP");
+		if(enableHttpServer_ && httpServer_)
+			httpServer_->Register("/", g);
+	}
+}
+
 void CrvDQM::startHttpServer()
 {
 	// Create HTTP server
@@ -425,18 +586,8 @@ void CrvDQM::startHttpServer()
 	}
 
 	int padIdx = 1;
-	// Workaround for ROOT fatal "TPad::Range: y1 == y2 == 0" on empty
-	// histograms. Put a tiny entry into bin 1 so max_bin_content > 0.
-	// This is overwritten as soon as real data arrives.
-	auto seedFrame = [](TH1* h) {
-		if(!h)
-			return;
-		if(h->GetMaximum() <= h->GetMinimum())
-		{
-			h->SetBinContent(1, 1e-9);
-			h->SetEntries(0);
-		}
-	};
+	// Keep empty histograms drawable (see seedEmptyFrame); also re-applied in beginRun.
+	auto seedFrame = &seedEmptyFrame;
 
 	if(dummyHist_)
 	{
@@ -590,6 +741,7 @@ void CrvDQM::updateWebDisplay(bool force)
 	// The live segment copies carry the range they hold in their titles, and
 	// the canvas draws those titles; bring them up to date before redrawing.
 	dqm_.segments().RefreshLabels();
+	statusDqm_.segments().RefreshLabels();
 
 	++statUpdate_;
 
@@ -634,6 +786,8 @@ void CrvDQM::updateWebDisplay(bool force)
 					CrvDQMStyle::FormatHist2D(h2);
 				else
 					CrvDQMStyle::FormatHist(h, histColor_);
+				if(spec.name == std::string("h1_channels") || spec.name == std::string("h2_channels"))
+					addPort0Boxes(h);
 			}
 		}
 		CrvDQMStyle::FormatGraph(g_digisVsEwt, histColor_);
@@ -760,6 +914,8 @@ void CrvDQM::analyze(art::Event const& event)
 		        : emptyStatus;
 
 		dqm_.Fill(crvDigis, crvStatus);
+		statusDqm_.Fill(crvStatus);
+		registerNewStatusObjects();
 	}
 
 	///////////////////// Send /////////////////////
@@ -828,10 +984,10 @@ void CrvDQM::endJob()
 				}
 				std::cout << std::endl;
 			}
-			for(auto& [linkID, g] : dqm_.ubStatusVsEwt())
+			for(TGraph* g : statusDqm_.linkGraphs())
 			{
-				std::cout << outputPrefix_ << "MicroBunchStatus link " << (int)linkID
-				          << ": " << g->GetN() << " status changes recorded" << std::endl;
+				std::cout << outputPrefix_ << g->GetName() << ": " << g->GetN()
+				          << " points recorded" << std::endl;
 			}
 		}
 		std::cout << outputPrefix_
@@ -846,6 +1002,7 @@ void CrvDQM::endJob()
 	if(!dummyHist_)
 	{
 		dqm_.WriteGraphs();
+		statusDqm_.WriteGraphs();
 	}
 
 	// Send final histograms & clean up

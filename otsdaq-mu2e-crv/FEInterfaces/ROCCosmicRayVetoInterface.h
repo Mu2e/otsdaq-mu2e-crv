@@ -58,6 +58,7 @@ public:
 	void FebConfigure(bool useOtsConfig = true);
 	std::string febIIConfigureFromTables(int portFilter = -1, bool skipBias = false, bool biasOnly = false, int biasOverwrite = -1, bool skipReadbacks = true);  // called from configure() and macro
 	uint16_t    readRegisterWithRetry(uint16_t address, int maxRetries = 15, int retryInterval_ms = 1000);
+	bool        waitForFebResponsive(int maxRetries = 7, int retryInterval_ms = 2000);
 	void ResetRxBuffers();
 	void SetMarkerSync(bool enable=true);
     int16_t Realign(int sleep_uc = 1000);
@@ -106,6 +107,7 @@ public:
 	void                                    FebIISetBiasTrim        (__ARGS__);
 	void                                    FebIISetGateOnSpill     (__ARGS__);
 	void                                    FebIISetGateOffSpill    (__ARGS__);
+	void                                    FebIISetLED             (__ARGS__);
 	void                                    FebIIGetStatus          (__ARGS__);
 	void                                    TestFebConnection       (__ARGS__);
 	void                                    TestRocLinks            (__ARGS__);
