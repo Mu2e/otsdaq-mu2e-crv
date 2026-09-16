@@ -558,6 +558,7 @@ try
 {
 	__COUT_INFO__ << "configure CRV ROC";
 	// bool gr = false;
+    getDTC()->SoftReset();
 	try
 	{
 		auto rocConfigs = getSelfNode()
@@ -630,7 +631,7 @@ void ROCCosmicRayVetoInterface::start(std::string)
 {
 	RocConfigure(gr, 0, 0x0, 0xffff);
 	sleep(2);
-
+	
 	__FE_COUT__ << "Testing FEB links before run start..." << __E__;
 	std::string linkReport;
 	const bool  linksOk = testRocLinks(&linkReport, true);
@@ -738,8 +739,46 @@ void ROCCosmicRayVetoInterface::RocConfigure(bool     gr,
 {
 	TLOG(TLVL_ROCConfig) << "RocConfigure Start " << __E__;
 
-	// set the ROC address
+	// set the ROC address, and read it back before touching anything else so we
+	// know DCS write+read works at all (one retry, then fail Configure)
 	this->writeRegister(ROC::ID, (uint16_t)linkID_);
+	{
+		uint16_t idReadback = 0;
+		try
+		{
+			idReadback = readRegisterWithRetry(ROC::ID, 1 /*maxRetries*/, 200 /*ms*/);
+		}
+		catch(const std::exception& e)
+		{
+			const std::string msg = makeRocConfigureDcsWarning(
+			    std::string("ROC::ID readback failed right after write. Exception: ") +
+			    e.what() + ". Failing Configure.");
+			__FE_COUT_WARN__ << msg << __E__;
+			TLOG(TLVL_WARNING) << msg << __E__;
+			throw std::runtime_error(msg);
+		}
+		catch(...)
+		{
+			const std::string msg = makeRocConfigureDcsWarning(
+			    "ROC::ID readback failed right after write. Unknown exception. Failing "
+			    "Configure.");
+			__FE_COUT_WARN__ << msg << __E__;
+			TLOG(TLVL_WARNING) << msg << __E__;
+			throw std::runtime_error(msg);
+		}
+		if(idReadback != (uint16_t)linkID_)
+		{
+			std::stringstream ss;
+			ss << "ROC::ID readback mismatch: wrote 0x" << std::hex << (uint16_t)linkID_
+			   << ", read 0x" << idReadback << std::dec << ". Failing Configure.";
+			const std::string msg = makeRocConfigureDcsWarning(ss.str());
+			__FE_COUT_WARN__ << msg << __E__;
+			TLOG(TLVL_WARNING) << msg << __E__;
+			throw std::runtime_error(msg);
+		}
+		TLOG(TLVL_ROCConfig) << "ROC::ID readback OK (0x" << std::hex << idReadback
+		                     << std::dec << ")" << __E__;
+	}
 
 	// Enable the onboard PLL (1 is power down)
 	this->writeRegister(ROC::PLLStat, 0x0);
@@ -751,6 +790,10 @@ void ROCCosmicRayVetoInterface::RocConfigure(bool     gr,
 	// this->writeRegister(ROC::CR, 0x20);
 	usleep(1200000);
 	// return;
+
+	// After the PLL settle time, confirm DCS read AND write still work using the
+	// TestCounter register (throws on failure).
+	verifyDcsReadWrite();
 	try
 	{
 		SetMarkerSync(true);
@@ -879,6 +922,8 @@ void ROCCosmicRayVetoInterface::RocConfigure(bool     gr,
 		TLOG(TLVL_WARNING) << msg << __E__;
 		throw std::runtime_error(msg);
 	}
+
+    
 }
 
 void ROCCosmicRayVetoInterface::Configure(__ARGS__)
@@ -1690,6 +1735,14 @@ void ROCCosmicRayVetoInterface::SetMarkerSync(bool enable)
 {
 	uint32_t cr = this->readRegister(ROC::CR);
 	cr          = enable ? (cr | (1u << 5)) : (cr & ~(1u << 5));
+	// Always clear bit 4 (ExtTmg). In the CRV FPGA1 firmware this bit switches the
+	// HeartBeatFM output to the FEBs from the heartbeat/marker transmitter to the GPI
+	// pin (Controller_FPGA1.vhd: "HeartBeatFM <= HrtBtTxOuts.FM when ExtTmg = '0'
+	// else GPI"). The ROC uC Ver630 line writes 0x10 to this register at boot
+	// ("set LVDS clock to 20MHz", valid only for the non-CRV FPGA1), which leaves
+	// the FEBs without a valid encoded clock/marker stream. Do not trust the
+	// uC-set value here.
+	cr &= ~(1u << 4);
 	this->writeRegister(ROC::CR, cr);
 }
 
@@ -2165,7 +2218,7 @@ bool ROCCosmicRayVetoInterface::testRocLinks(std::string* response, bool logFail
 				    << " did not respond on first attempt; retrying after 0.5s" << __E__;
 			}
 
-			usleep(500000);
+			usleep(1000000);
 
 			try
 			{
@@ -2789,6 +2842,54 @@ uint16_t ROCCosmicRayVetoInterface::readRegisterWithRetry(uint16_t address,
 }
 
 //==========================================================================================
+// verifyDcsReadWrite
+//	DCS self-test on ROC::TestCounter (0x35): read it, write (value + 5), read back.
+//	The firmware increments this register on every read, so the read-back is accepted
+//	as either the written value or written+1 (not specified whether the increment
+//	happens before or after the value is returned). Without the write the counter
+//	would sit at value+1, so either accepted read-back is unambiguous evidence the
+//	write landed.
+//	Throws std::runtime_error (RocConfigure DCS warning text) on any failure.
+void ROCCosmicRayVetoInterface::verifyDcsReadWrite()
+{
+	auto fail = [this](const std::string& details) {
+		const std::string msg = makeRocConfigureDcsWarning(details + " Failing Configure.");
+		__FE_COUT_WARN__ << msg << __E__;
+		TLOG(TLVL_WARNING) << msg << __E__;
+		throw std::runtime_error(msg);
+	};
+
+	uint16_t before = 0, written = 0, readback = 0;
+	try
+	{
+		before  = this->readRegister(ROC::TestCounter);
+		written = (uint16_t)(before + 5);
+		this->writeRegister(ROC::TestCounter, written);
+		readback = this->readRegister(ROC::TestCounter);
+	}
+	catch(const std::exception& e)
+	{
+		fail(std::string("TestCounter DCS self-test threw. Exception: ") + e.what() + ".");
+	}
+	catch(...)
+	{
+		fail("TestCounter DCS self-test threw. Unknown exception.");
+	}
+
+	if(readback != written && readback != (uint16_t)(written + 1))
+	{
+		std::stringstream ss;
+		ss << "TestCounter write did not take: read 0x" << std::hex << before
+		   << ", wrote 0x" << written << ", read back 0x" << readback << std::dec << ".";
+		fail(ss.str());
+	}
+
+	TLOG(TLVL_ROCConfig) << "DCS self-test OK: TestCounter read 0x" << std::hex << before
+	                     << ", wrote 0x" << written << ", read back 0x" << readback
+	                     << std::dec << __E__;
+}
+
+//==========================================================================================
 bool ROCCosmicRayVetoInterface::waitForFebResponsive(int maxRetries, int retryInterval_ms)
 {
 	try
@@ -2810,6 +2911,13 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(
 	std::stringstream ostr;
 	ostr << std::endl;
 
+	auto t0_configure = std::chrono::steady_clock::now();
+	auto elapsed_ms   = [&t0_configure]() -> long {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(
+                   std::chrono::steady_clock::now() - t0_configure)
+            .count();
+	};
+
 	auto febs =
 	    getSelfNode().getNode("ROCTypeLinkTable").getNode("FEBsLink").getChildren();
 
@@ -2819,8 +2927,8 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(
 	if(biasOverwrite >= 0)
 	{
 		uint16_t bias = static_cast<uint16_t>(biasOverwrite);
-		ostr << "Bias overwrite via broadcast: 0x" << std::hex << bias << std::dec
-		     << std::endl;
+		ostr << "[" << elapsed_ms() << " ms] Bias overwrite via broadcast: 0x"
+		     << std::hex << bias << std::dec << std::endl;
 		uint16_t PORT_ = ROC::FEB | ROC::FEB_Broadcast;
 		for(uint16_t fpga = 0; fpga < 4; ++fpga)
 		{
@@ -2831,7 +2939,7 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(
 				// sleep(5);
 			}
 		}
-		// ostr << "Bias overwrite complete." << std::endl;
+		ostr << "[" << elapsed_ms() << " ms] Bias overwrite complete." << std::endl;
 	}
 
 	unsigned int activeFebCount = 0;
@@ -2845,7 +2953,8 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(
 		if(portFilter > 0 && p != portFilter)
 			continue;
 		++activeFebCount;
-		ostr << "Configuring FEB II '" << feb.first << "' on port " << p << std::endl;
+		ostr << "[" << elapsed_ms() << " ms] Configuring FEB II '" << feb.first
+		     << "' on port " << p << std::endl;
 		SetActivePort(p);
 		this->writeRegister(FEBII::PortAll, p);
 
@@ -2862,7 +2971,7 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(
 			}
 			else if(bmp.numberOfRows() > 0 && bmp.numberOfColumns(0) == 8)
 			{
-				ostr << "  Bias: ramping..." << std::endl;
+				ostr << "  [" << elapsed_ms() << " ms] Bias: ramping..." << std::endl;
 				for(uint16_t fpga = 0; fpga < 4; ++fpga)
 				{
 					for(uint16_t idx = 0; idx < 2; ++idx)
@@ -2896,7 +3005,7 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(
 				auto bmp = feb.second.getNode("Trim").getValueAsBitMap<uint16_t>();
 				if(bmp.numberOfRows() > 0 && bmp.numberOfColumns(0) == 64)
 				{
-					ostr << "  Trim:" << std::endl;
+					ostr << "  [" << elapsed_ms() << " ms] Trim:" << std::endl;
 					for(uint16_t fpga = 0; fpga < 4; ++fpga)
 					{
 						ostr << "    FPGA" << fpga << ": ";
@@ -2928,7 +3037,7 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(
 				auto bmp = feb.second.getNode("Threshold").getValueAsBitMap<uint16_t>();
 				if(bmp.numberOfRows() > 0 && bmp.numberOfColumns(0) == 64)
 				{
-					ostr << "  Threshold:" << std::endl;
+					ostr << "  [" << elapsed_ms() << " ms] Threshold:" << std::endl;
 					for(uint16_t fpga = 0; fpga < 4; ++fpga)
 					{
 						ostr << "    FPGA" << fpga << ": ";
@@ -2960,7 +3069,7 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(
 			// after the per-FEB loop.  For a single port, do them here.
 			if(portFilter > 0)
 			{
-				ostr << "  ChannelMap:" << std::endl;
+				ostr << "  [" << elapsed_ms() << " ms] ChannelMap:" << std::endl;
 				for(uint16_t fpga = 0; fpga < 4; ++fpga)
 				{
 					for(uint16_t ch = 0; ch < 16; ++ch)
@@ -2971,7 +3080,7 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(
 				}
 				ostr << "    Set identity map for all 4 FPGAs x 16 channels" << std::endl;
 
-				ostr << "  Baseline update:" << std::endl;
+				ostr << "  [" << elapsed_ms() << " ms] Baseline update:" << std::endl;
 				for(uint16_t fpga = 0; fpga < 4; ++fpga)
 				{
 					for(uint16_t ch = 0; ch < 16; ++ch)
@@ -2999,7 +3108,8 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(
 				this->writeRegister(FEBII::GateOnOffSpill, offStart);
 				this->writeRegister(FEBII::GateOffOffSpill, offEnd);
 
-				ostr << "  OnSpill  gate: start=" << onStart << "  end=" << onEnd
+				ostr << "  [" << elapsed_ms()
+				     << " ms] OnSpill  gate: start=" << onStart << "  end=" << onEnd
 				     << "  [6.25ns]" << std::endl;
 				ostr << "  OffSpill gate: start=" << offStart << "  end=" << offEnd
 				     << "  [6.25ns]" << std::endl;
@@ -3013,24 +3123,25 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(
 
 		if(!biasOnly && portFilter > 0)
 		{
-			ostr << "  PLL reset (wait 1s)..." << std::endl;
+			ostr << "  [" << elapsed_ms() << " ms] PLL reset (wait 1s)..." << std::endl;
 			ResetPLL(1000, false, true);
 		}
 
 		if(portFilter > 0)
 		{
-			ostr << "  Waiting for port " << p << " to become responsive..." << std::endl;
-			auto t0         = std::chrono::steady_clock::now();
+			ostr << "  [" << elapsed_ms() << " ms] Waiting for port " << p
+			     << " to become responsive..." << std::endl;
+			auto t0_wait    = std::chrono::steady_clock::now();
 			bool responsive = waitForFebResponsive();
-			auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-			                      std::chrono::steady_clock::now() - t0)
+			auto wait_ms    = std::chrono::duration_cast<std::chrono::milliseconds>(
+			                      std::chrono::steady_clock::now() - t0_wait)
 			                      .count();
 			if(responsive)
-				ostr << "  Port " << p << " responsive after " << elapsed_ms << " ms."
-				     << std::endl;
+				ostr << "  [" << elapsed_ms() << " ms] Port " << p
+				     << " responsive after " << wait_ms << " ms." << std::endl;
 			else
-				ostr << "  WARNING: port " << p << " not responsive after " << elapsed_ms
-				     << " ms!" << std::endl;
+				ostr << "  [" << elapsed_ms() << " ms] WARNING: port " << p
+				     << " not responsive after " << wait_ms << " ms!" << std::endl;
 		}
 	}
 
@@ -3042,7 +3153,8 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(
 	{
 		uint16_t PORT_ = ROC::FEB | ROC::FEB_Broadcast;
 
-		ostr << "Broadcast ChannelMap (identity) to all ports..." << std::endl;
+		ostr << "[" << elapsed_ms() << " ms] Broadcast ChannelMap (identity) to all ports..."
+		     << std::endl;
 		for(uint16_t fpga = 0; fpga < 4; ++fpga)
 		{
 			for(uint16_t ch = 0; ch < 16; ++ch)
@@ -3052,7 +3164,8 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(
 			}
 		}
 
-		ostr << "Broadcast baseline trigger to all ports..." << std::endl;
+		ostr << "[" << elapsed_ms() << " ms] Broadcast baseline trigger to all ports..."
+		     << std::endl;
 		for(uint16_t fpga = 0; fpga < 4; ++fpga)
 		{
 			for(uint16_t ch = 0; ch < 16; ++ch)
@@ -3062,7 +3175,7 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(
 			}
 		}
 
-		ostr << "Broadcast PLL reset (wait 1s)..." << std::endl;
+		ostr << "[" << elapsed_ms() << " ms] Broadcast PLL reset (wait 1s)..." << std::endl;
 		ResetPLL(1000, true, true);
 
 		for(const auto& feb : febs)
@@ -3072,21 +3185,23 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(
 			uint16_t p = feb.second.getNode("Port").getValue<uint16_t>();
 			SetActivePort(p);
 
-			ostr << "  Waiting for port " << p << " to become responsive..." << std::endl;
-			auto t0         = std::chrono::steady_clock::now();
+			ostr << "  [" << elapsed_ms() << " ms] Waiting for port " << p
+			     << " to become responsive..." << std::endl;
+			auto t0_wait    = std::chrono::steady_clock::now();
 			bool responsive = waitForFebResponsive();
-			auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-			                      std::chrono::steady_clock::now() - t0)
+			auto wait_ms    = std::chrono::duration_cast<std::chrono::milliseconds>(
+			                      std::chrono::steady_clock::now() - t0_wait)
 			                      .count();
 			if(responsive)
-				ostr << "  Port " << p << " responsive after " << elapsed_ms << " ms."
-				     << std::endl;
+				ostr << "  [" << elapsed_ms() << " ms] Port " << p
+				     << " responsive after " << wait_ms << " ms." << std::endl;
 			else
-				ostr << "  WARNING: port " << p << " not responsive after " << elapsed_ms
-				     << " ms!" << std::endl;
+				ostr << "  [" << elapsed_ms() << " ms] WARNING: port " << p
+				     << " not responsive after " << wait_ms << " ms!" << std::endl;
 		}
 	}
 
+	ostr << "[" << elapsed_ms() << " ms] febIIConfigureFromTables complete." << std::endl;
 	return ostr.str();
 }
 
