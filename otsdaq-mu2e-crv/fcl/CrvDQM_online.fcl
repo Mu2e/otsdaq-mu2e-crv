@@ -1,0 +1,73 @@
+# Online CrvDQM configuration that reproduces the histogram set shipped by the
+# pre-helper CrvDQM module (mu2e/ots_ops 055186a).
+#
+# Include it before any non-prolog content, then use the module table and set
+# the site-specific parameters (tags, HistoSender address/port, HTTP server):
+#
+#   #include "CrvDQM_online.fcl"
+#   ...
+#   crvdqm : {
+#     @table::crvDqmOnline
+#     crvDigiTag   : "<CRV unpacker label>"
+#     crvStatusTag : "<CRV unpacker label>"
+#     address      : "<HistoSender host>"
+#     port         : <HistoSender port>
+#   }
+#
+# Or take only the publish blocks:
+#   segmentation       : @local::crvDqmOnlineSegmentation
+#   statusSegmentation : @local::crvDqmOnlineStatusSegmentation
+#
+# Differences from the pre-helper module that FHiCL cannot remove:
+#   - crv/timing_feb: the per-FEB-pair dt_febNN_febMM histograms no longer exist;
+#     dtVsFeb and dtOutOfRangePerFeb are shipped in that group instead.
+#   - crv/h1_channelsLastEwt is a ring of 50 sub-blocks, so it covers
+#     49000-50000 EWTs rather than exactly the last 50000.
+#   - h1_digisPerEvt's lower edge is -0.5 (was 0.5).
+
+BEGIN_PROLOG
+
+crvDqmOnlineSegmentation : {
+  # Keep titles and function lists as the display has always drawn them.
+  annotateTitles : false
+  stampMetadata  : false
+  rules : [
+    # Shipped under their own names: crv/h1_channels and crv/h1_channelsLastEwt.
+    { match    : "h1_channels"
+      modes    : [ "job", "window" ]
+      window   : { span : 50000  unit : "ewt"  subdivisions : 50
+                   keep : 0  persist : false  persistLive : false }
+      liveName : "h1_channelsLastEwt"
+      publish  : true
+    },
+    { match : "h2_channels"     modes : [ "job" ]  publish : true },
+    { match : "h1_digisPerEvt"  modes : [ "job" ]  publish : true },
+    { match : "h1_peakAdc"      modes : [ "job" ]  publish : true },
+    { match : "h1_tdc"          modes : [ "job" ]  publish : true },
+
+    { match : "dtVsFeb"             modes : [ "job" ]  publish : true  group : "timing_feb" },
+    { match : "dtOutOfRangePerFeb"  modes : [ "job" ]  publish : true  group : "timing_feb" },
+
+    { match : "timing_fpga/*"  modes : [ "job" ]  publish : true  group : "timing_fpga" }
+  ]
+}
+
+crvDqmOnlineStatusSegmentation : {
+  annotateTitles : false
+  stampMetadata  : false
+  rules : [
+    # Per-link h1_*_link<N> and the h2_* summaries, shipped as crv/status.
+    { match : "h1_*"  modes : [ "job" ]  publish : true  group : "status" },
+    { match : "h2_*"  modes : [ "job" ]  publish : true  group : "status" }
+  ]
+}
+
+crvDqmOnline : {
+  module_type        : CrvDQM
+  # Not booked by the pre-helper module; skip the CRVId rate maps.
+  fillCrvIdRates     : false
+  segmentation       : @local::crvDqmOnlineSegmentation
+  statusSegmentation : @local::crvDqmOnlineStatusSegmentation
+}
+
+END_PROLOG
