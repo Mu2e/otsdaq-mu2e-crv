@@ -1,0 +1,100 @@
+# File-based dry run of TDAQ CrvStatusMetrics on VST-stream raw .art.
+# Decode with CrvDigisFromArtdaqFragmentsFEBII, then CrvStatusMetrics.
+# Does not talk to hardware, otsdaq VisualSupervisor, or HistoSender.
+#
+# Drive with tdaq_run_crv_status_dqm.sh (TDAQ Spack env + local Offline/otsdaq install).
+# Do not run this with muse `mu2e`.
+
+#include "Offline/fcl/standardServices.fcl"
+
+process_name : CrvStatusDQM
+
+services : {
+  @table::Services.Core
+  @table::Services.Reco
+  TFileService : {
+    fileName : "crvStatusDQM.root"
+  }
+}
+
+source : {
+  module_type : RootInput
+  fileNames   : @nil
+  maxEvents   : -1
+}
+
+physics : {
+  producers : {
+    crvdigi : {
+      module_type    : CrvDigisFromArtdaqFragmentsFEBII
+      diagLevel      : 0
+      produceNZS     : false
+      useROC4asROC2  : true
+    }
+  }
+  analyzers : {
+    crvstatusmetrics : {
+      module_type    : CrvStatusMetrics
+      crvStatusTag   : "crvdigi"
+      crvDaqErrorTag : "crvdigi"
+      outputTag      : "CRVStatusDQM"
+      diagLevel      : 1
+      sendHists      : false
+
+      # Histogram segmentation. Per-subrun copies are the one segmented form
+      # that is also hadd-safe: they carry the real run and subrun in the
+      # name (bySubrun/errorBitsVsRoc_r124155_s000003), so files from two
+      # subruns coexist rather than collide. Retaining all of them makes a
+      # subrun that went bad findable after the fact.
+      # Every field, and two more presets, are in
+      # otsdaq-mu2e-crv/fcl/CrvDQM_segmentation_examples.fcl; the grammar is
+      # in Offline/DQMHelpers/README.md.
+      segmentation : {
+        rules : [
+          { match  : "nEvents"
+            modes  : [ "job", "subrun" ]
+            subrun : { keep : -1  persist : true  persistLive : false }
+          },
+
+          { match  : "errorBitsVsRoc"
+            modes  : [ "job", "subrun" ]
+            subrun : { keep : -1  persist : true  persistLive : false }
+          },
+
+          { match  : "linkLatency"
+            modes  : [ "job", "subrun" ]
+            subrun : { keep : -1  persist : true  persistLive : false }
+          },
+
+          # One copy per subrun per link is a lot of objects; keep the last
+          # eight in memory for the GUI and do not write them.
+          { match  : "linkLatency_dtc*_roc*"
+            modes  : [ "job", "subrun" ]
+            subrun : { keep : 8  persist : false  persistLive : false }
+          }
+        ]
+      }
+    }
+  }
+  t1 : [ crvdigi ]
+  a1 : [ crvstatusmetrics ]
+  trigger_paths : [ t1 ]
+  end_paths     : [ a1 ]
+}
+
+services.TimeTracker.printSummary: true
+services.scheduler.wantSummary: true
+services.message.destinations.log.outputStatistics : false
+services.GeometryService.inputFile: "Offline/Mu2eG4/geom/geom_common_extracted.txt"
+
+services.ProditionsService.crvStatus.useDb : true
+services.ProditionsService.crvCalib.useDb  : true
+services.DbService.purpose : Sim_best
+services.DbService.version : v1_5
+services.DbService.textFile : [
+  "Offline/CRVConditions/data/status_extracted_20260630.txt",
+  "Offline/CRVConditions/data/calib_extracted_20260630.txt",
+  "Offline/TrackerConditions/data/TrkPanelMap.txt"
+]
+services.DbService.verbose : 0
+services.ProditionsService.trackerPanelMap.useDb : true

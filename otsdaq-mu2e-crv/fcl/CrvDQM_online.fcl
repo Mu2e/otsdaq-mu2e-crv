@@ -1,0 +1,72 @@
+# Online CrvDQM configuration that reproduces the histogram set shipped by the
+# pre-helper CrvDQM module (mu2e/ots_ops 055186a), plus the previous rolling-window
+# spans in crv/channels_history and crv/timing_feb_history.
+#
+# Include it before any non-prolog content, then add these parameters to the
+# CrvDQM module (alongside module_type, tags, HistoSender address/port, ...):
+#
+#   fillCrvIdRates     : false   # CRVId rate maps: not displayed, not shipped
+#   segmentation       : @local::crvDqmOnlineSegmentation
+#   statusSegmentation : @local::crvDqmOnlineStatusSegmentation
+#
+# Differences from the pre-helper module that FHiCL cannot remove:
+#   - crv/timing_feb: the per-FEB-pair dt_febNN_febMM histograms no longer exist;
+#     dtVsFeb, dtOutOfRangePerFeb and dtOutOfRangePerFebLastEwt are shipped in that
+#     group instead.
+#   - crv/h1_channelsLastEwt is a ring of 50 sub-blocks, so it covers
+#     49000-50000 EWTs rather than exactly the last 50000.
+#   - h1_digisPerEvt's lower edge is -0.5 (was 0.5).
+#   - Titles of segmented histograms (h1_channels and its window copies) end with
+#     the range they hold, e.g. "[last 50000 ewt: <first>-<last>, N events]".
+
+BEGIN_PROLOG
+
+crvDqmOnlineSegmentation : {
+  # Segmented copies carry the range they hold in their title, so _prevN spans
+  # are distinguishable on the display. No metadata stamp in the function list.
+  annotateTitles : true
+  stampMetadata  : false
+  rules : [
+    # crv/h1_channels and crv/h1_channelsLastEwt under their own names; the four
+    # previous 50000-EWT spans (_prev1 newest) in crv/channels_history.
+    { match        : "h1_channels"
+      modes        : [ "job", "window" ]
+      window       : { span : 50000  unit : "ewt"  subdivisions : 50
+                       keep : 4  persist : false  persistLive : false }
+      liveName     : "h1_channelsLastEwt"
+      publish      : true
+      archiveGroup : "channels_history"
+    },
+    { match : "h2_channels"     modes : [ "job" ]  publish : true },
+    { match : "h1_digisPerEvt"  modes : [ "job" ]  publish : true },
+    { match : "h1_peakAdc"      modes : [ "job" ]  publish : true },
+    { match : "h1_tdc"          modes : [ "job" ]  publish : true },
+
+    { match : "dtVsFeb"  modes : [ "job" ]  publish : true  group : "timing_feb" },
+    # Job and live (dtOutOfRangePerFebLastEwt) copies in crv/timing_feb; the four
+    # previous spans in crv/timing_feb_history.
+    { match        : "dtOutOfRangePerFeb"
+      modes        : [ "job", "window" ]
+      window       : { span : 50000  unit : "ewt"  subdivisions : 50
+                       keep : 4  persist : false  persistLive : false }
+      liveName     : "dtOutOfRangePerFebLastEwt"
+      publish      : true
+      group        : "timing_feb"
+      archiveGroup : "timing_feb_history"
+    },
+
+    { match : "timing_fpga/*"  modes : [ "job" ]  publish : true  group : "timing_fpga" }
+  ]
+}
+
+crvDqmOnlineStatusSegmentation : {
+  annotateTitles : true
+  stampMetadata  : false
+  rules : [
+    # Per-link h1_*_link<N> and the h2_* summaries, shipped as crv/status.
+    { match : "h1_*"  modes : [ "job" ]  publish : true  group : "status" },
+    { match : "h2_*"  modes : [ "job" ]  publish : true  group : "status" }
+  ]
+}
+
+END_PROLOG
