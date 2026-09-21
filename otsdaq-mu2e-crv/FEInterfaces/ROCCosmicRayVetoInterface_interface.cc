@@ -629,6 +629,26 @@ void ROCCosmicRayVetoInterface::resume(void) {}
 //==============================================================================
 void ROCCosmicRayVetoInterface::start(std::string)
 {
+	{
+		const uint16_t markerCnt1 = this->readRegister(ROC::MarkerCnt);
+		if(markerCnt1 != 0)
+		{
+			usleep(500000);
+			const uint16_t markerCnt2 = this->readRegister(ROC::MarkerCnt);
+			if(markerCnt2 != markerCnt1)
+			{
+				__FE_SS__ << "Cannot start: ROC::MarkerCnt (0x41) is actively "
+				          << "counting (0x" << std::hex << markerCnt1 << " -> 0x"
+				          << markerCnt2 << std::dec << " over 500ms). "
+				          << "Markers are being sent to this ROC before the run "
+				          << "has started — check that the CFO is not sending "
+				          << "events and that no other DTC instance is driving "
+				          << "this hardware.";
+				__FE_SS_THROW__;
+			}
+		}
+	}
+
 	RocConfigure(gr, 0, 0x0, 0xffff);
 	sleep(2);
 	
@@ -652,6 +672,30 @@ void ROCCosmicRayVetoInterface::start(std::string)
 	sleep(1);
 	RocConfigure(gr, 0, 0x0, 0xffff);
 	usleep(1000);
+
+	{
+		const uint16_t markerCnt1 = this->readRegister(ROC::MarkerCnt);
+		if(markerCnt1 != 0)
+		{
+			usleep(500000);
+			const uint16_t markerCnt2 = this->readRegister(ROC::MarkerCnt);
+			if(markerCnt2 != markerCnt1)
+			{
+				__FE_SS__ << "Cannot start: ROC::MarkerCnt (0x41) is actively "
+				          << "counting (0x" << std::hex << markerCnt1 << " -> 0x"
+				          << markerCnt2 << std::dec << " over 500ms) after "
+				          << "RocConfigure in start(). Markers are being sent to "
+				          << "this ROC before the run has started — check that the "
+				          << "CFO is not sending events and that no other DTC "
+				          << "instance is driving this hardware.";
+				__FE_SS_THROW__;
+			}
+			else
+				__FE_COUT_WARN__ << "ROC::MarkerCnt is non-zero but stable after "
+				                 << "start RocConfigure (0x" << std::hex << markerCnt1
+				                 << std::dec << ")." << __E__;
+		}
+	}
 }
 
 //==============================================================================
@@ -887,17 +931,7 @@ void ROCCosmicRayVetoInterface::RocConfigure(bool     gr,
 	// 0xffff means disable timeout
 	this->writeRegister(ROC::DRTimeout, timeout);
 
-	try
 	{
-		const uint16_t markerCnt = this->readRegister(ROC::MarkerCnt);
-		if(markerCnt != 0)
-		{
-			__FE_SS__ << "RocConfigure check failed: ROC::MarkerCnt (0x41) is non-zero "
-			          << "after configure (0x" << std::hex << markerCnt << std::dec
-			          << "). This likely indicates ROC state did not reset cleanly.";
-			__SS_THROW__;
-		}
-
 		const uint16_t dcsBufferWdCnt = this->readRegister(ROC::DcsBufferWdCnt);
 		if(dcsBufferWdCnt != 0)
 		{
@@ -905,22 +939,6 @@ void ROCCosmicRayVetoInterface::RocConfigure(bool     gr,
 			                 << std::hex << dcsBufferWdCnt << std::dec
 			                 << "). This may indicate pending/stale DCS words." << __E__;
 		}
-	}
-	catch(const std::exception& e)
-	{
-		const std::string msg = makeRocConfigureDcsWarning(
-		    std::string("Exception: ") + e.what() + ". Failing Configure.");
-		__FE_COUT_WARN__ << msg << __E__;
-		TLOG(TLVL_WARNING) << msg << __E__;
-		throw std::runtime_error(msg);
-	}
-	catch(...)
-	{
-		const std::string msg =
-		    makeRocConfigureDcsWarning("Unknown exception. Failing Configure.");
-		__FE_COUT_WARN__ << msg << __E__;
-		TLOG(TLVL_WARNING) << msg << __E__;
-		throw std::runtime_error(msg);
 	}
 
     
