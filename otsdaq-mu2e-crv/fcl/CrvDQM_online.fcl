@@ -60,7 +60,6 @@ crvDqmOnlineSegmentation : {
       window   : { span : 50000  unit : "ewt"  subdivisions : 10
                    keep : 0  persist : false  persistLive : false }
       publish : true },
-
     { match : "dtVsFeb"             modes : [ "job" ]  publish : true  group : "timing_feb" },
     { match : "dtOutOfRangePerFeb"  modes : [ "job" ]  publish : true  group : "timing_feb" },
 
