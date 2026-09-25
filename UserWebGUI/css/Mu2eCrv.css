@@ -1,0 +1,467 @@
+/* Mu2eCrv.css - CRV controls layout. Buttons, dots, accordions come from Mu2e.css. */
+
+html,
+body {
+	margin: 0;
+	min-height: 100%;
+	background: #f4f7fb;
+}
+
+#crvContainer {
+	box-sizing: border-box;
+	min-height: 100vh;
+	padding: 12px;
+	color: #17324d;
+	font-family: 'Comfortaa', sans-serif;
+	font-size: 12px;
+}
+
+/* ---- Header ---- */
+
+#crvHeader {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 14px;
+	margin-bottom: 10px;
+	padding: 10px 14px;
+	border: 1px solid #c4d3e4;
+	border-radius: 7px;
+	background: #fff;
+	box-shadow: 0 1px 3px rgba(20, 52, 82, 0.08);
+}
+
+#crvHeader h2 {
+	margin: 0 0 3px;
+	font-size: 22px;
+	color: #0a4f91;
+}
+
+.crv-refresh {
+	padding: 6px 13px;
+	border: 1px solid #1769aa;
+	border-radius: 4px;
+	background: #fff;
+	color: #1769aa;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.crv-refresh:hover { background: #eaf4ff; }
+
+/* ---- Sections ---- */
+
+.crv-section {
+	box-sizing: border-box;
+	margin-bottom: 10px;
+	padding: 9px 11px;
+	border: 1px solid #c4d3e4;
+	border-radius: 7px;
+	background: #fff;
+	box-shadow: 0 1px 3px rgba(20, 52, 82, 0.08);
+}
+
+.crv-section-title {
+	margin-bottom: 7px;
+	font-size: 13px;
+	font-weight: 700;
+	letter-spacing: 0.02em;
+	color: #395a78;
+	text-transform: uppercase;
+}
+
+.crv-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+}
+
+.crv-actions .macro-btn-primary,
+.crv-actions .macro-btn {
+	font-family: inherit;
+}
+
+/* ---- Scope bar ---- */
+
+.crv-scope {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 10px;
+	font-size: 12px;
+}
+
+.crv-scope label { color: #395a78; font-weight: 600; }
+
+.crv-scope select {
+	padding: 3px 6px;
+	border: 1px solid #9cb9d2;
+	border-radius: 4px;
+	background: #fff;
+	font-family: inherit;
+	font-size: 12px;
+}
+
+.crv-scope-hint { color: #6b7f93; }
+
+
+/* ---- ROC cards ---- */
+
+.crv-roc-card {
+	margin-bottom: 10px;
+	border: 1px solid #9eb6cd;
+	border-radius: 5px;
+	background: #f8fbff;
+	overflow: hidden;
+}
+
+.crv-roc-card.crv-roc-selected { border-color: #005fb8; box-shadow: 0 0 0 2px rgba(0, 95, 184, 0.18); }
+.crv-roc-card.crv-roc-disabled { opacity: 0.55; }
+
+.crv-roc-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 7px 10px;
+	border: 0;
+	width: 100%;
+	background: transparent;
+	color: #123f68;
+	font-family: inherit;
+	font-size: 13px;
+	font-weight: 700;
+	text-align: left;
+	cursor: pointer;
+}
+
+.crv-roc-header:hover { background: #eef6fd; }
+
+.crv-roc-link {
+	font-weight: 600;
+	color: #395a78;
+}
+
+.crv-roc-count {
+	margin-left: auto;
+	font-weight: 500;
+	color: #6b7f93;
+}
+
+.crv-roc-status {
+	padding: 0 10px 6px;
+	font-family: 'Inconsolata', monospace;
+	font-size: 11px;
+	color: #395a78;
+	white-space: pre-wrap;
+}
+
+.crv-roc-status:empty { display: none; }
+
+.crv-buffers { margin-top: 2px; }
+.crv-buffers summary {
+	cursor: pointer;
+	color: #6b7f93;
+	font-family: 'Comfortaa', sans-serif;
+	font-size: 10px;
+	text-transform: uppercase;
+}
+
+.crv-roc-error {
+	padding: 0 10px 6px;
+	color: #b02a37;
+	font-size: 11px;
+}
+
+/* ---- FEB details panel ---- */
+
+.crv-feb-details {
+	margin-top: 4px;
+	padding: 8px 10px;
+	border: 1px solid #9eb6cd;
+	border-radius: 5px;
+	background: #f8fbff;
+}
+
+.crv-feb-head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 4px;
+}
+
+.crv-feb-head .crv-section-title { margin: 0 6px 0 0; }
+.crv-feb-head .crv-clear-output { margin-left: auto; }
+
+.crv-feb-live, .crv-feb-row {
+	margin: 3px 0;
+	font-family: 'Inconsolata', monospace;
+	font-size: 11px;
+}
+
+.crv-feb-grid {
+	border-collapse: collapse;
+	table-layout: fixed;
+	margin: 8px 0 4px;
+	font-family: 'Inconsolata', monospace;
+	font-size: 13px;
+}
+
+.crv-feb-grid th {
+	padding: 3px 6px;
+	color: #395a78;
+	font-weight: 600;
+	text-align: right;
+	white-space: nowrap;
+}
+
+/* first column (row labels) fixed so ch0..ch15 line up across the trim,
+   threshold and baseline tables */
+.crv-feb-grid th:first-child {
+	width: 150px;
+	text-align: left;
+}
+
+.crv-feb-grid th:not(:first-child),
+.crv-feb-grid td {
+	width: 52px;
+}
+
+.crv-feb-grid td {
+	padding: 3px 6px;
+	text-align: right;
+	border: 1px solid #dde5ee;
+	background: #fff;
+}
+
+/* the bias table has 8 wider columns; let it size itself */
+.crv-feb-grid.crv-feb-bias { table-layout: auto; }
+.crv-feb-grid.crv-feb-bias th:not(:first-child),
+.crv-feb-grid.crv-feb-bias td { width: auto; }
+
+/* ---- Configuration bar ---- */
+
+.crv-config-bar { margin-top: 8px; }
+
+.crv-config-grid {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px 24px;
+	padding: 4px 0;
+}
+
+.crv-config-block { min-width: 260px; }
+
+.crv-config-title {
+	margin-bottom: 3px;
+	font-weight: 700;
+	color: #123f68;
+}
+
+/* ---- Port grid: 2 rows of 12 ---- */
+
+.crv-ports {
+	display: grid;
+	grid-template-columns: repeat(12, minmax(34px, 1fr));
+	gap: 4px;
+	padding: 7px 10px 9px;
+	border-top: 1px solid #c8d7e5;
+	background: #eef6fd;
+}
+
+.crv-port {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	min-height: 34px;
+	padding: 3px 2px;
+	border: 1px solid #9cb9d2;
+	border-radius: 4px;
+	background: #fff;
+	color: #174b76;
+	font-family: inherit;
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.crv-port:hover { border-color: #1769aa; background: #e5f3ff; }
+
+/* configuration state */
+.crv-port-on        { background: #d8ecff; border-color: #2674b8; }
+.crv-port-off       { background: #f0f0f0; color: #8a8a8a; }
+.crv-port-unconfigured { background: transparent; border-style: dashed; color: #a5b3c0; }
+
+/* live results (only after a button was clicked) */
+.crv-port-ok        { box-shadow: inset 0 0 0 2px #28a745; }
+.crv-port-fail      { box-shadow: inset 0 0 0 2px #dc3545; background: #fde7e9; }
+.crv-port-mismatch  { box-shadow: inset 0 0 0 2px #f0b400; }
+
+.crv-port-selected  { outline: 2px solid #005fb8; outline-offset: 1px; }
+
+.crv-port-sub {
+	font-family: 'Inconsolata', monospace;
+	font-size: 10px;
+	font-weight: 400;
+	color: #395a78;
+	line-height: 1;
+}
+
+.crv-port-sub:empty { display: none; }
+
+/* command state dot animation (per ROC) */
+.status-dot.crv-cmd-running {
+	background: #f0b400;
+	animation: crv-pulse 1s ease-in-out infinite alternate;
+}
+.status-dot.crv-cmd-success { background: #28a745; }
+.status-dot.crv-cmd-failed  { background: #dc3545; }
+
+@keyframes crv-pulse { from { opacity: 0.55; } to { opacity: 1; } }
+
+/* ---- Controls ---- */
+
+.crv-controls .accordion-header,
+.crv-section .accordion-header { font-family: inherit; }
+
+.crv-control-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	padding: 5px 0;
+}
+
+.crv-control-row label {
+	color: #395a78;
+	font-weight: 600;
+}
+
+.crv-control-row input[type="text"],
+.crv-control-row input[type="number"],
+.crv-control-row select {
+	width: 90px;
+	padding: 3px 6px;
+	border: 1px solid #9cb9d2;
+	border-radius: 4px;
+	font-family: 'Inconsolata', monospace;
+	font-size: 12px;
+}
+
+.crv-control-row select { width: auto; font-family: inherit; }
+
+.crv-control-row .crv-wide { width: 260px; }
+
+.crv-control-note {
+	color: #6b7f93;
+	font-size: 11px;
+}
+
+.crv-raw-inputs {
+	display: grid;
+	grid-template-columns: max-content minmax(120px, 320px);
+	gap: 4px 10px;
+	align-items: center;
+	padding: 5px 0;
+}
+
+.crv-raw-inputs label {
+	color: #395a78;
+	font-size: 11px;
+}
+
+.crv-raw-inputs input {
+	padding: 3px 6px;
+	border: 1px solid #9cb9d2;
+	border-radius: 4px;
+	font-family: 'Inconsolata', monospace;
+	font-size: 12px;
+}
+
+/* ---- Output log ---- */
+
+#crvOutputPanel {
+	display: flex;
+	flex-direction: column;
+	min-height: 160px;
+}
+
+.crv-output-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 7px;
+}
+
+.crv-output-header .crv-section-title { margin: 0; }
+
+.crv-clear-output {
+	padding: 3px 10px;
+	border: 1px solid #9cb9d2;
+	border-radius: 4px;
+	background: #fff;
+	color: #395a78;
+	font-family: inherit;
+	font-size: 11px;
+	cursor: pointer;
+}
+
+#crvOutput {
+	flex: 1;
+	max-height: 60vh;
+	overflow-y: auto;
+	font-family: 'Inconsolata', monospace;
+	font-size: 11px;
+}
+
+.crv-output-entry {
+	margin-bottom: 8px;
+	padding: 6px 8px;
+	border: 1px solid #dde5ee;
+	border-radius: 4px;
+	background: #fafbfc;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.crv-output-entry:first-child { border-color: #9cb9d2; }
+
+.crv-output-title {
+	margin-bottom: 4px;
+	font-family: 'Comfortaa', sans-serif;
+	font-weight: 700;
+	color: #123f68;
+}
+
+.crv-output-time { color: #6b7f93; font-weight: 400; }
+
+.crv-running { color: #b45000; }
+
+.crv-empty { color: #6b7f93; font-style: italic; }
+
+.crv-roc-report {
+	margin: 4px 0;
+	border: 1px solid #ccd3da;
+	border-radius: 3px;
+	background: #fff;
+}
+
+.crv-roc-report summary {
+	display: flex;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 3px 6px;
+	cursor: pointer;
+	font-family: 'Comfortaa', sans-serif;
+	font-weight: 600;
+}
+
+.crv-roc-report-pass summary { background: #e6f5ea; }
+.crv-roc-report-fail summary { background: #fde7e9; }
+.crv-roc-report-body { padding: 4px 6px; }
+
+.crv-bl-table { border-collapse: collapse; margin: 2px 0 4px; }
+.crv-bl-table th, .crv-bl-table td { padding: 1px 8px; text-align: right; }
+.crv-bl-table th { color: #395a78; font-weight: 600; }

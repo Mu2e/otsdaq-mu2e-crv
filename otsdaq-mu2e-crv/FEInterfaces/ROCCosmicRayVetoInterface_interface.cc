@@ -151,7 +151,17 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                                                 "Loopback Markers (fiber) Cnt",
 	                                                 "Last Event Length (12.5ns)",
 	                                                 "Injection Length (12.5ns)",
-	                                                 "Injection Timestamp"},
+	                                                 "Injection Timestamp",
+	                                                 "Last EWT",
+	                                                 "HB Buffer Empty",
+	                                                 "HB Buffer Words",
+	                                                 "DR Buffer Empty",
+	                                                 "DR Buffer Words",
+	                                                 "Link 0 Word Cnt",
+	                                                 "Link 1 Word Cnt",
+	                                                 "Link 2 Word Cnt",
+	                                                 "Event Buffer Empty",
+	                                                 "Event Buffer Full"},
 	                        1);  // requiredUserPermissions
 
 	registerFEMacroFunction("Get Status Pretty",
@@ -1045,6 +1055,21 @@ void ROCCosmicRayVetoInterface::GetStatus(__ARGS__)
 	__SET_ARG_OUT__("Injection Length (12.5ns)",
 	                this->readRegister(ROC::InjectionLength));
 	__SET_ARG_OUT__("Injection Timestamp", this->readRegister(ROC::InjectionTS));
+
+	// Readout liveness and buffers (same registers as Get Status Pretty)
+	__SET_ARG_OUT__("Last EWT", this->readRegister(ROC::LastUbSent));
+	uint16_t hb = this->readRegister(ROC::HrtBtBuffStat);
+	__SET_ARG_OUT__("HB Buffer Empty", hb >> 15);
+	__SET_ARG_OUT__("HB Buffer Words", hb & 0x0fff);
+	uint16_t dr = this->readRegister(ROC::DreqBuffStat);
+	__SET_ARG_OUT__("DR Buffer Empty", dr >> 15);
+	__SET_ARG_OUT__("DR Buffer Words", dr & 0x0fff);
+	__SET_ARG_OUT__("Link 0 Word Cnt", this->readRegister(ROC::LinkWdCnt0));
+	__SET_ARG_OUT__("Link 1 Word Cnt", this->readRegister(ROC::LinkWdCnt1));
+	__SET_ARG_OUT__("Link 2 Word Cnt", this->readRegister(ROC::LinkWdCnt2));
+	uint16_t ev = this->readRegister(ROC::EvBuffStat);
+	__SET_ARG_OUT__("Event Buffer Empty", ev & 0x1);
+	__SET_ARG_OUT__("Event Buffer Full", (ev >> 1) & 0x1);
 }
 
 void ROCCosmicRayVetoInterface::GetPool(__ARGS__)
