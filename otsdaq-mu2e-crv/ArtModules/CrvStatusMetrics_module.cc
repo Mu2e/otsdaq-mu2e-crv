@@ -84,7 +84,7 @@ class CrvStatusMetrics : public art::EDAnalyzer
 	std::string   address_;
 	float         sendIntervalSec_;
 
-	std::unique_ptr<HistoSender> histoSender_;
+	std::unique_ptr<HistoSender>                       histoSender_;
 	std::chrono::time_point<std::chrono::steady_clock> lastSendTime_;
 
 	mu2e::CRVStatusDQM dqm_;
@@ -134,8 +134,8 @@ void CrvStatusMetrics::beginJob()
 	if(diagLevel_ > 0)
 	{
 		std::cout << outputPrefix_ << "beginJob: diagLevel=" << diagLevel_
-		          << " metricLevel=" << metricLevel_
-		          << " sendHists=" << sendHists_ << std::endl;
+		          << " metricLevel=" << metricLevel_ << " sendHists=" << sendHists_
+		          << std::endl;
 	}
 
 	if(sendHists_)
@@ -186,18 +186,17 @@ void CrvStatusMetrics::sendLastPointFromHelper()
 {
 	for(const auto& snap : dqm_.lastEventRocs())
 	{
-		const std::string rocPrefix = "CRV.DTC" +
-		                              std::to_string(static_cast<int>(snap.dtcId)) +
-		                              ".ROC" +
-		                              std::to_string(static_cast<int>(snap.linkId)) + ".";
+		const std::string rocPrefix =
+		    "CRV.DTC" + std::to_string(static_cast<int>(snap.dtcId)) + ".ROC" +
+		    std::to_string(static_cast<int>(snap.linkId)) + ".";
 
 		if(diagLevel_ > 0)
 		{
 			std::cout << outputPrefix_ << "  " << rocPrefix
 			          << "TriggerCount=" << snap.triggerCount << " EWT=" << snap.ewt
-			          << " ActiveFEBs=" << snap.activeFebCount
-			          << " MicroBunchStatus=0x" << std::hex << snap.microBunchStatus
-			          << std::dec << " WordCount=" << snap.wordCount << std::endl;
+			          << " ActiveFEBs=" << snap.activeFebCount << " MicroBunchStatus=0x"
+			          << std::hex << snap.microBunchStatus << std::dec
+			          << " WordCount=" << snap.wordCount << std::endl;
 		}
 
 		sendMetric(rocPrefix + "TriggerCount",
@@ -298,10 +297,10 @@ void CrvStatusMetrics::fillLastPointFromFragments(art::Event const& e)
 					if(status == nullptr)
 						continue;
 
-					const uint32_t        ewt       = status->GetEventWindowTag();
-					const uint16_t        trigCount = status->TriggerCount;
-					const uint16_t        wordCount = status->ControllerEventWordCount;
-					const uint32_t        ubStatus  = status->GetMicroBunchStatus();
+					const uint32_t        ewt        = status->GetEventWindowTag();
+					const uint16_t        trigCount  = status->TriggerCount;
+					const uint16_t        wordCount  = status->ControllerEventWordCount;
+					const uint32_t        ubStatus   = status->GetMicroBunchStatus();
 					const std::bitset<24> activeFEBs = status->GetActiveFEBFlags();
 					const int nActiveFEBs = static_cast<int>(activeFEBs.count());
 
@@ -360,8 +359,7 @@ void CrvStatusMetrics::analyze(art::Event const& e)
 
 	art::Handle<mu2e::CrvStatusCollection> statusHandle;
 	e.getByLabel(crvStatusTag_, statusHandle);
-	const bool haveProduct =
-	    statusHandle.isValid() && statusHandle.product() != nullptr;
+	const bool haveProduct = statusHandle.isValid() && statusHandle.product() != nullptr;
 
 	if(haveProduct)
 	{
@@ -381,14 +379,13 @@ void CrvStatusMetrics::analyze(art::Event const& e)
 	{
 		if(diagLevel_ > 1)
 		{
-			std::cout << outputPrefix_ << e.id()
-			          << " no CrvStatus at " << crvStatusTag_
+			std::cout << outputPrefix_ << e.id() << " no CrvStatus at " << crvStatusTag_
 			          << "; LastPoint from fragments" << std::endl;
 		}
 		fillLastPointFromFragments(e);
 	}
 
-	auto                             currentTime = std::chrono::steady_clock::now();
+	auto                          currentTime = std::chrono::steady_clock::now();
 	std::chrono::duration<double> elapsed     = currentTime - lastSendTime_;
 	if(elapsed.count() >= sendIntervalSec_)
 	{
@@ -470,19 +467,20 @@ void CrvStatusMetrics::endJob()
 	std::cout << outputPrefix_ << "========== End Job Summary ==========" << std::endl;
 	std::cout << outputPrefix_ << "Events processed: " << eventCount_ << std::endl;
 	std::cout << outputPrefix_ << "Helper events: " << dqm_.nEvents() << std::endl;
-	std::cout << outputPrefix_ << "Events with ROC header: "
-	          << dqm_.nEventsWithRocHeader() << std::endl;
-	std::cout << outputPrefix_ << "Events with firmware error bit: "
-	          << dqm_.nEventsWithAnyErrorBit() << std::endl;
+	std::cout << outputPrefix_
+	          << "Events with ROC header: " << dqm_.nEventsWithRocHeader() << std::endl;
+	std::cout << outputPrefix_
+	          << "Events with firmware error bit: " << dqm_.nEventsWithAnyErrorBit()
+	          << std::endl;
 	std::cout << outputPrefix_ << "Distinct ROCs: " << dqm_.seenRocs().size()
 	          << std::endl;
 	for(int b = 0; b < mu2e::CRVStatusDQM::kNErrorBits; ++b)
 	{
-		std::cout << outputPrefix_ << "  " << mu2e::CRVStatusDQM::errorBitLabel(b)
-		          << ": " << dqm_.errorBitCount(b) << std::endl;
+		std::cout << outputPrefix_ << "  " << mu2e::CRVStatusDQM::errorBitLabel(b) << ": "
+		          << dqm_.errorBitCount(b) << std::endl;
 	}
 	std::cout << outputPrefix_ << "=====================================" << std::endl;
 }
 
 DEFINE_ART_MODULE(ots::CrvStatusMetrics)
-} // namespace ots
+}  // namespace ots

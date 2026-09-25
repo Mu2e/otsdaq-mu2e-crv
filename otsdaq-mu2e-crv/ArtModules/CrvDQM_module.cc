@@ -65,8 +65,8 @@ namespace
 // What the online display shows, declared once.
 struct HistPad
 {
-	const char* name;       // as mu2e::CRVDigiDQM books it
-	int         pad;        // 1-based canvas pad
+	const char* name;  // as mu2e::CRVDigiDQM books it
+	int         pad;   // 1-based canvas pad
 	const char* drawOpt;
 	bool        logx;
 	bool        logy;
@@ -235,26 +235,26 @@ class CrvDQM : public art::EDAnalyzer
 mu2e::CRVDigiDQM::Config CrvDQM::makeHelperConfig(fhicl::ParameterSet const& ps)
 {
 	mu2e::CRVDigiDQM::Config c;
-	c.nBinsDigisPerEvt   = ps.get<int>("nBinsDigisPerEvt", 200);
-	c.maxDigisPerEvt     = ps.get<float>("maxDigisPerEvt", 4000);
-	c.nBinsPeakAdc       = ps.get<int>("nBinsPeakAdc", 450);
-	c.maxPeakAdc         = ps.get<float>("maxPeakAdc", 4500);
-	c.nBinsTdc           = ps.get<int>("nBinsTdc", 400);
-	c.maxTdc             = ps.get<float>("maxTdc", 40000);
-	c.cfFraction         = ps.get<double>("cfFraction", 0.20);
-	c.dtBinSize          = ps.get<float>("dtBinSize", 0.5);
-	c.dtRange            = ps.get<float>("dtRange", 100.0);
-	c.dtVsFebBinSize     = ps.get<float>("dtVsFebBinSize", 2.0);
-	c.dtVsFebRange       = ps.get<float>("dtVsFebRange", 500.0);
-	c.minAmplitude       = ps.get<int>("minAmplitude", 10);
-	c.avgBlockSize       = static_cast<std::size_t>(ps.get<int>("avgBlockSize", 30));
-	c.avgGraphPoints     = static_cast<std::size_t>(ps.get<int>("avgGraphPoints", 1000));
+	c.nBinsDigisPerEvt = ps.get<int>("nBinsDigisPerEvt", 200);
+	c.maxDigisPerEvt   = ps.get<float>("maxDigisPerEvt", 4000);
+	c.nBinsPeakAdc     = ps.get<int>("nBinsPeakAdc", 450);
+	c.maxPeakAdc       = ps.get<float>("maxPeakAdc", 4500);
+	c.nBinsTdc         = ps.get<int>("nBinsTdc", 400);
+	c.maxTdc           = ps.get<float>("maxTdc", 40000);
+	c.cfFraction       = ps.get<double>("cfFraction", 0.20);
+	c.dtBinSize        = ps.get<float>("dtBinSize", 0.5);
+	c.dtRange          = ps.get<float>("dtRange", 100.0);
+	c.dtVsFebBinSize   = ps.get<float>("dtVsFebBinSize", 2.0);
+	c.dtVsFebRange     = ps.get<float>("dtVsFebRange", 500.0);
+	c.minAmplitude     = ps.get<int>("minAmplitude", 10);
+	c.avgBlockSize     = static_cast<std::size_t>(ps.get<int>("avgBlockSize", 30));
+	c.avgGraphPoints   = static_cast<std::size_t>(ps.get<int>("avgGraphPoints", 1000));
 	c.channelsWindowEwts =
 	    static_cast<std::size_t>(ps.get<int>("channelsWindowEwts", 50000));
-	c.fillInclusive      = false;
-	c.fillCrvIdRates     = ps.get<bool>("fillCrvIdRates", true);
-	c.kppReadout         = ps.get<bool>("kppReadout", true);
-	c.fillLivePlots      = ps.get<bool>("fillLivePlots", true);
+	c.fillInclusive  = false;
+	c.fillCrvIdRates = ps.get<bool>("fillCrvIdRates", true);
+	c.kppReadout     = ps.get<bool>("kppReadout", true);
+	c.fillLivePlots  = ps.get<bool>("fillLivePlots", true);
 	// Which histograms get per-subrun / last-N-events copies. Parsed by the
 	// same code the offline analyzers use, so the grammar cannot drift.
 	c.segmentation =
@@ -331,7 +331,8 @@ void CrvDQM::endSubRun(art::SubRun const& subRun)
 	if(dummyHist_)
 		return;
 	dqm_.EndSubRun();
-	statusDqm_.EndSubRun(static_cast<int>(subRun.run()), static_cast<int>(subRun.subRun()));
+	statusDqm_.EndSubRun(static_cast<int>(subRun.run()),
+	                     static_cast<int>(subRun.subRun()));
 }
 
 void CrvDQM::beginRun(art::Run const& run)
@@ -514,8 +515,8 @@ void CrvDQM::logPublished()
 	          << " HistoSender group(s):" << std::endl;
 	for(const auto& [group, copies] : published)
 	{
-		std::cout << outputPrefix_ << "  crv/" << group << ":replace  ("
-		          << copies.size() << ")";
+		std::cout << outputPrefix_ << "  crv/" << group << ":replace  (" << copies.size()
+		          << ")";
 		// Naming every member of a 300-histogram group helps nobody.
 		if(copies.size() <= 8)
 		{
@@ -786,7 +787,8 @@ void CrvDQM::updateWebDisplay(bool force)
 					CrvDQMStyle::FormatHist2D(h2);
 				else
 					CrvDQMStyle::FormatHist(h, histColor_);
-				if(spec.name == std::string("h1_channels") || spec.name == std::string("h2_channels"))
+				if(spec.name == std::string("h1_channels") ||
+				   spec.name == std::string("h2_channels"))
 					addPort0Boxes(h);
 			}
 		}
@@ -818,8 +820,8 @@ void CrvDQM::updateWebDisplay(bool force)
 			// frame, which defaults X limits to the data range and breaks the
 			// sliding window set in Fill(). Re-apply the sliding window here.
 			double currentEwt = static_cast<double>(dqm_.lastEwt());
-			double xLo = std::max(0.0, currentEwt - mu2e::CRVDigiDQM::kEwtXRange);
-			double xHi = currentEwt;
+			double xLo        = std::max(0.0, currentEwt - mu2e::CRVDigiDQM::kEwtXRange);
+			double xHi        = currentEwt;
 			if(xHi <= xLo)
 				xHi = xLo + 1.0;
 			if(TH1F* frame = g_digisVsEwt->GetHistogram())
@@ -887,7 +889,7 @@ void CrvDQM::analyze(art::Event const& event)
 		art::Handle<mu2e::CrvDigiCollection> crvDigisHandle;
 		event.getByLabel(crvDigiTag_, crvDigisHandle);
 
-		const mu2e::CrvDigiCollection emptyDigis;
+		const mu2e::CrvDigiCollection  emptyDigis;
 		const mu2e::CrvDigiCollection& crvDigis =
 		    (crvDigisHandle.isValid() && crvDigisHandle.product() != nullptr)
 		        ? *crvDigisHandle
@@ -907,7 +909,7 @@ void CrvDQM::analyze(art::Event const& event)
 
 		art::Handle<mu2e::CrvStatusCollection> crvStatusHandle;
 		event.getByLabel(crvStatusTag_, crvStatusHandle);
-		const mu2e::CrvStatusCollection emptyStatus;
+		const mu2e::CrvStatusCollection  emptyStatus;
 		const mu2e::CrvStatusCollection& crvStatus =
 		    (crvStatusHandle.isValid() && crvStatusHandle.product() != nullptr)
 		        ? *crvStatusHandle
@@ -921,8 +923,8 @@ void CrvDQM::analyze(art::Event const& event)
 	///////////////////// Send /////////////////////
 
 	// Send histograms in fixed time intervals
-	auto                             currentTime = std::chrono::steady_clock::now();
-	std::chrono::duration<double> elapsed = currentTime - lastSendTime_;
+	auto                          currentTime = std::chrono::steady_clock::now();
+	std::chrono::duration<double> elapsed     = currentTime - lastSendTime_;
 
 	if(elapsed.count() >= sendIntervalSec_)
 	{
@@ -948,14 +950,14 @@ void CrvDQM::analyze(art::Event const& event)
 		          << ", gateB=" << statUpdateGateB_ << "), "
 		          << "gSystem->ProcessEvents=" << (statProcEvents_ / dt) << " Hz, "
 		          << "sendHistograms=" << (statSend_ / dt) << " Hz" << std::endl;
-		statAnalyze_       = 0;
-		statUpdate_        = 0;
-		statUpdateCalls_   = 0;
-		statUpdateGateA_   = 0;
-		statUpdateGateB_   = 0;
-		statProcEvents_    = 0;
-		statSend_          = 0;
-		statLastLog_       = currentTime;
+		statAnalyze_     = 0;
+		statUpdate_      = 0;
+		statUpdateCalls_ = 0;
+		statUpdateGateA_ = 0;
+		statUpdateGateB_ = 0;
+		statProcEvents_  = 0;
+		statSend_        = 0;
+		statLastLog_     = currentTime;
 	}
 }
 
@@ -966,8 +968,9 @@ void CrvDQM::endJob()
 		// Print job-level statistics
 		std::cout << outputPrefix_
 		          << "================= End job summary =================" << std::endl;
-		std::cout << outputPrefix_ << "Total events: "
-		          << (dummyHist_ ? eventCounts_ : dqm_.nEvents()) << std::endl;
+		std::cout << outputPrefix_
+		          << "Total events: " << (dummyHist_ ? eventCounts_ : dqm_.nEvents())
+		          << std::endl;
 		if(!dummyHist_)
 		{
 			std::cout << outputPrefix_ << "Total digis: " << dqm_.nDigis() << std::endl;

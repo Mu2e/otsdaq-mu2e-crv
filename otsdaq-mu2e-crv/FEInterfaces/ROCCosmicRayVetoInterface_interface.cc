@@ -568,7 +568,7 @@ try
 {
 	__COUT_INFO__ << "configure CRV ROC";
 	// bool gr = false;
-    getDTC()->SoftReset();
+	getDTC()->SoftReset();
 	try
 	{
 		auto rocConfigs = getSelfNode()
@@ -661,7 +661,7 @@ void ROCCosmicRayVetoInterface::start(std::string)
 
 	RocConfigure(gr, 0, 0x0, 0xffff);
 	sleep(2);
-	
+
 	__FE_COUT__ << "Testing FEB links before run start..." << __E__;
 	std::string linkReport;
 	const bool  linksOk = testRocLinks(&linkReport, true);
@@ -950,8 +950,6 @@ void ROCCosmicRayVetoInterface::RocConfigure(bool     gr,
 			                 << "). This may indicate pending/stale DCS words." << __E__;
 		}
 	}
-
-    
 }
 
 void ROCCosmicRayVetoInterface::Configure(__ARGS__)
@@ -2896,7 +2894,8 @@ uint16_t ROCCosmicRayVetoInterface::readRegisterWithRetry(uint16_t address,
 void ROCCosmicRayVetoInterface::verifyDcsReadWrite()
 {
 	auto fail = [this](const std::string& details) {
-		const std::string msg = makeRocConfigureDcsWarning(details + " Failing Configure.");
+		const std::string msg =
+		    makeRocConfigureDcsWarning(details + " Failing Configure.");
 		__FE_COUT_WARN__ << msg << __E__;
 		TLOG(TLVL_WARNING) << msg << __E__;
 		throw std::runtime_error(msg);
@@ -2912,7 +2911,8 @@ void ROCCosmicRayVetoInterface::verifyDcsReadWrite()
 	}
 	catch(const std::exception& e)
 	{
-		fail(std::string("TestCounter DCS self-test threw. Exception: ") + e.what() + ".");
+		fail(std::string("TestCounter DCS self-test threw. Exception: ") + e.what() +
+		     ".");
 	}
 	catch(...)
 	{
@@ -2970,8 +2970,8 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(
 	if(biasOverwrite >= 0)
 	{
 		uint16_t bias = static_cast<uint16_t>(biasOverwrite);
-		ostr << "[" << elapsed_ms() << " ms] Bias overwrite via broadcast: 0x"
-		     << std::hex << bias << std::dec << std::endl;
+		ostr << "[" << elapsed_ms() << " ms] Bias overwrite via broadcast: 0x" << std::hex
+		     << bias << std::dec << std::endl;
 		uint16_t PORT_ = ROC::FEB | ROC::FEB_Broadcast;
 		for(uint16_t fpga = 0; fpga < 4; ++fpga)
 		{
@@ -3151,9 +3151,8 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(
 				this->writeRegister(FEBII::GateOnOffSpill, offStart);
 				this->writeRegister(FEBII::GateOffOffSpill, offEnd);
 
-				ostr << "  [" << elapsed_ms()
-				     << " ms] OnSpill  gate: start=" << onStart << "  end=" << onEnd
-				     << "  [6.25ns]" << std::endl;
+				ostr << "  [" << elapsed_ms() << " ms] OnSpill  gate: start=" << onStart
+				     << "  end=" << onEnd << "  [6.25ns]" << std::endl;
 				ostr << "  OffSpill gate: start=" << offStart << "  end=" << offEnd
 				     << "  [6.25ns]" << std::endl;
 			}
@@ -3177,11 +3176,11 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(
 			auto t0_wait    = std::chrono::steady_clock::now();
 			bool responsive = waitForFebResponsive();
 			auto wait_ms    = std::chrono::duration_cast<std::chrono::milliseconds>(
-			                      std::chrono::steady_clock::now() - t0_wait)
-			                      .count();
+                               std::chrono::steady_clock::now() - t0_wait)
+			                   .count();
 			if(responsive)
-				ostr << "  [" << elapsed_ms() << " ms] Port " << p
-				     << " responsive after " << wait_ms << " ms." << std::endl;
+				ostr << "  [" << elapsed_ms() << " ms] Port " << p << " responsive after "
+				     << wait_ms << " ms." << std::endl;
 			else
 				ostr << "  [" << elapsed_ms() << " ms] WARNING: port " << p
 				     << " not responsive after " << wait_ms << " ms!" << std::endl;
@@ -3196,8 +3195,8 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(
 	{
 		uint16_t PORT_ = ROC::FEB | ROC::FEB_Broadcast;
 
-		ostr << "[" << elapsed_ms() << " ms] Broadcast ChannelMap (identity) to all ports..."
-		     << std::endl;
+		ostr << "[" << elapsed_ms()
+		     << " ms] Broadcast ChannelMap (identity) to all ports..." << std::endl;
 		for(uint16_t fpga = 0; fpga < 4; ++fpga)
 		{
 			for(uint16_t ch = 0; ch < 16; ++ch)
@@ -3218,7 +3217,8 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(
 			}
 		}
 
-		ostr << "[" << elapsed_ms() << " ms] Broadcast PLL reset (wait 1s)..." << std::endl;
+		ostr << "[" << elapsed_ms() << " ms] Broadcast PLL reset (wait 1s)..."
+		     << std::endl;
 		ResetPLL(1000, true, true);
 
 		for(const auto& feb : febs)
@@ -3233,11 +3233,11 @@ std::string ROCCosmicRayVetoInterface::febIIConfigureFromTables(
 			auto t0_wait    = std::chrono::steady_clock::now();
 			bool responsive = waitForFebResponsive();
 			auto wait_ms    = std::chrono::duration_cast<std::chrono::milliseconds>(
-			                      std::chrono::steady_clock::now() - t0_wait)
-			                      .count();
+                               std::chrono::steady_clock::now() - t0_wait)
+			                   .count();
 			if(responsive)
-				ostr << "  [" << elapsed_ms() << " ms] Port " << p
-				     << " responsive after " << wait_ms << " ms." << std::endl;
+				ostr << "  [" << elapsed_ms() << " ms] Port " << p << " responsive after "
+				     << wait_ms << " ms." << std::endl;
 			else
 				ostr << "  [" << elapsed_ms() << " ms] WARNING: port " << p
 				     << " not responsive after " << wait_ms << " ms!" << std::endl;
