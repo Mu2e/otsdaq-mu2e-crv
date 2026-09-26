@@ -1,13 +1,22 @@
 // DQM and viewer for the CRV
 // Sends histograms to otsdaq visualizer and standalone THttpServer
 // Sam Grant, Simon Corrodi
+//
+// Histogram booking/filling is owned by mu2e::CRVDigiDQM (digis) and
+// mu2e::CRVStatusDQM (per-link status, under status/) in Offline/DQMHelpers.
+// This module keeps I/O, HistoSender, THttpServer, styling, and PDF export.
 
 // C++ includes
 #include <algorithm>
-#include <deque>
+#include <chrono>
+#include <cstdlib>
+#include <iostream>
 #include <map>
-#include <sstream>
+#include <memory>
+#include <set>
 #include <string>
+#include <utility>
+#include <vector>
 
 // art includes
 #include "art/Framework/Core/EDAnalyzer.h"
@@ -15,19 +24,25 @@
 #include "art/Framework/Principal/Event.h"
 #include "art/Framework/Principal/Handle.h"
 #include "art/Framework/Principal/Run.h"
+#include "art/Framework/Principal/SubRun.h"
 
 // art/root includes
+#include "art_root_io/TFileDirectory.h"
 #include "art_root_io/TFileService.h"
 
 // ROOT includes
+#include <TBox.h>
 #include <TCanvas.h>
 #include <TColor.h>
+#include <TDirectory.h>
 #include <TGraph.h>
 #include <TH1.h>
 #include <TH2.h>
 #include <THttpServer.h>
+#include <TPad.h>
 #include <TPaveStats.h>
 #include <TRandom3.h>
+#include <TStyle.h>
 #include <TSystem.h>
 
 // OTS includes
@@ -36,10 +51,88 @@
 #include "otsdaq/Macros/ProcessorPluginMacros.h"
 
 // Offline includes
+#include "Offline/DQMHelpers/inc/CRVDigiDQM.hh"
+#include "Offline/DQMHelpers/inc/CRVStatusDQM.hh"
+#include "Offline/DQMHelpers/inc/DQMSegmentationConfig.hh"
 #include "Offline/RecoDataProducts/inc/CrvDigi.hh"
+#include "Offline/RecoDataProducts/inc/CrvStatus.hh"
 
 // Custom styling
 #include "otsdaq-mu2e-crv/ArtModules/CrvDQMStyle.hh"
+
+namespace
+{
+// What the online display shows, declared once.
+struct HistPad
+{
+	const char* name;  // as mu2e::CRVDigiDQM books it
+	int         pad;   // 1-based canvas pad
+	const char* drawOpt;
+	bool        logx;
+	bool        logy;
+	bool        autoRange;  // rescale the Y axis from the data on every refresh
+	double      yFloor;     // lower edge, used for both SetMinimum and autoRange
+};
+
+constexpr HistPad kHistPads[] = {
+    {"h1_digisPerEvt", 2, "HIST", true, true, true, 0.5},
+    {"h1_peakAdc", 3, "HIST", false, false, false, 0.0},
+    {"h1_tdc", 4, "HIST", false, false, false, 0.0},
+    {"h1_channels", 5, "HIST", false, false, true, 0.5},
+    {"h2_channels", 6, "COLZ", false, false, false, 0.0},
+};
+
+// The two EWT graphs keep their own pads: their axis handling is bespoke
+// (a sliding X window tied to the event window tag), not table-driven.
+constexpr int kPadDigisVsEwt    = 1;
+constexpr int kPadDigisAvgVsEwt = 7;
+
+constexpr int kCanvasCols = 3;
+constexpr int kCanvasRows = 3;
+static_assert(kCanvasCols * kCanvasRows >= kPadDigisAvgVsEwt,
+              "canvas division is too small for the declared pads");
+
+// Workaround for ROOT fatal "TPad::Range: y1 == y2 == 0" on empty histograms drawn
+// in the web canvas. Put a tiny entry into bin 1 so max_bin_content > 0; it is
+// overwritten as soon as real data arrives.
+void seedEmptyFrame(TH1* h)
+{
+	if(!h)
+		return;
+	if(h->GetMaximum() <= h->GetMinimum())
+	{
+		h->SetBinContent(1, 1e-9);
+		h->SetEntries(0);
+	}
+}
+
+// Gray-out port-0 regions (FEB 0 should never have hits): ROC 1 globalChannelId
+// 0-63 and ROC 2 1600-1663 on the channel axis, globalFebId 0 and 25 on the FEB axis.
+// Segment rotations rebuild window copies, so this is idempotent and re-applied.
+void addPort0Boxes(TH1* h)
+{
+	if(!h || h->GetListOfFunctions()->FindObject("TBox"))
+		return;
+	auto addBox = [h](double x1, double y1, double x2, double y2) {
+		auto* box = new TBox(x1, y1, x2, y2);
+		box->SetFillColor(kGray);
+		box->SetFillStyle(3004);
+		box->SetLineWidth(0);
+		h->GetListOfFunctions()->Add(box, "");
+	};
+	if(h->GetDimension() == 1)
+	{
+		addBox(-0.5, 0.0, 63.5, 1e9);
+		addBox(1599.5, 0.0, 1663.5, 1e9);
+	}
+	else
+	{
+		for(int febId : {0, 25})
+			addBox(0.5, febId - 0.5, 64.5, febId + 0.5);
+	}
+}
+
+}  // namespace
 
 namespace ots
 {
@@ -53,36 +146,45 @@ class CrvDQM : public art::EDAnalyzer
 	~CrvDQM() override;
 
   private:
+	static mu2e::CRVDigiDQM::Config   makeHelperConfig(fhicl::ParameterSet const& ps);
+	static mu2e::CRVStatusDQM::Config makeStatusConfig(fhicl::ParameterSet const& ps);
+
 	// Standard art methods
 	void analyze(art::Event const& event) override;
 	void beginJob() override;
+	void beginRun(art::Run const& run) override;
+	void beginSubRun(art::SubRun const& subRun) override;
+	void endSubRun(art::SubRun const& subRun) override;
 	void endJob() override;
 
 	/// Module methods
 	void Send();
+	// What `publish` selected, printed once so an operator can see whether a
+	// FHiCL change did what they meant. The selection is run-time now, so it
+	// cannot be read off the source.
+	void logPublished();
+	// The job copy of a booked histogram, or nullptr if the FHiCL disabled it.
+	TH1* jobCopy(const char* name);
+	// Style and register with the HTTP server any status object the helper
+	// booked since the last call (per-link objects appear on a link's first status).
+	void registerNewStatusObjects();
 	void startHttpServer();
 	void stopHttpServer();
 	void updateWebDisplay(bool force = false);
 
 	// fcl parameters
-	art::InputTag crvDigiTag_;  // producer module label
+	art::InputTag crvDigiTag_;    // producer module label
+	art::InputTag crvStatusTag_;  // CrvStatus producer module label
 	int           diagLevel_;
 	int           port_;  // port to connect to
 	std::string   address_;
 	std::string   outputTag_;
 	bool          sendHists_;
 	bool          dummyHist_;
-
-	// Histogram binning
-	int   nBinsDigisPerEvt_;
-	float maxDigisPerEvt_;
-	int   nBinsPeakAdc_;
-	float maxPeakAdc_;
-
-	// Block-averaging for g_digisAvgVsEwt_: one point per avgBlockSize_ events,
-	// keep at most avgGraphPoints_ points in the graph (drop oldest).
-	std::size_t avgBlockSize_;
-	std::size_t avgGraphPoints_;
+	bool          saveCanvasesToPdf_;
+	bool          showSameFpgaTimingInCanvas_;
+	bool          statusGraphs_;
+	std::string   canvasPdfFile_;
 
 	// HISTOGRAM SENDING
 	std::unique_ptr<HistoSender> histoSender_;
@@ -91,14 +193,14 @@ class CrvDQM : public art::EDAnalyzer
 	// ROOT TFileService
 	art::ServiceHandle<art::TFileService> tfs_;
 
-	// Histograms
-	TH1F*   h1_dummy_;         // dummy
-	TH1F*   h1_channels_;      // global FEB channel hits
-	TH2F*   h2_channels_;      // FEB vs channel hits
-	TH1F*   h1_digisPerEvt_;   // digis per event
-	TH1F*   h1_peakAdc_;       // peak ADC per digi
-	TGraph* g_digisVsEwt_;     // digis vs event window tag (rolling sum)
-	TGraph* g_digisAvgVsEwt_;  // mean digis per event, averaged over avgBlockSize_ events
+	// Digi DQM histograms (occupancy, ADC, TDC, CF timing, EWT graphs)
+	mu2e::CRVDigiDQM dqm_;
+	// Per-link status summaries and graphs (status/, status/graphs/)
+	mu2e::CRVStatusDQM statusDqm_;
+	std::set<TObject*> registeredStatus_;
+
+	// Dummy histogram for HistoSender/THttpServer plumbing tests
+	TH1F* h1_dummy_;
 
 	// HTTP server & visualisation
 	bool                                               enableHttpServer_;
@@ -110,12 +212,8 @@ class CrvDQM : public art::EDAnalyzer
 	THttpServer*                                       httpServer_;
 	std::chrono::time_point<std::chrono::steady_clock> lastRefreshTime_;
 
-	// Counters
-	std::size_t                          eventCounts_{0};
-	std::size_t                          digiCounts_{0};
-	std::set<uint8_t>                    activeFEBs_;
-	std::set<uint8_t>                    activeROCs_;
-	std::map<uint8_t, std::set<uint8_t>> rocFEBMap_;  // Track FEBs per ROC
+	// Event counter for display refresh (includes dummyHist events)
+	std::size_t eventCounts_{0};
 
 	// Rate counters (printed every statLogPeriodSec_ seconds at diag level 0)
 	double      statLogPeriodSec_{10.0};
@@ -128,42 +226,74 @@ class CrvDQM : public art::EDAnalyzer
 	std::size_t statSend_{0};
 	std::chrono::time_point<std::chrono::steady_clock> statLastLog_;
 
-	// Rolling window of (ewt, nDigis) for g_digisVsEwt_
-	static constexpr std::size_t kEwtWindow_   = 1000;
-	static constexpr std::size_t kGraphPoints_ = 10000;    // max points kept in TGraph
-	static constexpr double      kEwtXRange_   = 1000000;  // x-axis shows last N EWTs
-	std::deque<std::pair<uint32_t, int>> ewtWindow_;
-	long long                            ewtWindowSum_{0};
-
-	// Block-averaging accumulators for g_digisAvgVsEwt_
-	long long   avgBlockSum_{0};
-	std::size_t avgBlockCount_{0};
-	uint32_t    avgBlockFirstEwt_{0};
-	bool avgSeedsCleared_{false};  // true once the two seed points have been dropped
-
 	// Misc member variables
 	std::chrono::time_point<std::chrono::steady_clock> lastSendTime_;
 	std::string                                        outputPrefix_;
 	TRandom3                                           random_;
 };
 
+mu2e::CRVDigiDQM::Config CrvDQM::makeHelperConfig(fhicl::ParameterSet const& ps)
+{
+	mu2e::CRVDigiDQM::Config c;
+	c.nBinsDigisPerEvt = ps.get<int>("nBinsDigisPerEvt", 200);
+	c.maxDigisPerEvt   = ps.get<float>("maxDigisPerEvt", 4000);
+	c.nBinsPeakAdc     = ps.get<int>("nBinsPeakAdc", 450);
+	c.maxPeakAdc       = ps.get<float>("maxPeakAdc", 4500);
+	c.nBinsTdc         = ps.get<int>("nBinsTdc", 400);
+	c.maxTdc           = ps.get<float>("maxTdc", 40000);
+	c.cfFraction       = ps.get<double>("cfFraction", 0.20);
+	c.dtBinSize        = ps.get<float>("dtBinSize", 0.5);
+	c.dtRange          = ps.get<float>("dtRange", 100.0);
+	c.dtVsFebBinSize   = ps.get<float>("dtVsFebBinSize", 2.0);
+	c.dtVsFebRange     = ps.get<float>("dtVsFebRange", 500.0);
+	c.minAmplitude     = ps.get<int>("minAmplitude", 10);
+	c.avgBlockSize     = static_cast<std::size_t>(ps.get<int>("avgBlockSize", 30));
+	c.avgGraphPoints   = static_cast<std::size_t>(ps.get<int>("avgGraphPoints", 1000));
+	c.channelsWindowEwts =
+	    static_cast<std::size_t>(ps.get<int>("channelsWindowEwts", 50000));
+	c.fillInclusive  = false;
+	c.fillCrvIdRates = ps.get<bool>("fillCrvIdRates", true);
+	c.kppReadout     = ps.get<bool>("kppReadout", true);
+	c.fillLivePlots  = ps.get<bool>("fillLivePlots", true);
+	// Which histograms get per-subrun / last-N-events copies. Parsed by the
+	// same code the offline analyzers use, so the grammar cannot drift.
+	c.segmentation =
+	    mu2e::parseSegmentation(ps.get<fhicl::ParameterSet>("segmentation", {}));
+	return c;
+}
+
+mu2e::CRVStatusDQM::Config CrvDQM::makeStatusConfig(fhicl::ParameterSet const& ps)
+{
+	mu2e::CRVStatusDQM::Config c;
+	c.fillLinkPlots  = true;
+	c.fillLinkGraphs = ps.get<bool>("statusGraphs", true);
+	c.maxLinkGraphPoints =
+	    static_cast<std::size_t>(ps.get<int>("maxLatencyGraphPoints", 10000));
+	// Publishing of the status/ histograms, same grammar as `segmentation`.
+	c.segmentation =
+	    mu2e::parseSegmentation(ps.get<fhicl::ParameterSet>("statusSegmentation", {}));
+	return c;
+}
+
 // Constructor impl
 CrvDQM::CrvDQM(fhicl::ParameterSet const& ps)
     : art::EDAnalyzer(ps)
-    , crvDigiTag_(ps.get<std::string>("crvDigiTag", "crvdigi"))
+    , crvDigiTag_(ps.get<std::string>("crvDigiTag", "CrvDigi"))
+    , crvStatusTag_(ps.get<std::string>("crvStatusTag", crvDigiTag_.label()))
     , diagLevel_(ps.get<int>("diagLevel", 3))
     , port_(ps.get<int>("port", 6000))
     , address_(ps.get<std::string>("address", "localhost"))
     , outputTag_(ps.get<std::string>("outputTag", "CrvDQM"))
     , sendHists_(ps.get<bool>("sendHists", true))
     , dummyHist_(ps.get<bool>("dummyHist", false))
-    , nBinsDigisPerEvt_(ps.get<int>("nBinsDigisPerEvt", 200))
-    , maxDigisPerEvt_(ps.get<float>("maxDigisPerEvt", 4000))
-    , nBinsPeakAdc_(ps.get<int>("nBinsPeakAdc", 450))
-    , maxPeakAdc_(ps.get<float>("maxPeakAdc", 4500))
-    , avgBlockSize_(static_cast<std::size_t>(ps.get<int>("avgBlockSize", 30)))
-    , avgGraphPoints_(static_cast<std::size_t>(ps.get<int>("avgGraphPoints", 1000)))
+    , saveCanvasesToPdf_(ps.get<bool>("saveCanvasesToPdf", false))
+    , showSameFpgaTimingInCanvas_(ps.get<bool>("showSameFpgaTimingInCanvas", true))
+    , statusGraphs_(ps.get<bool>("statusGraphs", true))
+    , canvasPdfFile_(ps.get<std::string>("canvasPdfFile", "CrvDQM.pdf"))
     , sendIntervalSec_(ps.get<float>("sendIntervalSec", 0.5))
+    , dqm_(makeHelperConfig(ps))
+    , statusDqm_(makeStatusConfig(ps))
+    , h1_dummy_(nullptr)
     , enableHttpServer_(ps.get<bool>("enableHttpServer", true))
     , httpPort_(ps.get<int>("httpPort", 8877))
     , onlineRefreshPeriodMs_(ps.get<float>("onlineRefreshPeriod", 500.f))
@@ -184,6 +314,56 @@ CrvDQM::CrvDQM(fhicl::ParameterSet const& ps)
 CrvDQM::~CrvDQM()
 {
 	// Nothing to clean up
+}
+
+void CrvDQM::beginSubRun(art::SubRun const& subRun)
+{
+	if(dummyHist_)
+		return;
+	const int run    = static_cast<int>(subRun.run());
+	const int subrun = static_cast<int>(subRun.subRun());
+	dqm_.BeginSubRun(run, subrun);
+	statusDqm_.BeginSubRun(run, subrun);
+}
+
+void CrvDQM::endSubRun(art::SubRun const& subRun)
+{
+	if(dummyHist_)
+		return;
+	dqm_.EndSubRun();
+	statusDqm_.EndSubRun(static_cast<int>(subRun.run()),
+	                     static_cast<int>(subRun.subRun()));
+}
+
+void CrvDQM::beginRun(art::Run const& run)
+{
+	// The DQM art process can outlive a run, and everything here is streamed in replace
+	// mode without ever being cleared, so a new run would otherwise inherit the previous
+	// run's contents. Objects stay booked (and registered with the HTTP server); only
+	// their contents and the rolling windows behind them are cleared.
+	std::cout << outputPrefix_ << "Run " << run.run()
+	          << ": resetting histograms, graphs, and rolling windows" << std::endl;
+
+	if(dummyHist_)
+	{
+		if(h1_dummy_)
+			h1_dummy_->Reset("ICES");
+		return;
+	}
+
+	dqm_.ResetForNewRun();
+	statusDqm_.ResetForNewRun();
+
+	for(const char* name : {"h1_channels", "h2_channels"})
+		for(TH1* h : dqm_.segments().copies(name))
+			addPort0Boxes(h);
+
+	// The web canvas draws these directly; keep them drawable while empty.
+	if(enableHttpServer_ && webCanvas_)
+	{
+		for(const auto& spec : kHistPads)
+			seedEmptyFrame(jobCopy(spec.name));
+	}
 }
 
 void CrvDQM::beginJob()
@@ -214,7 +394,6 @@ void CrvDQM::beginJob()
 		}
 	}
 
-	// Book histograms and register with TFS
 	art::TFileDirectory dir = tfs_->mkdir(outputTag_);
 	if(dummyHist_)
 	{
@@ -222,55 +401,17 @@ void CrvDQM::beginJob()
 	}
 	else
 	{
-		// ROC 0: 25 FEB slots
-		// ROC 1: 6 FEB slots
-		// 31 slots x 64 ch = 1984 ch
-		h1_digisPerEvt_ = dir.make<TH1F>("h1_digisPerEvt",
-		                                 "Hits / event;Hits / event;Events",
-		                                 nBinsDigisPerEvt_,
-		                                 0.5,
-		                                 maxDigisPerEvt_ + 0.5);
-		h1_digisPerEvt_->SetMinimum(0.5);
-		h1_peakAdc_  = dir.make<TH1F>("h1_peakAdc",
-                                     "Max sample ADC;Max sample ADC;Hits",
-                                     nBinsPeakAdc_,
-                                     0,
-                                     maxPeakAdc_);
-		h1_channels_ = dir.make<TH1F>("h1_channels",
-		                              "Channel occupancy;Global channel ID;Hits",
-		                              1984,
-		                              -0.5,
-		                              1983.5);
-		h1_channels_->SetMinimum(0.5);
-		h2_channels_  = dir.make<TH2F>("h2_channels",
-                                      "FEB vs channel hit map;Channel;FEB",
-                                      64,
-                                      0.5,
-                                      64.5,
-                                      30,
-                                      0.5,
-                                      30.5);
-		g_digisVsEwt_ = dir.make<TGraph>();
-		g_digisVsEwt_->SetName("g_digisVsEwt");
-		g_digisVsEwt_->SetTitle(
-		    Form("Hits in last %zu EWTs (%zu points);"
-		         "Event window tag;Hits",
-		         kEwtWindow_,
-		         kGraphPoints_));
-		// Seed with two points so TGraphPainter has a non-degenerate Y range
-		// when the canvas first draws (before any event arrives).
-		g_digisVsEwt_->SetPoint(0, 0, 0);
-		g_digisVsEwt_->SetPoint(1, 1, 1);
-
-		g_digisAvgVsEwt_ = dir.make<TGraph>();
-		g_digisAvgVsEwt_->SetName("g_digisAvgVsEwt");
-		g_digisAvgVsEwt_->SetTitle(
-		    Form("Mean hits per event (averaged over %zu events);"
-		         "Event window tag;<hits / event>",
-		         avgBlockSize_));
-		// Two-point seed for initial frame
-		g_digisAvgVsEwt_->SetPoint(0, 0, 0);
-		g_digisAvgVsEwt_->SetPoint(1, 1, 1);
+		dqm_.Book(dir);
+		for(const char* name : {"h1_channels", "h2_channels"})
+			for(TH1* h : dqm_.segments().copies(name))
+				addPort0Boxes(h);
+		statusDqm_.Book(tfs_->mkdir(outputTag_ + "/status"));
+		CrvDQMStyle::FormatGraph(dqm_.g_digisVsEwt(), histColor_);
+		dqm_.g_digisVsEwt()->SetMarkerColor(dqm_.g_digisVsEwt()->GetLineColor());
+		dqm_.g_digisVsEwt()->SetDrawOption("AP");
+		CrvDQMStyle::FormatGraph(dqm_.g_digisAvgVsEwt(), histColor_);
+		dqm_.g_digisAvgVsEwt()->SetMarkerColor(dqm_.g_digisAvgVsEwt()->GetLineColor());
+		dqm_.g_digisAvgVsEwt()->SetDrawOption("AP");
 	}
 
 	// Seed TRandom3
@@ -295,6 +436,9 @@ void CrvDQM::beginJob()
 		}
 	}
 
+	// The 2D status summaries exist from booking; per-link objects follow per link.
+	registerNewStatusObjects();
+
 	updateWebDisplay();
 }
 void CrvDQM::Send()
@@ -312,6 +456,11 @@ void CrvDQM::Send()
 		return;
 	}
 
+	// The live segment copies are labelled with the range they hold; refresh
+	// that before shipping, so a title read on the GUI is never behind.
+	dqm_.segments().RefreshLabels();
+	statusDqm_.segments().RefreshLabels();
+
 	// Use the map method (three methods in HistoSender.cc)
 	std::map<std::string, std::vector<TH1*>> hists;
 	if(dummyHist_)
@@ -320,10 +469,14 @@ void CrvDQM::Send()
 	}
 	else
 	{
-		hists["crv/h1_channels:replace"]    = {h1_channels_};
-		hists["crv/h2_channels:replace"]    = {h2_channels_};
-		hists["crv/h1_digisPerEvt:replace"] = {h1_digisPerEvt_};
-		hists["crv/h1_peakAdc:replace"]     = {h1_peakAdc_};
+		for(const auto* segments : {&dqm_.segments(), &statusDqm_.segments()})
+		{
+			for(const auto& [group, copies] : segments->publishedCopies())
+			{
+				auto& out = hists["crv/" + group + ":replace"];
+				out.insert(out.end(), copies.begin(), copies.end());
+			}
+		}
 	}
 
 	// Call send method
@@ -334,8 +487,12 @@ void CrvDQM::Send()
 	if(!dummyHist_)
 	{
 		std::map<std::string, std::vector<TGraph*>> graphs;
-		graphs["crv/g_digisVsEwt:replace"]    = {g_digisVsEwt_};
-		graphs["crv/g_digisAvgVsEwt:replace"] = {g_digisAvgVsEwt_};
+		graphs["crv/graphs:replace"] = {dqm_.g_digisVsEwt(), dqm_.g_digisAvgVsEwt()};
+		if(statusGraphs_)
+		{
+			for(TGraph* g : statusDqm_.linkGraphs())
+				graphs["crv/graphs:replace"].push_back(g);
+		}
 		histoSender_->sendGraphs(graphs);
 	}
 
@@ -343,6 +500,73 @@ void CrvDQM::Send()
 	{
 		std::cout << outputPrefix_ << "Sent histograms to " << address_ << ":" << port_
 		          << std::endl;
+	}
+}
+
+void CrvDQM::logPublished()
+{
+	auto published = dqm_.segments().publishedCopies();
+	for(const auto& [group, copies] : statusDqm_.segments().publishedCopies())
+	{
+		auto& out = published[group];
+		out.insert(out.end(), copies.begin(), copies.end());
+	}
+	std::cout << outputPrefix_ << "publishing " << published.size()
+	          << " HistoSender group(s):" << std::endl;
+	for(const auto& [group, copies] : published)
+	{
+		std::cout << outputPrefix_ << "  crv/" << group << ":replace  (" << copies.size()
+		          << ")";
+		// Naming every member of a 300-histogram group helps nobody.
+		if(copies.size() <= 8)
+		{
+			for(TH1* h : copies)
+				std::cout << " " << h->GetName();
+		}
+		std::cout << std::endl;
+	}
+}
+
+TH1* CrvDQM::jobCopy(const char* name)
+{
+	const auto copies = dqm_.segments().copies(name);
+	return copies.empty() ? nullptr : copies.front();
+}
+
+void CrvDQM::registerNewStatusObjects()
+{
+	if(dummyHist_)
+		return;
+	for(TH1* h : statusDqm_.segments().allCopies())
+	{
+		if(!registeredStatus_.insert(h).second)
+			continue;
+		if(auto* h2 = dynamic_cast<TH2*>(h))
+		{
+			CrvDQMStyle::FormatHist2D(h2);
+			h2->SetOption("COLZ");
+		}
+		else
+		{
+			CrvDQMStyle::FormatHist(h, histColor_);
+			if(std::string(h->GetName()).rfind("h1_latency", 0) == 0)
+			{
+				h->SetStatOverflows(TH1::kConsider);
+				h->SetStats(1);
+			}
+		}
+		if(enableHttpServer_ && httpServer_)
+			httpServer_->Register("/", h);
+	}
+	for(TGraph* g : statusDqm_.linkGraphs())
+	{
+		if(!registeredStatus_.insert(g).second)
+			continue;
+		CrvDQMStyle::FormatGraph(g, histColor_);
+		g->SetMarkerColor(g->GetLineColor());
+		g->SetDrawOption("AP");
+		if(enableHttpServer_ && httpServer_)
+			httpServer_->Register("/", g);
 	}
 }
 
@@ -359,22 +583,12 @@ void CrvDQM::startHttpServer()
 	}
 	else
 	{
-		webCanvas_->Divide(3, 2);
+		webCanvas_->Divide(kCanvasCols, kCanvasRows);
 	}
 
 	int padIdx = 1;
-	// Workaround for ROOT fatal "TPad::Range: y1 == y2 == 0" on empty
-	// histograms. Put a tiny entry into bin 1 so max_bin_content > 0.
-	// This is overwritten as soon as real data arrives.
-	auto seedFrame = [](TH1* h) {
-		if(!h)
-			return;
-		if(h->GetMaximum() <= h->GetMinimum())
-		{
-			h->SetBinContent(1, 1e-9);
-			h->SetEntries(0);
-		}
-	};
+	// Keep empty histograms drawable (see seedEmptyFrame); also re-applied in beginRun.
+	auto seedFrame = &seedEmptyFrame;
 
 	if(dummyHist_)
 	{
@@ -385,95 +599,105 @@ void CrvDQM::startHttpServer()
 	}
 	else
 	{
-		// Pad 1: digis vs event window tag (rolling).
-		webCanvas_->cd(padIdx++);
-		CrvDQMStyle::FormatGraph(g_digisVsEwt_, histColor_);
-		if(TH1F* frame = g_digisVsEwt_->GetHistogram())
+		TGraph* g_digisVsEwt    = dqm_.g_digisVsEwt();
+		TGraph* g_digisAvgVsEwt = dqm_.g_digisAvgVsEwt();
+
+		// The two EWT graphs: bespoke axis handling, so they stay explicit.
+		auto drawGraph = [&](TGraph* g, int pad) {
+			webCanvas_->cd(pad);
+			CrvDQMStyle::FormatGraph(g, histColor_);
+			if(TH1F* frame = g->GetHistogram())
+			{
+				frame->GetXaxis()->SetLimits(0.0, 1.0);
+				frame->SetMinimum(0.0);
+				frame->SetMaximum(1.0);
+			}
+			g->Draw("AP");
+		};
+		drawGraph(g_digisVsEwt, kPadDigisVsEwt);
+		drawGraph(g_digisAvgVsEwt, kPadDigisAvgVsEwt);
+
+		// Everything else comes off the table. The job copy is what the canvas
+		// draws; the segment copies are registered and restyled below but are
+		// not given pads of their own.
+		for(const auto& spec : kHistPads)
 		{
-			frame->GetXaxis()->SetLimits(0.0, 1.0);
-			frame->SetMinimum(0.0);
-			frame->SetMaximum(1.0);
+			TH1* h = jobCopy(spec.name);
+			if(h == nullptr)
+				continue;
+			webCanvas_->cd(spec.pad);
+			if(spec.logx)
+				gPad->SetLogx();
+			if(spec.logy)
+				gPad->SetLogy();
+			if(auto* h2 = dynamic_cast<TH2*>(h))
+			{
+				// Colour maps need room for the palette and a Z title.
+				gPad->SetRightMargin(0.14);
+				CrvDQMStyle::FormatHist2D(h2);
+				h2->GetZaxis()->SetTitle("Hits");
+				gStyle->SetPalette(kInvertedDarkBodyRadiator);
+			}
+			else
+			{
+				CrvDQMStyle::FormatHist(h, histColor_);
+				if(spec.yFloor > 0.0)
+					h->SetMinimum(spec.yFloor);
+			}
+			seedFrame(h);
+			h->Draw(spec.drawOpt);
+
+			// One genuine special: the occupancy axis is wide enough that ROOT
+			// drops the stat box styling, so re-apply it once the pad is drawn.
+			if(std::string(spec.name) == "h1_channels")
+			{
+				gPad->Update();
+				if(auto* st = dynamic_cast<TPaveStats*>(h->FindObject("stats")))
+				{
+					st->SetBorderSize(0);
+					st->SetFillStyle(0);
+					st->SetTextFont(42);
+					st->SetTextSize(0.040);
+					st->SetOptStat(111110);
+				}
+			}
 		}
-		g_digisVsEwt_->Draw("AP");
-
-		// Pad 2: digis per event
-		webCanvas_->cd(padIdx++);
-		gPad->SetLogx();
-		gPad->SetLogy();
-		CrvDQMStyle::FormatHist(h1_digisPerEvt_, histColor_);
-		h1_digisPerEvt_->SetMinimum(0.5);
-		seedFrame(h1_digisPerEvt_);
-		h1_digisPerEvt_->Draw("HIST");
-
-		// Pad 3: peak ADC
-		webCanvas_->cd(padIdx++);
-		CrvDQMStyle::FormatHist(h1_peakAdc_, histColor_);
-		seedFrame(h1_peakAdc_);
-		h1_peakAdc_->Draw("HIST");
-
-		// Pad 4: global channel occupancy
-		webCanvas_->cd(padIdx++);
-		// gPad->SetLogy();
-		CrvDQMStyle::FormatHist(h1_channels_, histColor_);
-		h1_channels_->SetMinimum(0.5);
-		seedFrame(h1_channels_);
-		h1_channels_->Draw("HIST");
-		gPad->Update();
-		// Force stat box styling. Workaround for large-bin histogram
-		TPaveStats* st = dynamic_cast<TPaveStats*>(h1_channels_->FindObject("stats"));
-		if(st)
-		{
-			st->SetBorderSize(0);
-			st->SetFillStyle(0);
-			st->SetTextFont(42);
-			st->SetTextSize(0.040);
-			st->SetOptStat(111110);
-		}
-
-		// Pad 5: channel vs FEB hit map
-		webCanvas_->cd(padIdx++);
-		// gPad->SetLogz();
-		gPad->SetRightMargin(0.14);
-		if(h2_channels_)
-		{
-			CrvDQMStyle::FormatHist2D(h2_channels_);
-			h2_channels_->GetZaxis()->SetTitle("Hits");
-			seedFrame(h2_channels_);
-			gStyle->SetPalette(kInvertedDarkBodyRadiator);
-			h2_channels_->Draw("COLZ");
-		}
-
-		// Pad 6: block-averaged hits per event (points only, no connecting line)
-		webCanvas_->cd(padIdx);
-		CrvDQMStyle::FormatGraph(g_digisAvgVsEwt_, histColor_);
-		if(TH1F* frame = g_digisAvgVsEwt_->GetHistogram())
-		{
-			frame->GetXaxis()->SetLimits(0.0, 1.0);
-			frame->SetMinimum(0.0);
-			frame->SetMaximum(1.0);
-		}
-		g_digisAvgVsEwt_->Draw("AP");
 	}
 
 	// Register canvas and histograms with server
 	httpServer_->Register("/", webCanvas_);
 	if(!dummyHist_)
 	{
-		httpServer_->Register("/", h1_digisPerEvt_);
-		httpServer_->Register("/", h1_peakAdc_);
-		httpServer_->Register("/", h1_channels_);
-		httpServer_->Register("/", h2_channels_);
-		httpServer_->Register("/", g_digisVsEwt_);
-		httpServer_->Register("/", g_digisAvgVsEwt_);
+		// Every copy of every displayed histogram, so a configured window or
+		// subrun copy is reachable on the server without a change here.
+		for(const auto& spec : kHistPads)
+		{
+			for(TH1* h : dqm_.segments().copies(spec.name))
+			{
+				httpServer_->Register("/", h);
+			}
+		}
+		httpServer_->Register("/", dqm_.g_digisVsEwt());
+		httpServer_->Register("/", dqm_.g_digisAvgVsEwt());
 	}
 
 	// Publish refresh period so the HTML page can read it
 	httpServer_->CreateItem("/config/refreshMs", Form("%.0f", onlineRefreshPeriodMs_));
 
-	// Setup custom page
-	std::string webPage = std::string(getenv("OTS_SOURCE")) +
-	                      "/otsdaq-mu2e-crv/UserWebGUI/html/CrvDQM.html";
-	httpServer_->SetDefaultPage(webPage);
+	// Setup custom page. OTS_SOURCE is only set inside the otsdaq environment;
+	// a file-mode dry run has it unset, and std::string(nullptr) is undefined
+	// behaviour, so fall back to the built-in page rather than crashing.
+	if(const char* otsSource = getenv("OTS_SOURCE"))
+	{
+		httpServer_->SetDefaultPage(std::string(otsSource) +
+		                            "/otsdaq-mu2e-crv/UserWebGUI/html/CrvDQM.html");
+	}
+	else
+	{
+		std::cout << outputPrefix_
+		          << "OTS_SOURCE is not set; serving the default THttpServer page"
+		          << std::endl;
+	}
 
 	lastRefreshTime_ = std::chrono::steady_clock::now();
 
@@ -515,6 +739,11 @@ void CrvDQM::updateWebDisplay(bool force)
 		return;
 	}
 
+	// The live segment copies carry the range they hold in their titles, and
+	// the canvas draws those titles; bring them up to date before redrawing.
+	dqm_.segments().RefreshLabels();
+	statusDqm_.segments().RefreshLabels();
+
 	++statUpdate_;
 
 	if(dummyHist_ && h1_dummy_)
@@ -524,18 +753,19 @@ void CrvDQM::updateWebDisplay(bool force)
 	}
 	else
 	{
-		if(h1_digisPerEvt_)
+		// Every copy of every histogram the table marks autoRange -- so the
+		// rolling window copy is rescaled with its parent, whatever it is
+		// called and however many older spans are configured.
+		for(const auto& spec : kHistPads)
 		{
-			double maxContent =
-			    h1_digisPerEvt_->GetBinContent(h1_digisPerEvt_->GetMaximumBin());
-			h1_digisPerEvt_->GetYaxis()->SetRangeUser(0.5,
-			                                          std::max(1.0, 1.15 * maxContent));
-		}
-		if(h1_channels_)
-		{
-			double maxContent =
-			    h1_channels_->GetBinContent(h1_channels_->GetMaximumBin());
-			h1_channels_->GetYaxis()->SetRangeUser(0.5, std::max(1.0, 1.15 * maxContent));
+			if(!spec.autoRange)
+				continue;
+			for(TH1* h : dqm_.segments().copies(spec.name))
+			{
+				const double maxContent = h->GetBinContent(h->GetMaximumBin());
+				h->GetYaxis()->SetRangeUser(spec.yFloor,
+				                            std::max(1.0, 1.15 * maxContent));
+			}
 		}
 	}
 
@@ -546,11 +776,23 @@ void CrvDQM::updateWebDisplay(bool force)
 	// structures are recreated (e.g. TGraph histogram after SetPoint/RemovePoint)
 	if(!dummyHist_)
 	{
-		CrvDQMStyle::FormatHist(h1_digisPerEvt_, histColor_);
-		CrvDQMStyle::FormatHist(h1_peakAdc_, histColor_);
-		CrvDQMStyle::FormatHist(h1_channels_, histColor_);
-		CrvDQMStyle::FormatHist2D(h2_channels_);
-		CrvDQMStyle::FormatGraph(g_digisVsEwt_, histColor_);
+		TGraph* g_digisVsEwt    = dqm_.g_digisVsEwt();
+		TGraph* g_digisAvgVsEwt = dqm_.g_digisAvgVsEwt();
+
+		for(const auto& spec : kHistPads)
+		{
+			for(TH1* h : dqm_.segments().copies(spec.name))
+			{
+				if(auto* h2 = dynamic_cast<TH2*>(h))
+					CrvDQMStyle::FormatHist2D(h2);
+				else
+					CrvDQMStyle::FormatHist(h, histColor_);
+				if(spec.name == std::string("h1_channels") ||
+				   spec.name == std::string("h2_channels"))
+					addPort0Boxes(h);
+			}
+		}
+		CrvDQMStyle::FormatGraph(g_digisVsEwt, histColor_);
 
 		// Auto-range both hits-graphs' Y axes from current data.
 		auto autoRangeGraphY = [](TGraph* g) {
@@ -571,31 +813,31 @@ void CrvDQM::updateWebDisplay(bool force)
 				frame->SetMaximum(yHi + margin);
 			}
 		};
-		if(!ewtWindow_.empty())
+		if(dqm_.hasEwtWindow())
 		{
-			autoRangeGraphY(g_digisVsEwt_);
+			autoRangeGraphY(g_digisVsEwt);
 			// autoRangeGraphY may trigger TGraph::GetHistogram() to recreate the
 			// frame, which defaults X limits to the data range and breaks the
-			// sliding window set in analyze(). Re-apply the sliding window here.
-			double currentEwt = static_cast<double>(ewtWindow_.back().first);
-			double xLo        = std::max(0.0, currentEwt - kEwtXRange_);
+			// sliding window set in Fill(). Re-apply the sliding window here.
+			double currentEwt = static_cast<double>(dqm_.lastEwt());
+			double xLo        = std::max(0.0, currentEwt - mu2e::CRVDigiDQM::kEwtXRange);
 			double xHi        = currentEwt;
 			if(xHi <= xLo)
 				xHi = xLo + 1.0;
-			if(TH1F* frame = g_digisVsEwt_->GetHistogram())
+			if(TH1F* frame = g_digisVsEwt->GetHistogram())
 				frame->GetXaxis()->SetLimits(xLo, xHi);
 		}
-		autoRangeGraphY(g_digisAvgVsEwt_);
+		autoRangeGraphY(g_digisAvgVsEwt);
 		// Same fix for the averaged graph: span the points it currently holds.
-		if(g_digisAvgVsEwt_->GetN() > 0)
+		if(g_digisAvgVsEwt->GetN() > 0)
 		{
-			double* ax   = g_digisAvgVsEwt_->GetX();
-			int     nAvg = g_digisAvgVsEwt_->GetN();
+			double* ax   = g_digisAvgVsEwt->GetX();
+			int     nAvg = g_digisAvgVsEwt->GetN();
 			double  aLo  = *std::min_element(ax, ax + nAvg);
 			double  aHi  = *std::max_element(ax, ax + nAvg);
 			if(aHi <= aLo)
 				aHi = aLo + 1.0;
-			if(TH1F* frame = g_digisAvgVsEwt_->GetHistogram())
+			if(TH1F* frame = g_digisAvgVsEwt->GetHistogram())
 				frame->GetXaxis()->SetLimits(aLo, aHi);
 		}
 	}
@@ -644,154 +886,38 @@ void CrvDQM::analyze(art::Event const& event)
 	}
 	else
 	{
-		///////////////////// Process digis /////////////////////
 		art::Handle<mu2e::CrvDigiCollection> crvDigisHandle;
 		event.getByLabel(crvDigiTag_, crvDigisHandle);
 
-		int nDigis = 0;
+		const mu2e::CrvDigiCollection  emptyDigis;
+		const mu2e::CrvDigiCollection& crvDigis =
+		    (crvDigisHandle.isValid() && crvDigisHandle.product() != nullptr)
+		        ? *crvDigisHandle
+		        : emptyDigis;
 
-		if(crvDigisHandle.isValid() && !crvDigisHandle->empty())
-		{
-			const mu2e::CrvDigiCollection& crvDigis = *crvDigisHandle;
-			nDigis                                  = crvDigis.size();
-
-			// Loop over digis
-			for(const auto& digi : crvDigis)
-			{
-				// Get channel identifier (barIndex)
-				// int channelId = digi.GetScintillatorBarIndex().asInt();
-				uint8_t roc        = digi.GetROC();         // 1-2 (extracted)
-				uint8_t feb        = digi.GetFEB();         // 1-28 (extracted)
-				uint8_t febChannel = digi.GetFEBchannel();  // 0-63
-
-				// DTC link 3 (ROC=4) carries the same physical FEBs as link 1 (ROC=2).
-				// Fold ROC=4 into ROC=2 so both appear in the same display slot.
-				if(roc == 4)
-					roc = 2;
-
-				// === Global channel IDs ===
-				int globalFebId     = ((roc - 1) * 25) + feb;
-				int globalChannelId = globalFebId * 64 + febChannel;
-
-				// Fill channel histograms
-				h1_channels_->Fill(globalChannelId);
-				h2_channels_->Fill(febChannel + 1, globalFebId);
-
-				// Max sample ADC from waveform
-				const auto& adcs = digi.GetADCs();
-				if(!adcs.empty())
-				{
-					int16_t maxSample = *std::max_element(adcs.begin(), adcs.end());
-					h1_peakAdc_->Fill(maxSample);
-				}
-
-				// Track active ROCs and FEBs
-				activeROCs_.insert(roc);
-				activeFEBs_.insert(globalFebId);
-				rocFEBMap_[roc].insert(feb);
-			}
-
-			digiCounts_ += nDigis;
-			h1_digisPerEvt_->Fill(nDigis);
-
-			// Block-average: accumulate avgBlockSize_ events, then plot one point
-			// at the mid-EWT of the block
-			if(avgBlockCount_ == 0)
-				avgBlockFirstEwt_ = eventID.event();
-			avgBlockSum_ += nDigis;
-			++avgBlockCount_;
-			if(avgBlockCount_ >= avgBlockSize_)
-			{
-				double midEwt = 0.5 * (static_cast<double>(avgBlockFirstEwt_) +
-				                       static_cast<double>(eventID.event()));
-				double mean   = static_cast<double>(avgBlockSum_) /
-				              static_cast<double>(avgBlockCount_);
-
-				// Drop the two seed points on the first real fill
-				if(!avgSeedsCleared_)
-				{
-					g_digisAvgVsEwt_->Set(0);
-					avgSeedsCleared_ = true;
-				}
-				g_digisAvgVsEwt_->SetPoint(g_digisAvgVsEwt_->GetN(), midEwt, mean);
-
-				while(static_cast<std::size_t>(g_digisAvgVsEwt_->GetN()) >
-				      avgGraphPoints_)
-				{
-					g_digisAvgVsEwt_->RemovePoint(0);
-				}
-
-				avgBlockSum_   = 0;
-				avgBlockCount_ = 0;
-			}
-
-			// Rolling sum of digis over the last kEwtWindow_ EWTs
-			ewtWindow_.emplace_back(eventID.event(), nDigis);
-			ewtWindowSum_ += nDigis;
-			while(ewtWindow_.size() > kEwtWindow_)
-			{
-				ewtWindowSum_ -= ewtWindow_.front().second;
-				ewtWindow_.pop_front();
-			}
-			// Drop the two seed points on the first real fill
-			if(ewtWindow_.size() == 1 && g_digisVsEwt_->GetN() == 2)
-			{
-				g_digisVsEwt_->Set(0);
-			}
-			g_digisVsEwt_->SetPoint(
-			    g_digisVsEwt_->GetN(), eventID.event(), ewtWindowSum_);
-
-			// Keep only the last kGraphPoints_ points in the TGraph
-			while(static_cast<std::size_t>(g_digisVsEwt_->GetN()) > kGraphPoints_)
-			{
-				g_digisVsEwt_->RemovePoint(0);
-			}
-
-			// Scale x-axis to show only the last kEwtXRange_ EWTs.
-			// Use SetLimits on the backing histogram rather than SetRangeUser:
-			// SetRangeUser requires the new window to lie within the existing
-			// axis limits
-			double currentEwt = static_cast<double>(eventID.event());
-			double xLo        = std::max(0.0, currentEwt - kEwtXRange_);
-			double xHi        = currentEwt;
-			if(xHi <= xLo)
-				xHi = xLo + 1.0;
-			if(TH1F* frame = g_digisVsEwt_->GetHistogram())
-			{
-				frame->GetXaxis()->SetLimits(xLo, xHi);
-			}
-			// Auto-range the averaged-hits graph X axis over the points it
-			// currently holds (up to avgGraphPoints_). Seeds are already
-			// dropped before the first real point is added, so check > 0.
-			if(g_digisAvgVsEwt_->GetN() > 0)
-			{
-				double* ax   = g_digisAvgVsEwt_->GetX();
-				int     nAvg = g_digisAvgVsEwt_->GetN();
-				double  aLo  = *std::min_element(ax, ax + nAvg);
-				double  aHi  = *std::max_element(ax, ax + nAvg);
-				if(aHi <= aLo)
-					aHi = aLo + 1.0;
-				if(TH1F* frame = g_digisAvgVsEwt_->GetHistogram())
-				{
-					frame->GetXaxis()->SetLimits(aLo, aHi);
-				}
-			}
-
-			if(diagLevel_ > 1)
-			{
-				std::cout << outputPrefix_ << "Found " << nDigis << std::endl;
-				//           << nNZSDigis << " NZS, "
-				//           << nOddTimestamp << " odd timestamps)" << std::endl;
-				// std::cout << "  Active channels: " << nActiveChannels << std::endl;
-			}
-		}
-		else
+		if(!crvDigisHandle.isValid() || crvDigis.empty())
 		{
 			if(diagLevel_ > 1)
 			{
 				std::cout << outputPrefix_ << "Warning! No CRV digis found" << std::endl;
 			}
 		}
+		else if(diagLevel_ > 1)
+		{
+			std::cout << outputPrefix_ << "Found " << crvDigis.size() << std::endl;
+		}
+
+		art::Handle<mu2e::CrvStatusCollection> crvStatusHandle;
+		event.getByLabel(crvStatusTag_, crvStatusHandle);
+		const mu2e::CrvStatusCollection  emptyStatus;
+		const mu2e::CrvStatusCollection& crvStatus =
+		    (crvStatusHandle.isValid() && crvStatusHandle.product() != nullptr)
+		        ? *crvStatusHandle
+		        : emptyStatus;
+
+		dqm_.Fill(crvDigis, crvStatus);
+		statusDqm_.Fill(crvStatus);
+		registerNewStatusObjects();
 	}
 
 	///////////////////// Send /////////////////////
@@ -822,7 +948,7 @@ void CrvDQM::analyze(art::Event const& event)
 		          << "updateWebDisplay=" << (statUpdate_ / dt) << " Hz"
 		          << " (calls=" << statUpdateCalls_ << ", gateA=" << statUpdateGateA_
 		          << ", gateB=" << statUpdateGateB_ << "), "
-		          << "ProcessEvents=" << (statProcEvents_ / dt) << " Hz, "
+		          << "gSystem->ProcessEvents=" << (statProcEvents_ / dt) << " Hz, "
 		          << "sendHistograms=" << (statSend_ / dt) << " Hz" << std::endl;
 		statAnalyze_     = 0;
 		statUpdate_      = 0;
@@ -842,14 +968,16 @@ void CrvDQM::endJob()
 		// Print job-level statistics
 		std::cout << outputPrefix_
 		          << "================= End job summary =================" << std::endl;
-		std::cout << outputPrefix_ << "Total events: " << eventCounts_ << std::endl;
+		std::cout << outputPrefix_
+		          << "Total events: " << (dummyHist_ ? eventCounts_ : dqm_.nEvents())
+		          << std::endl;
 		if(!dummyHist_)
 		{
-			std::cout << outputPrefix_ << "Total digis: " << digiCounts_ << std::endl;
-			std::cout << outputPrefix_ << "Active FEBs: " << activeFEBs_.size()
+			std::cout << outputPrefix_ << "Total digis: " << dqm_.nDigis() << std::endl;
+			std::cout << outputPrefix_ << "Active FEBs: " << dqm_.activeFEBs().size()
 			          << std::endl;
 			// Print FEBs per ROC
-			for(auto& [roc, febs] : rocFEBMap_)
+			for(auto& [roc, febs] : dqm_.rocFEBMap())
 			{
 				std::cout << outputPrefix_ << "ROC " << (int)roc << " has " << febs.size()
 				          << " FEBs: ";
@@ -858,6 +986,11 @@ void CrvDQM::endJob()
 					std::cout << (int)feb << " ";
 				}
 				std::cout << std::endl;
+			}
+			for(TGraph* g : statusDqm_.linkGraphs())
+			{
+				std::cout << outputPrefix_ << g->GetName() << ": " << g->GetN()
+				          << " points recorded" << std::endl;
 			}
 		}
 		std::cout << outputPrefix_
@@ -869,6 +1002,12 @@ void CrvDQM::endJob()
 		std::cout << outputPrefix_ << "Ending job" << std::endl;
 	}
 
+	if(!dummyHist_)
+	{
+		dqm_.WriteGraphs();
+		statusDqm_.WriteGraphs();
+	}
+
 	// Send final histograms & clean up
 	if(sendHists_ && histoSender_ != nullptr)
 	{
@@ -876,9 +1015,92 @@ void CrvDQM::endJob()
 		histoSender_.reset();
 	}
 
+	std::vector<TCanvas*> canvasesForPdf;
+	if(enableHttpServer_ && webCanvas_ != nullptr)
+	{
+		canvasesForPdf.push_back(webCanvas_);
+	}
+
 	if(enableHttpServer_)
 	{
 		updateWebDisplay(true);
+	}
+
+	// Create summary canvases: one per FEB showing FPGA-pair dt histograms
+	if(!dummyHist_)
+	{
+		std::set<int> febsWithTiming;
+		for(auto& [key, h] : dqm_.dtFpgaPairs())
+			febsWithTiming.insert(key.first);
+
+		art::TFileDirectory canvasDir =
+		    tfs_->mkdir(outputTag_).mkdir("timing_feb_canvases");
+
+		for(int febId : febsWithTiming)
+		{
+			std::string cName  = Form("c_timing_feb%02d", febId);
+			std::string cTitle = Form("FPGA timing FEB %02d", febId);
+			TCanvas*    c =
+			    canvasDir.make<TCanvas>(cName.c_str(), cTitle.c_str(), 1200, 1200);
+			TDirectory* saveDir = gDirectory;
+			c->Divide(4, 4);
+
+			for(uint8_t fpgaA = 0; fpgaA < 4; ++fpgaA)
+			{
+				for(uint8_t fpgaB = fpgaA; fpgaB < 4; ++fpgaB)
+				{
+					if(!showSameFpgaTimingInCanvas_ && fpgaA == fpgaB)
+						continue;
+					int     pad      = fpgaA * 4 + fpgaB + 1;
+					uint8_t pairCode = fpgaA * 4 + fpgaB;
+					auto    key      = std::make_pair(febId, pairCode);
+					auto    it       = dqm_.dtFpgaPairs().find(key);
+					if(it != dqm_.dtFpgaPairs().end())
+					{
+						c->cd(pad);
+						it->second->Draw("HIST");
+					}
+				}
+			}
+			c->Update();
+			saveDir->cd();
+			c->Write();
+			canvasesForPdf.push_back(c);
+		}
+	}
+
+	if(diagLevel_ > 0)
+	{
+		logPublished();
+	}
+
+	if(saveCanvasesToPdf_)
+	{
+		if(canvasesForPdf.empty())
+		{
+			std::cout << outputPrefix_
+			          << "No canvases available for PDF export (requested file: "
+			          << canvasPdfFile_ << ")" << std::endl;
+		}
+		else
+		{
+			canvasesForPdf.front()->Print((canvasPdfFile_ + "[").c_str());
+			for(TCanvas* c : canvasesForPdf)
+			{
+				if(c == nullptr)
+					continue;
+				c->Modified();
+				c->Update();
+				c->Print(canvasPdfFile_.c_str());
+			}
+			canvasesForPdf.back()->Print((canvasPdfFile_ + "]").c_str());
+			std::cout << outputPrefix_ << "Saved " << canvasesForPdf.size()
+			          << " canvases to PDF: " << canvasPdfFile_ << std::endl;
+		}
+	}
+
+	if(enableHttpServer_)
+	{
 		stopHttpServer();
 	}
 }
