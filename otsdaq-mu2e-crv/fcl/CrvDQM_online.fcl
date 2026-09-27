@@ -40,23 +40,23 @@ crvDqmOnlineSegmentation : {
       liveName : "h1_channelsLastEwt"
       publish  : true
     },
-    { match : "h2_channels"     
-      modes : [ "job", "window" ]  
+    { match : "h2_channels"
+      modes : [ "job", "window" ]
       window   : { span : 50000  unit : "ewt"  subdivisions : 10
                    keep : 0  persist : false  persistLive : false }
       publish : true },
     { match : "h1_digisPerEvt"
-      modes : [ "job", "window" ]  
+      modes : [ "job", "window" ]
       window   : { span : 50000  unit : "ewt"  subdivisions : 10
                    keep : 0  persist : false  persistLive : false }
       publish : true },
     { match : "h1_peakAdc"
-      modes : [ "job", "window" ]  
+      modes : [ "job", "window" ]
       window   : { span : 50000  unit : "ewt"  subdivisions : 10
                    keep : 0  persist : false  persistLive : false }
       publish : true },
     { match : "h1_tdc"
-      modes : [ "job", "window" ]   
+      modes : [ "job", "window" ]
       window   : { span : 50000  unit : "ewt"  subdivisions : 10
                    keep : 0  persist : false  persistLive : false }
       publish : true },
