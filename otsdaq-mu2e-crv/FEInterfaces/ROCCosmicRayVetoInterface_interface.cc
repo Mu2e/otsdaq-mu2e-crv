@@ -373,6 +373,22 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                        },
 	                        std::vector<std::string>{"response"},
 	                        1);  // requiredUserPermissions
+	registerFEMacroFunction("FEB II Error Status",
+	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
+	                            &ROCCosmicRayVetoInterface::FebIIErrorStatus),
+	                        std::vector<std::string>{
+	                            "port (Default: 0 = all active, >0 = single)",
+	                        },
+	                        std::vector<std::string>{"response"},
+	                        1);  // requiredUserPermissions
+	registerFEMacroFunction("FEB II Reset Error Counters",
+	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
+	                            &ROCCosmicRayVetoInterface::FebIIResetErrorCounters),
+	                        std::vector<std::string>{
+	                            "port (Default: 0 = all active, >0 = single)",
+	                        },
+	                        std::vector<std::string>{"response"},
+	                        1);  // requiredUserPermissions
 	registerFEMacroFunction("Test FEB Connection",
 	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
 	                            &ROCCosmicRayVetoInterface::TestFebConnection),
@@ -2159,6 +2175,146 @@ void ROCCosmicRayVetoInterface::FebIIGetStatus(__ARGS__)
 	}
 	ostr << "===============================" << std::endl;
 	__SET_ARG_OUT__("response", ostr.str());
+}
+
+void ROCCosmicRayVetoInterface::FebIIErrorStatus(__ARGS__)
+{
+	int requestedPort =
+	    __GET_ARG_IN__("port (Default: 0 = all active, >0 = single)", int, 0);
+
+	std::stringstream response;
+	uint32_t          active = GetActivePorts();
+
+	response << "FEB Error Status / DDR Status" << std::endl;
+	response << "Active ports mask: 0x" << std::hex << std::setw(6)
+	         << std::setfill('0') << active << std::dec << std::setfill(' ')
+	         << std::endl;
+
+	auto readPort = [this, &response](uint16_t port) {
+		try
+		{
+			SetActivePort(port, true);
+		}
+		catch(...)
+		{
+			response << "Port " << port << ": errCnt=FAIL" << std::endl;
+			response << "  failed to select port" << std::endl;
+			return;
+		}
+
+		uint16_t errCnt = 0;
+		try
+		{
+			errCnt = this->readRegister(FEBII::ErrorCounts);
+		}
+		catch(...)
+		{
+			response << "Port " << port << ": errCnt=FAIL" << std::endl;
+			response << "  error count register read failed" << std::endl;
+			return;
+		}
+
+		response << "Port " << port << ": errCnt=0x" << std::hex
+		         << std::setfill('0') << std::setw(4) << errCnt;
+
+		uint16_t ddr[4];
+		for(int n = 0; n < 4; ++n)
+		{
+			try
+			{
+				ddr[n] = this->readRegister(FEBII::FPGA[n] | FEBII::DDRStatus);
+			}
+			catch(...)
+			{
+				ddr[n] = 0xFFFF;
+			}
+			response << " fpga" << n << "=0x" << std::setfill('0')
+			         << std::setw(4) << ddr[n];
+		}
+		response << std::dec << std::setfill(' ') << std::endl;
+
+		for(int n = 0; n < 4; ++n)
+		{
+			uint16_t v    = ddr[n];
+			int  initOK     = (v >> 15) & 1;
+			int  almostFull = (v >> 14) & 1;
+			int  full       = (v >> 13) & 1;
+			int  temp       = v & 0xFF;
+			response << "  FPGA " << n
+			         << ": initOK=" << initOK
+			         << " almostFull=" << almostFull
+			         << " full=" << full
+			         << " temp=" << temp << "C" << std::endl;
+		}
+	};
+
+	if(requestedPort > 0)
+	{
+		readPort(static_cast<uint16_t>(requestedPort));
+	}
+	else
+	{
+		bool anyPort = false;
+		for(uint16_t port = 1; port <= 24; ++port)
+		{
+			if(active & (0x00000001u << (port - 1)))
+			{
+				anyPort = true;
+				readPort(port);
+			}
+		}
+		if(!anyPort)
+			response << "No active ports found." << std::endl;
+	}
+
+	__SET_ARG_OUT__("response", response.str());
+}
+
+void ROCCosmicRayVetoInterface::FebIIResetErrorCounters(__ARGS__)
+{
+	int requestedPort =
+	    __GET_ARG_IN__("port (Default: 0 = all active, >0 = single)", int, 0);
+
+	std::stringstream response;
+	uint32_t          active = GetActivePorts();
+
+	response << "Reset FEB Error Counters (write 5 to 0x"
+	         << std::hex << FEBII::ErrorCountsReset << std::dec << ")"
+	         << std::endl;
+
+	auto resetPort = [this, &response](uint16_t port) {
+		try
+		{
+			SetActivePort(port, true);
+			this->writeRegister(FEBII::ErrorCountsReset, 5);
+			response << "Port " << port << ": OK" << std::endl;
+		}
+		catch(...)
+		{
+			response << "Port " << port << ": FAILED" << std::endl;
+		}
+	};
+
+	if(requestedPort > 0)
+	{
+		resetPort(static_cast<uint16_t>(requestedPort));
+	}
+	else
+	{
+		bool anyPort = false;
+		for(uint16_t port = 1; port <= 24; ++port)
+		{
+			if(active & (0x00000001u << (port - 1)))
+			{
+				anyPort = true;
+				resetPort(port);
+			}
+		}
+		if(!anyPort)
+			response << "No active ports found." << std::endl;
+	}
+
+	__SET_ARG_OUT__("response", response.str());
 }
 
 void ROCCosmicRayVetoInterface::TestFebConnection(__ARGS__)

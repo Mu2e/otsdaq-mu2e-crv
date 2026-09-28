@@ -460,7 +460,12 @@
 			testLinks: { label: "Test ROC Links", macro: "testLinks", handler: handleLinkTest },
 			status:    { label: "Load Status",    macro: "status",    handler: handleStatus },
 			align:     { label: "Align Score",    macro: "alignScore", port: -1, handler: handleAlignScore },
-			baselines: { label: "Get Baselines",  macro: "baselines",  run: runBaselines },
+			baselines:   { label: "Get Baselines",  macro: "baselines",  run: runBaselines },
+			errorStatus: { label: "Error Status",  macro: "errorStatus", handler: handleErrorStatus },
+			resetErrors: {
+				label: "Reset Error Counters", macro: "resetErrors",
+				confirm: "Reset error counters on all active FEBs of {rocs}?"
+			},
 		};
 
 		// Baselines are read one port at a time (the macro reports whichever port
@@ -555,6 +560,11 @@
 			var rocs = scopedROCs();
 			if (!rocs.length) return;
 
+			if (action.confirm) {
+				var msg = action.confirm.replace("{rocs}", rocListText(rocs));
+				if (!confirm(msg)) return;
+			}
+
 			var entryId = createOutputEntry(action.label + " -> " + rocListText(rocs));
 			var perROC = {};
 			setGlobalDisabled(true);
@@ -637,6 +647,57 @@
 			markPorts(roc, {}, subs);
 			renderROCs();
 			return { success: true };
+		}
+
+		function handleErrorStatus(roc, result) {
+			var resp = String(Mu2eHardware.findOutput(result, "response") || "");
+			if (!resp) return { success: false };
+			var lines = resp.split(/\r?\n/);
+			var rows = [];
+			var anyError = false;
+			for (var i = 0; i < lines.length; ++i) {
+				var m = lines[i].match(/^Port\s+(\d+):\s+errCnt=(0x[0-9a-fA-F]+|FAIL)\s*(.*)/);
+				if (!m) continue;
+				var port = parseInt(m[1], 10);
+				var errCnt = m[2];
+				var errFail = errCnt === "FAIL";
+				var errVal = errFail ? -1 : parseInt(errCnt, 16);
+				var fpgas = [];
+				var fpgaRe = /fpga(\d)=(0x[0-9a-fA-F]+)/g;
+				var fm;
+				while ((fm = fpgaRe.exec(m[3])) !== null)
+					fpgas[parseInt(fm[1], 10)] = parseInt(fm[2], 16);
+
+				var cells = "<td>" + port + "</td>";
+				if (errFail) {
+					cells += "<td class='badValue'>FAIL</td>";
+					anyError = true;
+				} else {
+					cells += "<td" + (errVal > 0 ? " class='badValue'" : "") + ">" + errVal + "</td>";
+					if (errVal > 0) anyError = true;
+				}
+				for (var f = 0; f < 4; ++f) {
+					var v = fpgas[f];
+					if (v === undefined) { cells += "<td>?</td>"; continue; }
+					var initOK = (v >> 15) & 1;
+					var almFull = (v >> 14) & 1;
+					var full = (v >> 13) & 1;
+					var temp = v & 0xFF;
+					var cls = "";
+					if (full || almFull) { cls = "badValue"; anyError = true; }
+					else if (!initOK) { cls = "badValue"; anyError = true; }
+					var label = (initOK ? "OK" : "NO INIT");
+					if (almFull) label += " AF";
+					if (full) label += " FULL";
+					label += " " + temp + "C";
+					cells += "<td" + (cls ? " class='" + cls + "'" : "") + ">" + esc(label) + "</td>";
+				}
+				rows.push("<tr>" + cells + "</tr>");
+			}
+			var html = "<table class='crv-bl-table'><tr><th>port</th><th>err</th>" +
+				"<th>FPGA 0</th><th>FPGA 1</th><th>FPGA 2</th><th>FPGA 3</th></tr>" +
+				rows.join("") + "</table>";
+			return { success: !anyError, html: html };
 		}
 
 		// =============================================================

@@ -123,6 +123,8 @@ public:
     void                                    PLLReset                (__ARGS__);
     void                                    GetAlignScore           (__ARGS__);
     void                                    BurstWriteTest          (__ARGS__);
+    void                                    FebIIErrorStatus        (__ARGS__);
+    void                                    FebIIResetErrorCounters (__ARGS__);
 	// clang-format on
   private:
 	bool gr;

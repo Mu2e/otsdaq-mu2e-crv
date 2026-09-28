@@ -41,6 +41,9 @@ enum Register : uint16_t
 	BiasBase     = 0x10a4,  // to 0x10a5
 	VGABase      = 0x10a6,  // to 0x10a7
 	AlignScore   = 0x106a,
+	DDRStatus    = 0x1025,  // DDR memory controller status (per-FPGA, bits 15..12 = flags, 7..0 = temp)
+	ErrorCounts      = 0x1711,  // MDIO error counts (read resets counter)
+	ErrorCountsReset = 0x1712,  // write 5 to clear error counters in FRAM
 
 	// AFE reads
 	AFE0_base = 0x1100,

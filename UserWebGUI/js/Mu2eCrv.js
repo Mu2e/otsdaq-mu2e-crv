@@ -33,6 +33,8 @@ var Mu2eCrv = Mu2eCrv || {};
 		bias:       "FEB II Set Bias",
 		gateOn:     "FEB II Set Gate OnSpill",
 		gateOff:    "FEB II Set Gate OffSpill",
+		errorStatus:  "FEB II Error Status",
+		resetErrors:  "FEB II Reset Error Counters",
 	};
 
 	var _model = null;
