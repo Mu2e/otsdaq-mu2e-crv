@@ -1,0 +1,31 @@
+# Online CrvDQM configuration using the upstream CRVDQM prolog from Offline.
+#
+# Include it before any non-prolog content, then use the module table and set
+# the site-specific parameters (tags, HistoSender address/port, HTTP server):
+#
+#   #include "CrvDQM_online.fcl"
+#   ...
+#   crvdqm : {
+#     @table::crvDqmOnline
+#     crvDigiTag   : "<CRV unpacker label>"
+#     crvStatusTag : "<CRV unpacker label>"
+#     address      : "<HistoSender host>"
+#     port         : <HistoSender port>
+#   }
+
+#include "Offline/CRVDQM/fcl/prolog.fcl"
+
+BEGIN_PROLOG
+
+# Aliases so the OTS config database can keep referencing the old names.
+crvDqmOnlineSegmentation       : @local::CRVDQM.DigiOnline.hists
+crvDqmOnlineStatusSegmentation : @local::CRVDQM.StatusLinksOnline.hists
+
+crvDqmOnline : {
+  module_type        : CrvDQM
+  fillCrvIdRates     : false
+  segmentation       : @local::crvDqmOnlineSegmentation
+  statusSegmentation : @local::crvDqmOnlineStatusSegmentation
+}
+
+END_PROLOG
