@@ -16,6 +16,7 @@ cet_build_plugin(CrvDQM art::module LIBRARIES REG
     artdaq-core-mu2e::Data
     otsdaq-mu2e::ArtModules
     otsdaq::NetworkUtilities
+    Offline::CRVDQM
     Offline::DQMHelpers
     Offline::RecoDataProducts
     ROOT::Hist
@@ -34,6 +35,7 @@ cet_build_plugin(CrvStatusMetrics art::module LIBRARIES REG
     artdaq-utilities::Plugins
     otsdaq-mu2e::ArtModules
     otsdaq::NetworkUtilities
+    Offline::CRVDQM
     Offline::DQMHelpers
     Offline::RecoDataProducts
     ROOT::Hist

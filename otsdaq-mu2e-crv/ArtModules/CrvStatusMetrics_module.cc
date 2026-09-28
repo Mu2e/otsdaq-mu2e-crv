@@ -38,8 +38,8 @@
 
 #include "otsdaq-mu2e/ArtModules/HistoSender.hh"
 
-#include "Offline/DQMHelpers/inc/CRVStatusDQM.hh"
-#include "Offline/DQMHelpers/inc/DQMSegmentationConfig.hh"
+#include "Offline/CRVDQM/inc/CRVStatusDQM.hh"
+#include "Offline/DQMHelpers/inc/DQMHistSetConfig.hh"
 #include "Offline/RecoDataProducts/inc/CrvDAQerror.hh"
 #include "Offline/RecoDataProducts/inc/CrvStatus.hh"
 
@@ -55,7 +55,7 @@ class CrvStatusMetrics : public art::EDAnalyzer
 	~CrvStatusMetrics() override = default;
 
   private:
-	static mu2e::CRVStatusDQM::Config makeHelperConfig(fhicl::ParameterSet const& ps);
+	static mu2e::DQMHistSet::Config makeHistsConfig(fhicl::ParameterSet const& ps);
 
 	void beginJob() override;
 	void analyze(art::Event const& e) override;
@@ -93,24 +93,20 @@ class CrvStatusMetrics : public art::EDAnalyzer
 	std::string outputPrefix_;
 };
 
-mu2e::CRVStatusDQM::Config CrvStatusMetrics::makeHelperConfig(
+mu2e::DQMHistSet::Config CrvStatusMetrics::makeHistsConfig(
     fhicl::ParameterSet const& ps)
 {
-	mu2e::CRVStatusDQM::Config c;
-	c.nBinsLatency      = ps.get<int>("nBinsLatency", 1024);
-	c.maxLinkLatency    = ps.get<float>("maxLinkLatency", 4096.f);
-	c.nBinsTriggerCount = ps.get<int>("nBinsTriggerCount", 256);
-	c.maxTriggerCount   = ps.get<float>("maxTriggerCount", 65535.f);
-	c.nBinsWordCount    = ps.get<int>("nBinsWordCount", 256);
-	c.maxWordCount      = ps.get<float>("maxWordCount", 65535.f);
-	c.nBinsEwtMismatch  = ps.get<int>("nBinsEwtMismatch", 201);
-	c.maxEwtMismatch    = ps.get<float>("maxEwtMismatch", 100.f);
-	c.fillLivePlots     = ps.get<bool>("fillLivePlots", true);
-	// Which histograms get per-subrun / last-N-events copies. Parsed by the
-	// same code the offline analyzers use, so the grammar cannot drift.
-	c.segmentation =
-	    mu2e::parseSegmentation(ps.get<fhicl::ParameterSet>("segmentation", {}));
-	return c;
+	auto histsPset = ps.get<fhicl::ParameterSet>("segmentation", {});
+	auto config    = mu2e::toConfig(histsPset);
+	config.liveSeries = ps.get<bool>("fillLivePlots", true);
+	if(config.rules.empty())
+	{
+		mu2e::DQMHistSet::Rule r;
+		r.match   = "*";
+		r.publish = true;
+		config.rules.push_back(r);
+	}
+	return config;
 }
 
 CrvStatusMetrics::CrvStatusMetrics(fhicl::ParameterSet const& ps)
@@ -124,7 +120,7 @@ CrvStatusMetrics::CrvStatusMetrics(fhicl::ParameterSet const& ps)
     , port_(ps.get<int>("port", 6000))
     , address_(ps.get<std::string>("address", "localhost"))
     , sendIntervalSec_(ps.get<float>("sendIntervalSec", 0.5f))
-    , dqm_(makeHelperConfig(ps))
+    , dqm_(makeHistsConfig(ps))
 {
 	outputPrefix_ = "[CrvStatusMetrics] ";
 }
@@ -398,7 +394,7 @@ void CrvStatusMetrics::Send()
 {
 	// The live segment copies are labelled with the range they hold; refresh
 	// that before shipping, so a title read on the GUI is never behind.
-	dqm_.segments().RefreshLabels();
+	dqm_.hists().RefreshLabels();
 
 	if(!sendHists_ || histoSender_ == nullptr)
 		return;
@@ -429,8 +425,9 @@ void CrvStatusMetrics::Send()
 	if(dqm_.wordCount())
 		hists["crv/wordCount:replace"] = {dqm_.wordCount()};
 
-	for(const auto& [key, h] : dqm_.linkLatencyByRoc())
+	for(int link : {0, 3})
 	{
+		TH1F* h = dqm_.linkLatencyByLink(link);
 		if(h == nullptr)
 			continue;
 		hists["crv/linkLatencyByRoc:replace"].push_back(h);
@@ -452,12 +449,12 @@ void CrvStatusMetrics::beginSubRun(art::SubRun const& sr)
 
 void CrvStatusMetrics::endSubRun(art::SubRun const& sr)
 {
-	dqm_.EndSubRun(static_cast<int>(sr.run()), static_cast<int>(sr.subRun()));
+	dqm_.EndSubRun();
 }
 
 void CrvStatusMetrics::endJob()
 {
-	dqm_.WriteGraphs();
+	dqm_.EndJob();
 	if(sendHists_ && histoSender_ != nullptr)
 	{
 		Send();

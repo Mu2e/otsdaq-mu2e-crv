@@ -71,9 +71,9 @@ endif()
 find_package(otsdaq-mu2e 1.02.00 REQUIRED)
 find_package(Offline 11 REQUIRED)
 
-# CrvDQM and CrvStatusMetrics need Offline built with DQMHelpers (Offline feature/CRVDigiDQM).
-if(NOT TARGET Offline::DQMHelpers)
-  message(FATAL_ERROR "Offline::DQMHelpers not found: build against an Offline that contains DQMHelpers.")
+# CrvDQM and CrvStatusMetrics need Offline built with CRVDQM and DQMHelpers.
+if(NOT TARGET Offline::CRVDQM)
+  message(FATAL_ERROR "Offline::CRVDQM not found: build against an Offline that contains CRVDQM.")
 endif()
 
 include(BuildPlugins)
