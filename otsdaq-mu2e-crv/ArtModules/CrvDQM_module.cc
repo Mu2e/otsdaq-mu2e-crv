@@ -147,7 +147,7 @@ class CrvDQM : public art::EDAnalyzer
 
   private:
 	static mu2e::DQMHistSet::Config makeHistsConfig(fhicl::ParameterSet const& ps,
-	                                                 std::string const& key);
+	                                                std::string const&         key);
 
 	// Standard art methods
 	void analyze(art::Event const& event) override;
@@ -238,10 +238,10 @@ class CrvDQM : public art::EDAnalyzer
 };
 
 mu2e::DQMHistSet::Config CrvDQM::makeHistsConfig(fhicl::ParameterSet const& ps,
-                                                  std::string const& key)
+                                                 std::string const&         key)
 {
-	auto histsPset = ps.get<fhicl::ParameterSet>(key, {});
-	auto config    = mu2e::toConfig(histsPset);
+	auto histsPset    = ps.get<fhicl::ParameterSet>(key, {});
+	auto config       = mu2e::toConfig(histsPset);
 	config.liveSeries = ps.get<bool>("fillLivePlots", true);
 	if(config.rules.empty())
 	{
@@ -478,7 +478,7 @@ void CrvDQM::Send()
 	if(!dummyHist_)
 	{
 		std::map<std::string, std::vector<TGraph*>> graphs;
-		auto& gvec = graphs["crv/graphs:replace"];
+		auto&                                       gvec = graphs["crv/graphs:replace"];
 		if(gDigisVsEwt_)
 			gvec.push_back(gDigisVsEwt_);
 		if(gDigisAvgVsEwt_)
@@ -809,8 +809,8 @@ void CrvDQM::updateWebDisplay(bool force)
 		{
 			autoRangeGraphY(gDigisVsEwt_);
 			double currentEwt = static_cast<double>(dqm_.lastEwt());
-			double xLo =
-			    std::max(0.0, currentEwt - static_cast<double>(mu2e::CRVDigiDQM::kEwtWindow));
+			double xLo        = std::max(
+                0.0, currentEwt - static_cast<double>(mu2e::CRVDigiDQM::kEwtWindow));
 			double xHi = currentEwt;
 			if(xHi <= xLo)
 				xHi = xLo + 1.0;
@@ -965,7 +965,8 @@ void CrvDQM::endJob()
 		{
 			std::cout << outputPrefix_ << "Total digis: " << dqm_.nDigis() << std::endl;
 			std::cout << outputPrefix_
-			          << "Active global FEBs: " << dqm_.activeGlobalFebs().size() << std::endl;
+			          << "Active global FEBs: " << dqm_.activeGlobalFebs().size()
+			          << std::endl;
 			// Print FEBs per ROC
 			for(auto& [roc, febs] : dqm_.rocFEBMap())
 			{
@@ -1023,8 +1024,7 @@ void CrvDQM::endJob()
 	{
 		art::TFileDirectory canvasDir =
 		    tfs_->mkdir(outputTag_).mkdir("timing_feb_canvases");
-		TCanvas* c =
-		    canvasDir.make<TCanvas>("c_dtFpgaPairs", "FPGA-pair dt", 1200, 800);
+		TCanvas* c = canvasDir.make<TCanvas>("c_dtFpgaPairs", "FPGA-pair dt", 1200, 800);
 		TDirectory* saveDir = gDirectory;
 		dqm_.dtFpgaPairs()->Draw("COLZ");
 		c->Update();

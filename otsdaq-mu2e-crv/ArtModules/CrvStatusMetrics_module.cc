@@ -93,11 +93,10 @@ class CrvStatusMetrics : public art::EDAnalyzer
 	std::string outputPrefix_;
 };
 
-mu2e::DQMHistSet::Config CrvStatusMetrics::makeHistsConfig(
-    fhicl::ParameterSet const& ps)
+mu2e::DQMHistSet::Config CrvStatusMetrics::makeHistsConfig(fhicl::ParameterSet const& ps)
 {
-	auto histsPset = ps.get<fhicl::ParameterSet>("segmentation", {});
-	auto config    = mu2e::toConfig(histsPset);
+	auto histsPset    = ps.get<fhicl::ParameterSet>("segmentation", {});
+	auto config       = mu2e::toConfig(histsPset);
 	config.liveSeries = ps.get<bool>("fillLivePlots", true);
 	if(config.rules.empty())
 	{
@@ -447,10 +446,7 @@ void CrvStatusMetrics::beginSubRun(art::SubRun const& sr)
 	dqm_.BeginSubRun(static_cast<int>(sr.run()), static_cast<int>(sr.subRun()));
 }
 
-void CrvStatusMetrics::endSubRun(art::SubRun const& sr)
-{
-	dqm_.EndSubRun();
-}
+void CrvStatusMetrics::endSubRun(art::SubRun const& sr) { dqm_.EndSubRun(); }
 
 void CrvStatusMetrics::endJob()
 {
