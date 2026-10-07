@@ -965,7 +965,7 @@ void CrvDQM::endJob()
 		{
 			std::cout << outputPrefix_ << "Total digis: " << dqm_.nDigis() << std::endl;
 			std::cout << outputPrefix_
-			          << "Active FEB ports: " << dqm_.activeFebPorts().size() << std::endl;
+			          << "Active global FEBs: " << dqm_.activeGlobalFebs().size() << std::endl;
 			// Print FEBs per ROC
 			for(auto& [roc, febs] : dqm_.rocFEBMap())
 			{
