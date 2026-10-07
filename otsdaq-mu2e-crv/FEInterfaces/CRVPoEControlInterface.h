@@ -45,16 +45,17 @@ class CRVPoEControlInterface : public FEVInterface
 	void PoEStatus(__ARGS__);
 
   private:
-	static std::string readOptionalField(const ConfigurationTree& theXDAQContextConfigTree,
-	                                     const std::string&       interfaceConfigurationPath,
-	                                     const std::string&       fieldName,
-	                                     const std::string&       defaultValue);
-	static void        validateSelector(const std::string& argumentName,
-	                                    const std::string& value,
-	                                    unsigned int       maxNumber);
+	static std::string readOptionalField(
+	    const ConfigurationTree& theXDAQContextConfigTree,
+	    const std::string&       interfaceConfigurationPath,
+	    const std::string&       fieldName,
+	    const std::string&       defaultValue);
+	static void validateSelector(const std::string& argumentName,
+	                             const std::string& value,
+	                             unsigned int       maxNumber);
 
 	std::string buildRemoteCommand(const std::string& scriptArguments) const;
-	void        runRemoteCommand(const std::string& scriptArguments,
+	void        runRemoteCommand(const std::string&                scriptArguments,
 	                             FEVInterface::frontEndMacroArgs_t argsOut);
 
 	std::string poeControlHost_;

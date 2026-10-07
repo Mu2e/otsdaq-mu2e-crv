@@ -43,7 +43,8 @@ CRVPoEControlInterface::CRVPoEControlInterface(
 {
 	// The three settings end up inside a shell command line; refuse anything
 	// that could break out of the quoting.
-	for(const std::string* setting : {&poeControlHost_, &poeControlUser_, &poeControlScript_})
+	for(const std::string* setting :
+	    {&poeControlHost_, &poeControlUser_, &poeControlScript_})
 		if(setting->find_first_of("'\"`$;&|<>\n") != std::string::npos)
 		{
 			__FE_SS__ << "PoE control setting '" << *setting
@@ -57,7 +58,8 @@ CRVPoEControlInterface::CRVPoEControlInterface(
 
 	registerFEMacroFunction(
 	    "PoE Cycle",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(&CRVPoEControlInterface::PoECycle),
+	    static_cast<FEVInterface::frontEndMacroFunction_t>(
+	        &CRVPoEControlInterface::PoECycle),
 	    std::vector<std::string>{ARG_PORT, ARG_INJECTOR},
 	    std::vector<std::string>{"result", "exit status", "output", "command"},
 	    1,    // requiredUserPermissions
@@ -68,7 +70,8 @@ CRVPoEControlInterface::CRVPoEControlInterface(
 
 	registerFEMacroFunction(
 	    "PoE Off",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(&CRVPoEControlInterface::PoEOff),
+	    static_cast<FEVInterface::frontEndMacroFunction_t>(
+	        &CRVPoEControlInterface::PoEOff),
 	    std::vector<std::string>{ARG_PORT, ARG_INJECTOR},
 	    std::vector<std::string>{"result", "exit status", "output", "command"},
 	    1,    // requiredUserPermissions
@@ -78,7 +81,8 @@ CRVPoEControlInterface::CRVPoEControlInterface(
 
 	registerFEMacroFunction(
 	    "PoE On",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(&CRVPoEControlInterface::PoEOn),
+	    static_cast<FEVInterface::frontEndMacroFunction_t>(
+	        &CRVPoEControlInterface::PoEOn),
 	    std::vector<std::string>{ARG_PORT, ARG_INJECTOR},
 	    std::vector<std::string>{"result", "exit status", "output", "command"},
 	    1,    // requiredUserPermissions
@@ -88,7 +92,8 @@ CRVPoEControlInterface::CRVPoEControlInterface(
 
 	registerFEMacroFunction(
 	    "PoE Status",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(&CRVPoEControlInterface::PoEStatus),
+	    static_cast<FEVInterface::frontEndMacroFunction_t>(
+	        &CRVPoEControlInterface::PoEStatus),
 	    std::vector<std::string>{ARG_INJECTOR},
 	    std::vector<std::string>{"result", "exit status", "output", "command"},
 	    1,    // requiredUserPermissions
@@ -219,7 +224,8 @@ void CRVPoEControlInterface::runRemoteCommand(const std::string& scriptArguments
 
 	__FE_COUT__ << "Exit status " << exitStatus << ", output:\n" << output << __E__;
 
-	__SET_ARG_OUT__("result", exitStatus == 0 ? std::string("OK") : std::string("FAILED"));
+	__SET_ARG_OUT__("result",
+	                exitStatus == 0 ? std::string("OK") : std::string("FAILED"));
 	__SET_ARG_OUT__("exit status", exitStatus);
 	__SET_ARG_OUT__("output", output);
 	__SET_ARG_OUT__("command", command);

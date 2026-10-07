@@ -2211,9 +2211,8 @@ void ROCCosmicRayVetoInterface::FebIIErrorStatus(__ARGS__)
 	uint32_t          active = GetActivePorts();
 
 	response << "FEB Error Status / DDR Status" << std::endl;
-	response << "Active ports mask: 0x" << std::hex << std::setw(6)
-	         << std::setfill('0') << active << std::dec << std::setfill(' ')
-	         << std::endl;
+	response << "Active ports mask: 0x" << std::hex << std::setw(6) << std::setfill('0')
+	         << active << std::dec << std::setfill(' ') << std::endl;
 
 	auto readPort = [this, &response](uint16_t port) {
 		try
@@ -2239,8 +2238,8 @@ void ROCCosmicRayVetoInterface::FebIIErrorStatus(__ARGS__)
 			return;
 		}
 
-		response << "Port " << port << ": errCnt=0x" << std::hex
-		         << std::setfill('0') << std::setw(4) << errCnt;
+		response << "Port " << port << ": errCnt=0x" << std::hex << std::setfill('0')
+		         << std::setw(4) << errCnt;
 
 		uint16_t ddr[4];
 		for(int n = 0; n < 4; ++n)
@@ -2253,21 +2252,19 @@ void ROCCosmicRayVetoInterface::FebIIErrorStatus(__ARGS__)
 			{
 				ddr[n] = 0xFFFF;
 			}
-			response << " fpga" << n << "=0x" << std::setfill('0')
-			         << std::setw(4) << ddr[n];
+			response << " fpga" << n << "=0x" << std::setfill('0') << std::setw(4)
+			         << ddr[n];
 		}
 		response << std::dec << std::setfill(' ') << std::endl;
 
 		for(int n = 0; n < 4; ++n)
 		{
-			uint16_t v    = ddr[n];
-			int  initOK     = (v >> 15) & 1;
-			int  almostFull = (v >> 14) & 1;
-			int  full       = (v >> 13) & 1;
-			response << "  FPGA " << n
-			         << ": initOK=" << initOK
-			         << " almostFull=" << almostFull
-			         << " full=" << full
+			uint16_t v          = ddr[n];
+			int      initOK     = (v >> 15) & 1;
+			int      almostFull = (v >> 14) & 1;
+			int      full       = (v >> 13) & 1;
+			response << "  FPGA " << n << ": initOK=" << initOK
+			         << " almostFull=" << almostFull << " full=" << full
 			         << " temp=" << std::fixed << std::setprecision(1)
 			         << ddrStatusTemperatureC(v) << "C" << std::endl;
 		}
@@ -2303,7 +2300,8 @@ void ROCCosmicRayVetoInterface::FebIIErrorStatus(__ARGS__)
 // and writes FEBII::MDIO (0x9109, "LC MDIO 5"). Used by the "FEB II Reset Error
 // Counters" macro and by start().
 // Does not throw; returns true on success and puts the result text in report.
-bool ROCCosmicRayVetoInterface::resetFebErrorCounters(int requestedPort, std::string* report)
+bool ROCCosmicRayVetoInterface::resetFebErrorCounters(int          requestedPort,
+                                                      std::string* report)
 {
 	std::stringstream response;
 	bool              ok = true;

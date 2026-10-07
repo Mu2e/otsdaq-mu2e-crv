@@ -41,12 +41,14 @@ enum Register : uint16_t
 	BiasBase     = 0x10a4,  // to 0x10a5
 	VGABase      = 0x10a6,  // to 0x10a7
 	AlignScore   = 0x106a,
-	DDRStatus    = 0x1025,  // DDR memory controller status (per-FPGA): bit 15 init OK, 14 almost full,
-	                        // 13 full; temperature in 11..0 as raw XADC (degC = raw*0.123-273) on
-	                        // FEB2 firmware before 2026-09-18, integer degC in 7..0 afterwards
-	ErrorCounts  = 0x1711,  // MDIO error counts (read resets counter)
-	// Error counter reset moved from FPGA register 0x1712 to the uC function
-	// MDIO (0x9109) with ROC firmware >= 637, see FEBII::MDIO below.
+	DDRStatus =
+	    0x1025,  // DDR memory controller status (per-FPGA): bit 15 init OK, 14 almost
+	             // full, 13 full; temperature in 11..0 as raw XADC (degC = raw*0.123-273)
+	             // on FEB2 firmware before 2026-09-18, integer degC in 7..0 afterwards
+	ErrorCounts =
+	    0x1711,  // MDIO error counts (read resets counter)
+	             // Error counter reset moved from FPGA register 0x1712 to the uC function
+	             // MDIO (0x9109) with ROC firmware >= 637, see FEBII::MDIO below.
 
 	// AFE reads
 	AFE0_base = 0x1100,
@@ -68,14 +70,14 @@ enum Register : uint16_t
 	AllFEB = 0x3000,
 	// uC functions: 0x9xxx = "LC <cmd> <value>" to the selected FEB,
 	//               0xBxxx = "LCB <cmd> <value>" broadcast to all FEBs on the ROC
-	Reset         = 0x9001,
-	TRIG          = 0x900B,
-	MUX           = 0x9103,
-	GAIN          = 0x9104,
-	CMBENA        = 0x9106,
-	MDIO          = 0x9109,  // write MDIOClearErrorCounters to clear error counters in FRAM
-	MDIOBroadcast = 0xB109   // same, all FEBs on the ROC in one write
-};  // end ROC_Register enum
+	Reset  = 0x9001,
+	TRIG   = 0x900B,
+	MUX    = 0x9103,
+	GAIN   = 0x9104,
+	CMBENA = 0x9106,
+	MDIO   = 0x9109,  // write MDIOClearErrorCounters to clear error counters in FRAM
+	MDIOBroadcast = 0xB109  // same, all FEBs on the ROC in one write
+};                          // end ROC_Register enum
 
 // Value written to FEBII::MDIO to clear the FEB error counters.
 constexpr uint16_t MDIOClearErrorCounters = 5;
