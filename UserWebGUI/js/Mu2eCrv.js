@@ -37,6 +37,41 @@ var Mu2eCrv = Mu2eCrv || {};
 		resetErrors:  "FEB II Reset Error Counters",
 	};
 
+	// PoE injector control: a hardware-free FE (CRVPoEControlInterface) that
+	// runs poe_ctl.py on the DCS host. It is found by its macro name, in any
+	// FE class, so it does not depend on the DTC model.
+	Mu2eCrv.POE_MACROS = { cycle: "PoE Cycle", off: "PoE Off", on: "PoE On", status: "PoE Status" };
+	Mu2eCrv.POE_INPUTS = { port: "Port (1-24 or all)", injector: "Injector (1, 2 or all)" };
+
+	// ROC -> PoE injector. ASSUMPTION, not read from any table: injector 1
+	// feeds the FEBs of the ROC on link 0, injector 2 those on link 1, and
+	// PoE port N is FEB port N. Fill the map by ROC UID if the cabling differs.
+	Mu2eCrv.POE_INJECTOR_BY_ROC_UID = {};
+
+	Mu2eCrv.poeInjectorForROC = function (roc) {
+		if (Mu2eCrv.POE_INJECTOR_BY_ROC_UID[roc.uid] !== undefined)
+			return String(Mu2eCrv.POE_INJECTOR_BY_ROC_UID[roc.uid]);
+		return roc.link >= 0 ? String(roc.link + 1) : "all";
+	};
+
+	Mu2eCrv.findPoEInterface = function () {
+		var map = Mu2eHardware.getFeToMacrosMap() || {};
+		var uids = Object.keys(map);
+		for (var i = 0; i < uids.length; ++i)
+			if (map[uids[i]][Mu2eCrv.POE_MACROS.cycle]) return uids[i];
+		return null;
+	};
+
+	// shortName: key of Mu2eCrv.POE_MACROS; inputs: {Mu2eCrv.POE_INPUTS.x: value}
+	Mu2eCrv.runPoE = function (shortName, inputs, callback) {
+		var uid = Mu2eCrv.findPoEInterface();
+		if (!uid) {
+			if (callback) callback({ error: "PoE control interface not found in the macro list" });
+			return;
+		}
+		Mu2eHardware.runMacro(uid, Mu2eCrv.POE_MACROS[shortName], inputs, callback);
+	};
+
 	var _model = null;
 	// _model = { dtc, rocs: [{ uid, link, enabled, ports: {1: port, ...}, configError }] }
 	// port   = { port, febUID, on, bias[], trim[], threshold[],

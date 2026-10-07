@@ -465,3 +465,43 @@ body {
 .crv-bl-table { border-collapse: collapse; margin: 2px 0 4px; }
 .crv-bl-table th, .crv-bl-table td { padding: 1px 8px; text-align: right; }
 .crv-bl-table th { color: #395a78; font-weight: 600; }
+
+/* PoE injector script output (FEB power section) */
+.crv-poe-output {
+	white-space: pre-wrap;
+	margin: 4px 0;
+	font-size: 12px;
+}
+
+/* ---- Actions panel: ROC actions on the left, PoE power group on the right ---- */
+
+.crv-actions-bar {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	gap: 10px;
+}
+
+.crv-actions-bar .crv-poe-group {
+	margin-left: auto;
+}
+
+.crv-poe-group {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6px;
+	padding: 4px 8px;
+	border: 1px solid #c4d3e4;
+	border-radius: 5px;
+	background: #f6f9fc;
+}
+
+.crv-poe-group-label {
+	color: #0a4f91;
+	font-weight: 700;
+	margin-right: 2px;
+}
+
+
