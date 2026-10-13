@@ -419,14 +419,12 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                                                 "re-measure (Default: false)"},
 	                        std::vector<std::string>{"response"},
 	                        1);  // requiredUserPermissions
-	registerFEMacroFunction(
-	    "FEB II Currents",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-	        &ROCCosmicRayVetoInterface::FebIIGetCurrents),
-	    std::vector<std::string>{"port (Default: -1, current active)",
-	                             "number of measurements (Default: 3)"},
-	    std::vector<std::string>{"response"},
-	    1);  // requiredUserPermissions
+	registerFEMacroFunction("FEB II Currents",
+	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
+	                            &ROCCosmicRayVetoInterface::FebIIGetCurrents),
+	                        std::vector<std::string>{"port (Default: -1, current active)"},
+	                        std::vector<std::string>{"response"},
+	                        1);  // requiredUserPermissions
 	registerFEMacroFunction("FEB II Trigger Baselines",
 	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
 	                            &ROCCosmicRayVetoInterface::FebIITrigBaselines),
@@ -2654,28 +2652,30 @@ void ROCCosmicRayVetoInterface::FebIIGetBaselines(__ARGS__)
 void ROCCosmicRayVetoInterface::FebIIGetCurrents(__ARGS__)
 {
 	int port = __GET_ARG_IN__("port (Default: -1, current active)", int, -1);
-	int measurements __attribute__((unused)) =
-	    __GET_ARG_IN__("number of measurements (Default: 3)", int, 3);
 	if(port > 0)
 		SetActivePort(port);
 
 	std::stringstream ostr;
 	ostr << "Currents for port " << port << std::endl;
-	for(unsigned int fpga = 0; fpga < 4; fpga++)
+	for(unsigned int fpga = 0; fpga < 4; ++fpga)
 	{
+		this->writeRegister(FEBII::MUX, fpga);                     // set mux
+		usleep(1000000);
+
 		for(uint16_t ch = 0; ch < 16; ++ch)
 		{
-			this->writeRegister(FEBII::MUX, fpga);                     // set mux
-			this->writeRegister(FEBII::FPGA[fpga] | 0x20, 0x10 | ch);  // enable mux
+			this->writeRegister(FEBII::CR | FEBII::FPGA[fpga] | 0x20, 0x10 | ch);  // enable mux
 			this->writeRegister(FEBII::GAIN, 8);
-			// get new register from Terry
-			// float avg = this->readRegister(Terry's new register) * conversionFactor;
-			// if(avg > 4.096) avg = 8.192 - avg
-			// current = avg / 8 * 250;  //in uA
-			// ostr << "Channel "<< current << " uA" << std::endl;
-			this->writeRegister(FEBII::FPGA[fpga] | 0x20,
-			                    0x0);  // disable mux (required before data taking)
+			this->writeRegister(FEBII::A0, 3);  //makes three A0 reads and calculates the average
+		        usleep(1000000);
+			uint16_t avgInt = this->readRegister(FEBII::A0);   //returns 1,000,000 * average
+			float avg = avgInt / 1.0e6;
+			if(avg > 4.096) avg = 8.192 - avg;
+			float current = avg / 8.0 * 250.0;  //in uA
+			ostr << "Channel " << fpga*16+ch << ":  " << std::fixed << std::setprecision(3) << current << " uA" << std::endl;
 		}
+
+		this->writeRegister(FEBII::CR | FEBII::FPGA[fpga] | 0x20, 0x0);  // disable mux (required before data taking)
 	}
 
 	__SET_ARG_OUT__("response", ostr.str());
