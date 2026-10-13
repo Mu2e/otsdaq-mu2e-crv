@@ -1,5 +1,10 @@
 # Online CrvDQM configuration using the upstream CRVDQM prolog from Offline.
 #
+# The CrvDQM module itself lives in otsdaq-mu2e-dqm; this file only provides
+# the aliases the OTS configuration database references. Binning is fixed in
+# Offline/CRVDQM; the `digi` and `status` tables choose which copies of each
+# histogram exist and which HistoSender ships (Offline/CRVDQM/fcl/prolog.fcl).
+#
 # Include it before any non-prolog content, then use the module table and set
 # the site-specific parameters (tags, HistoSender address/port, HTTP server):
 #
@@ -17,15 +22,15 @@
 
 BEGIN_PROLOG
 
-# Aliases so the OTS config database can keep referencing the old names.
-crvDqmOnlineSegmentation       : @local::CRVDQM.DigiOnline.hists
-crvDqmOnlineStatusSegmentation : @local::CRVDQM.StatusLinksOnline.hists
+# Whole client tables (each carries a `hists` block), as CrvDQM's `digi` and
+# `status` parameters expect. The OTS config database references these names.
+crvDqmOnlineDigi   : @local::CRVDQM.DigiOnline
+crvDqmOnlineStatus : @local::CRVDQM.StatusLinksOnline
 
 crvDqmOnline : {
-  module_type        : CrvDQM
-  fillCrvIdRates     : false
-  segmentation       : @local::crvDqmOnlineSegmentation
-  statusSegmentation : @local::crvDqmOnlineStatusSegmentation
+  module_type : CrvDQM
+  digi        : @local::crvDqmOnlineDigi
+  status      : @local::crvDqmOnlineStatus
 }
 
 END_PROLOG
