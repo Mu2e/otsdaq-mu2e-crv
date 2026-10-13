@@ -66,6 +66,10 @@ enum Register : uint16_t
 	LEDOn           = 0x1318,  // 6.25ns, default
 	PortAll         = 0x1329,  // set port for all FPGAs
 
+	A0 = 0x1700,  // write resets data to 0, takes n reads, and calculate the average (via
+	              // FEB's A0) read returns average where the return value is
+	              // 1,000,000*data
+
 	// broadcast to all FEBs on ROC
 	AllFEB = 0x3000,
 	// uC functions: 0x9xxx = "LC <cmd> <value>" to the selected FEB,
