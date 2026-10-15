@@ -125,6 +125,8 @@ public:
     void                                    BurstWriteTest          (__ARGS__);
     void                                    FebIIErrorStatus        (__ARGS__);
     void                                    FebIIResetErrorCounters (__ARGS__);
+    bool                                    resetFebErrorCounters   (int          requestedPort = -1,  // -1 = broadcast
+                                                                     std::string* report        = nullptr);
 	// clang-format on
   private:
 	bool gr;

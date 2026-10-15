@@ -67,6 +67,7 @@
 			});
 			Mu2eHardware.fetchMacroList(function () {
 				_macrosReady = true;
+				renderPoEControls();
 				if (_structureReady) refreshConfig();
 			});
 		}
@@ -235,6 +236,7 @@
 			document.getElementById("scopeHint").textContent =
 				_scopeROC === "all" && _scopePort !== -1 ?
 					"Port " + _scopePort + " on every ROC." : "";
+			renderPoEScopeNote();
 		}
 
 		function onScopeChange() {
@@ -526,6 +528,110 @@
 			});
 		}
 
+		// =============================================================
+		// FEB power (PoE injectors): a hardware-free FE on the CRV FE
+		// supervisor runs poe_ctl.py on the DCS host over ssh. Buttons only.
+		// The Actions panel buttons act on all ports of all injectors; the
+		// per-port buttons follow the scope (ROC -> injector, port -> port).
+		// =============================================================
+
+		var POE_BUTTON_IDS = ["poeCycleAllButton", "poeOffAllButton",
+			"poePortOnButton", "poePortOffButton", "poePortCycleButton"];
+
+		function renderPoEControls() {
+			var uid = Mu2eCrv.findPoEInterface();
+			setPoEDisabled(!uid);
+			var note = document.getElementById("poeNote");
+			if (uid) {
+				note.innerHTML = "";
+				note.title = "via " + uid;
+			} else {
+				note.innerHTML = "<span class='badValue'>not registered</span>";
+				note.title = "The CRV FE supervisor creates the PoE control interface when Configured. " +
+					"Configure, then click Refresh config.";
+			}
+			renderPoEScopeNote();
+		}
+
+		function setPoEDisabled(disabled) {
+			for (var i = 0; i < POE_BUTTON_IDS.length; ++i)
+				document.getElementById(POE_BUTTON_IDS[i]).disabled = disabled;
+		}
+
+		// A PoE target is { port, injector, text }; port and injector are the
+		// macro inputs ("all" or a number), text is for titles and dialogs.
+		function poeAll() {
+			return { port: "all", injector: "all", text: "all ports on all injectors" };
+		}
+
+		// Scope -> target. One ROC selected: its injector; all ROCs: all injectors.
+		function poeScopeTarget() {
+			var rocs = scopedROCs();
+			var injector = (_scopeROC !== "all" && rocs.length === 1) ?
+				Mu2eCrv.poeInjectorForROC(rocs[0]) : "all";
+			var port = _scopePort === -1 ? "all" : String(_scopePort);
+			var text = (port === "all" ? "all ports" : "port " + port) +
+				(injector === "all" ? " on all injectors" :
+					" on injector " + injector + " (" + rocs[0].uid + ")");
+			return { port: port, injector: injector, text: text };
+		}
+
+		function renderPoEScopeNote() {
+			var el = document.getElementById("poeScopeNote");
+			if (!el || !Mu2eCrv.getModel()) return;
+			el.textContent = "target: " + poeScopeTarget().text;
+		}
+
+		function poeInputs(target) {
+			var inputs = {};
+			inputs[Mu2eCrv.POE_INPUTS.port] = target.port;
+			inputs[Mu2eCrv.POE_INPUTS.injector] = target.injector;
+			return inputs;
+		}
+
+		function poeReport(entryId, result) {
+			if (result.error) {
+				updateOutputEntry(entryId, "<span class='badValue'>Error: " + esc(result.error) + "</span>");
+				return;
+			}
+			var status = String(Mu2eHardware.findOutput(result, "result") || "FAILED");
+			var exitStatus = Mu2eHardware.findOutput(result, "exit status");
+			var output = String(Mu2eHardware.findOutput(result, "output") || "");
+			var command = String(Mu2eHardware.findOutput(result, "command") || "");
+			updateOutputEntry(entryId,
+				"<b>" + Mu2eHardware.colorizeValue(esc(status)) + "</b> (exit status " + esc(exitStatus) + ")" +
+				"<pre class='crv-poe-output'>" + esc(output) + "</pre>" +
+				"<div class='crv-control-note'>" + esc(command) + "</div>");
+		}
+
+		function poeRun(shortName, title, target) {
+			var entryId = createOutputEntry(title);
+			setPoEDisabled(true);
+			Mu2eCrv.runPoE(shortName, poeInputs(target), function (result) {
+				setPoEDisabled(false);
+				poeReport(entryId, result);
+			});
+		}
+
+		function poeOn(target) {
+			poeRun("on", "PoE on (" + target.text + ")", target);
+		}
+
+		function poeOff(target) {
+			if (!confirm("Switch PoE " + target.text + " OFF?\n\n" +
+					"FEB power stays off until On or Power-cycle is used."))
+				return;
+			poeRun("off", "PoE off (" + target.text + ")", target);
+		}
+
+		function poeCycle(target) {
+			if (!confirm("Power-cycle PoE " + target.text + "?\n\n" +
+					"FEB power is cut for the cycle delay (5 s by default). " +
+					"The affected FEBs need a new Configure afterwards."))
+				return;
+			poeRun("cycle", "PoE power-cycle (" + target.text + ")", target);
+		}
+
 		function renderGlobalActions() {
 			var html = "";
 			var available = Mu2eCrv.macrosAvailable();
@@ -543,6 +649,7 @@
 			document.getElementById("globalActions").innerHTML = html;
 			var controls = document.querySelectorAll(".crv-controls button, .crv-global-btn");
 			for (var i = 0; i < controls.length; ++i) controls[i].disabled = !available;
+			renderPoEControls(); // the PoE buttons sit in the same panels, keep their own state
 		}
 
 		function setGlobalDisabled(disabled) {
@@ -649,6 +756,17 @@
 			return { success: true };
 		}
 
+		// FPGA die temperature from the DDR status register (FEB II 0x025).
+		// FEB2 firmware before 2026-09-18 puts the raw 12-bit XADC value in bits
+		// 11..0 (degC = raw * 0.123 - 273); newer firmware puts integer degC in
+		// bits 7..0 with bits 12..8 zero. In the old layout bits 11..8 are
+		// non-zero for any temperature above 0 degC, so they select the decode.
+		function ddrStatusTemperatureC(v) {
+			var raw12 = v & 0xFFF;
+			if (raw12 & 0xF00) return (raw12 * 0.123 - 273).toFixed(1);
+			return String(v & 0xFF);
+		}
+
 		function handleErrorStatus(roc, result) {
 			var resp = String(Mu2eHardware.findOutput(result, "response") || "");
 			if (!resp) return { success: false };
@@ -682,14 +800,15 @@
 					var initOK = (v >> 15) & 1;
 					var almFull = (v >> 14) & 1;
 					var full = (v >> 13) & 1;
-					var temp = v & 0xFF;
-					var cls = "";
-					if (full || almFull) { cls = "badValue"; anyError = true; }
-					else if (!initOK) { cls = "badValue"; anyError = true; }
-					var label = (initOK ? "OK" : "NO INIT");
-					if (almFull) label += " AF";
-					if (full) label += " FULL";
-					label += " " + temp + "C";
+					var temp = ddrStatusTemperatureC(v);
+					// "OK" only when nothing is wrong; otherwise list the problems.
+					var problems = [];
+					if (!initOK) problems.push("NO INIT");
+					if (full) problems.push("FULL");
+					else if (almFull) problems.push("ALMOST FULL");
+					var cls = problems.length ? "badValue" : "";
+					if (problems.length) anyError = true;
+					var label = (problems.length ? problems.join(" ") : "OK") + " " + temp + "C";
 					cells += "<td" + (cls ? " class='" + cls + "'" : "") + ">" + esc(label) + "</td>";
 				}
 				rows.push("<tr>" + cells + "</tr>");
@@ -881,8 +1000,19 @@
 
 		<section class="crv-section">
 			<div class="crv-section-title">Actions</div>
-			<div id="globalActions" class="crv-actions"></div>
+			<div class="crv-actions-bar">
+				<div id="globalActions" class="crv-actions"></div>
+				<div class="crv-poe-group" title="FEB power: all PoE injector ports, via poe_ctl.py on the DCS host">
+					<span class="crv-poe-group-label">FEB power</span>
+					<button type="button" class="macro-btn-primary" id="poeCycleAllButton" onclick="poeCycle(poeAll())" disabled
+						title="Power-cycle every PoE port on every injector: off, wait 5 s, on. All FEBs need a new Configure afterwards.">Power-cycle all</button>
+					<button type="button" class="macro-btn" id="poeOffAllButton" onclick="poeOff(poeAll())" disabled
+						title="Switch every PoE port on every injector off (all FEBs off)">All off</button>
+					<span id="poeNote" class="crv-control-note"></span>
+				</div>
+			</div>
 		</section>
+
 
 		<section class="crv-section">
 			<div class="crv-section-title">Global settings (all ROCs, all active ports)</div>
@@ -942,6 +1072,24 @@
 
 				<section class="crv-section crv-controls">
 					<div class="crv-section-title">Per-port controls (use the scope above)</div>
+
+					<div class="accordion-section">
+						<div class="accordion-header" onclick="Mu2e.toggleAccordion(this)">FEB power (PoE)</div>
+						<div class="accordion-body">
+							<div class="crv-control-row">
+								<button type="button" class="macro-btn" id="poePortOnButton" onclick="poeOn(poeScopeTarget())"
+									title="Switch the PoE port(s) in scope on (FEB power on)">On</button>
+								<button type="button" class="macro-btn" id="poePortOffButton" onclick="poeOff(poeScopeTarget())"
+									title="Switch the PoE port(s) in scope off (FEB power off)">Off</button>
+								<button type="button" class="macro-btn-primary" id="poePortCycleButton" onclick="poeCycle(poeScopeTarget())"
+									title="Power-cycle the PoE port(s) in scope: off, wait 5 s, on. The FEB needs a new Configure afterwards.">Power-cycle</button>
+								<span id="poeScopeNote" class="crv-control-note"></span>
+							</div>
+							<div class="crv-control-row">
+								<span class="crv-control-note">ROC on link 0 is on injector 1, link 1 on injector 2; PoE port = FEB port. Edit Mu2eCrv.js if the cabling differs.</span>
+							</div>
+						</div>
+					</div>
 
 					<div class="accordion-section">
 						<div class="accordion-header" onclick="Mu2e.toggleAccordion(this)">Bias trim</div>
