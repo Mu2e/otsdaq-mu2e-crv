@@ -84,7 +84,7 @@ enum Register : uint16_t
 };                          // end ROC_Register enum
 
 // Value written to FEBII::MDIO to clear the FEB error counters.
-constexpr uint16_t MDIOClearErrorCounters = 5;
+constexpr uint16_t MDIOClearErrorCounters = 3;
 
 enum AFERegister : uint16_t
 {
