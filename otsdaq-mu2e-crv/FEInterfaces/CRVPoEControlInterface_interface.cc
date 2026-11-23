@@ -11,8 +11,8 @@ using namespace ots;
 
 namespace
 {
-const std::string DEFAULT_REMOTE_HOST       = "mu2e-dcs-01.fnal.gov";
-const std::string DEFAULT_REMOTE_USER       = "mu2eshift";
+const std::string DEFAULT_REMOTE_HOST        = "mu2e-dcs-01.fnal.gov";
+const std::string DEFAULT_REMOTE_USER        = "mu2eshift";
 const std::string DEFAULT_POE_CONTROL_SCRIPT = "python3 ~/CRVFirmware/scripts/poe_ctl.py";
 const std::string DEFAULT_ROC_CMD_SCRIPT     = "python3 ~/CRVFirmware/scripts/rocCmd.py";
 
@@ -218,8 +218,7 @@ void CRVPoEControlInterface::validateSelector(const std::string& argumentName,
 
 //==============================================================================
 std::string CRVPoEControlInterface::buildRemoteCommand(
-    const std::string& script,
-    const std::string& scriptArguments) const
+    const std::string& script, const std::string& scriptArguments) const
 {
 	return "ssh -K -o BatchMode=yes -o ConnectTimeout=10 " + remoteUser_ + "@" +
 	       remoteHost_ + " '" + script + " " + scriptArguments + "'";

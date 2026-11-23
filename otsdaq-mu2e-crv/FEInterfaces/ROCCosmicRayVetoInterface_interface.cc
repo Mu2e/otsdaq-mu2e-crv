@@ -74,14 +74,15 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	                        std::vector<std::string>{},
 	                        1);  // requiredUserPermissions
 
-	registerFEMacroFunction("Set Port Match",
-	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
-	                            &ROCCosmicRayVetoInterface::SetPortMatch),
-	                        std::vector<std::string>{"port match on (Default: false)",
-	                                                 "FEB timeout in units of 10 us, 0 = none (Default: 0)",
-	                                                 "clear counters (Default: false)"},
-	                        std::vector<std::string>{"response"},
-	                        1);  // requiredUserPermissions
+	registerFEMacroFunction(
+	    "Set Port Match",
+	    static_cast<FEVInterface::frontEndMacroFunction_t>(
+	        &ROCCosmicRayVetoInterface::SetPortMatch),
+	    std::vector<std::string>{"port match on (Default: false)",
+	                             "FEB timeout in units of 10 us, 0 = none (Default: 0)",
+	                             "clear counters (Default: false)"},
+	    std::vector<std::string>{"response"},
+	    1);  // requiredUserPermissions
 
 	registerFEMacroFunction("Reset uC",
 	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
@@ -399,24 +400,22 @@ ROCCosmicRayVetoInterface::ROCCosmicRayVetoInterface(
 	    },
 	    std::vector<std::string>{"response"},
 	    1);  // requiredUserPermissions
-	registerFEMacroFunction(
-	    "ROC Buffer Dump",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-	        &ROCCosmicRayVetoInterface::BufferDump),
-	    std::vector<std::string>{
-	        "max words per buffer (Default: 512)",
-	    },
-	    std::vector<std::string>{"response"},
-	    1);  // requiredUserPermissions
-	registerFEMacroFunction(
-	    "ROC Request Trace",
-	    static_cast<FEVInterface::frontEndMacroFunction_t>(
-	        &ROCCosmicRayVetoInterface::RequestTrace),
-	    std::vector<std::string>{
-	        "requests to print in full (Default: 16)",
-	    },
-	    std::vector<std::string>{"response"},
-	    1);  // requiredUserPermissions
+	registerFEMacroFunction("ROC Buffer Dump",
+	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
+	                            &ROCCosmicRayVetoInterface::BufferDump),
+	                        std::vector<std::string>{
+	                            "max words per buffer (Default: 512)",
+	                        },
+	                        std::vector<std::string>{"response"},
+	                        1);  // requiredUserPermissions
+	registerFEMacroFunction("ROC Request Trace",
+	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
+	                            &ROCCosmicRayVetoInterface::RequestTrace),
+	                        std::vector<std::string>{
+	                            "requests to print in full (Default: 16)",
+	                        },
+	                        std::vector<std::string>{"response"},
+	                        1);  // requiredUserPermissions
 	registerFEMacroFunction("FEB II Reset Error Counters",
 	                        static_cast<FEVInterface::frontEndMacroFunction_t>(
 	                            &ROCCosmicRayVetoInterface::FebIIResetErrorCounters),
@@ -776,17 +775,19 @@ void ROCCosmicRayVetoInterface::start(std::string)
 	// is there, and reset the receive buffers again if it is not empty.
 	for(int attempt = 1; attempt <= 5; ++attempt)
 	{
-		const uint16_t hbBuf = this->readRegister(ROC::HrtBtBuffStat);  // bit 15 empty, 9:0 words
+		const uint16_t hbBuf =
+		    this->readRegister(ROC::HrtBtBuffStat);  // bit 15 empty, 9:0 words
 		if((hbBuf & 0x3ff) == 0)
 		{
-			__FE_COUT_INFO__ << "Heartbeat buffer empty at the end of start (0x" << std::hex << hbBuf
-			            << std::dec << ", check " << attempt << ")." << __E__;
+			__FE_COUT_INFO__ << "Heartbeat buffer empty at the end of start (0x"
+			                 << std::hex << hbBuf << std::dec << ", check " << attempt
+			                 << ")." << __E__;
 			break;
 		}
 		__FE_COUT_WARN__ << "Heartbeat buffer holds " << (hbBuf & 0x3ff)
-		                 << " words at the end of start (0x" << std::hex << hbBuf << std::dec
-		                 << ", check " << attempt << " of 5): resetting the receive buffers again."
-		                 << __E__;
+		                 << " words at the end of start (0x" << std::hex << hbBuf
+		                 << std::dec << ", check " << attempt
+		                 << " of 5): resetting the receive buffers again." << __E__;
 		this->writeRegister(ROC::GTP_CRC, 0x1);
 		usleep(100000);
 	}
@@ -863,8 +864,9 @@ void ROCCosmicRayVetoInterface::SetTestCounter(__ARGS__)
 void ROCCosmicRayVetoInterface::SetPortMatch(__ARGS__)
 {
 	bool     on      = __GET_ARG_IN__("port match on (Default: false)", bool, false);
-	uint16_t timeout = __GET_ARG_IN__("FEB timeout in units of 10 us, 0 = none (Default: 0)", uint16_t, 0);
-	bool     clear   = __GET_ARG_IN__("clear counters (Default: false)", bool, false);
+	uint16_t timeout = __GET_ARG_IN__(
+	    "FEB timeout in units of 10 us, 0 = none (Default: 0)", uint16_t, 0);
+	bool clear = __GET_ARG_IN__("clear counters (Default: false)", bool, false);
 	std::stringstream ostr;
 	ostr << std::endl;
 	for(int n = 0; n < 3; ++n)
@@ -873,16 +875,18 @@ void ROCCosmicRayVetoInterface::SetPortMatch(__ARGS__)
 		uint16_t version = this->readRegister(base | ROC::Data_Version);
 		if(version < 0x12)
 		{
-			ostr << "data FPGA " << n << ": firmware 0x" << std::hex << version << std::dec
-			     << " has no port match, nothing written" << std::endl;
+			ostr << "data FPGA " << n << ": firmware 0x" << std::hex << version
+			     << std::dec << " has no port match, nothing written" << std::endl;
 			continue;
 		}
 		this->writeRegister(base | ROC::Data_PortTimeout, timeout);
-		this->writeRegister(base | ROC::Data_PortMatchCtrl, (on ? 0x1 : 0x0) | (clear ? 0x8000 : 0x0));
+		this->writeRegister(base | ROC::Data_PortMatchCtrl,
+		                    (on ? 0x1 : 0x0) | (clear ? 0x8000 : 0x0));
 		ostr << "data FPGA " << n << ": port match "
-		     << ((this->readRegister(base | ROC::Data_PortMatchCtrl) & 0x1) ? "on" : "off")
-		     << ", timeout " << this->readRegister(base | ROC::Data_PortTimeout) * 10 << " us"
-		     << std::endl;
+		     << ((this->readRegister(base | ROC::Data_PortMatchCtrl) & 0x1) ? "on"
+		                                                                    : "off")
+		     << ", timeout " << this->readRegister(base | ROC::Data_PortTimeout) * 10
+		     << " us" << std::endl;
 	}
 	__SET_ARG_OUT__("response", ostr.str());
 }  // end SetPortMatch()
@@ -2428,7 +2432,9 @@ void ROCCosmicRayVetoInterface::FebIIErrorStatus(__ARGS__)
 void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 {
 	bool peek = __GET_ARG_IN__(
-	    "peek head words, DESTRUCTIVE: only on a stuck ROC (Default: false)", bool, false);
+	    "peek head words, DESTRUCTIVE: only on a stuck ROC (Default: false)",
+	    bool,
+	    false);
 
 	std::vector<std::string> problems, warnings;
 	int                      readFailures = 0;
@@ -2464,11 +2470,11 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 	uint16_t linkWords[3];
 	for(int i = 0; i < 3; ++i)
 		linkWords[i] = rd(ROC::LinkWdCnt0 + i) & 0x3fff;
-	uint16_t linkStat  = rd(ROC::CRS);         // bits 6:4 full, 2:0 empty
-	uint16_t evStat    = rd(ROC::EvBuffStat);  // bit 1 full, bit 0 empty
-	uint16_t cr        = rd(ROC::CR);
-	uint32_t activeReg = (static_cast<uint32_t>(rd(ROC::ActivePortsHigh)) << 16) |
-	                     rd(ROC::ActivePortsLow);
+	uint16_t linkStat = rd(ROC::CRS);         // bits 6:4 full, 2:0 empty
+	uint16_t evStat   = rd(ROC::EvBuffStat);  // bit 1 full, bit 0 empty
+	uint16_t cr       = rd(ROC::CR);
+	uint32_t activeReg =
+	    (static_cast<uint32_t>(rd(ROC::ActivePortsHigh)) << 16) | rd(ROC::ActivePortsLow);
 	uint16_t sendGR    = rd(ROC::sendGR) & 0x1;
 	uint16_t linkErr   = rd(ROC::LinkErrors);
 	uint16_t drTimeout = rd(ROC::DRTimeout);
@@ -2477,9 +2483,9 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 	for(int i = 0; i < 7; ++i)
 		ub[i] = rd(ROC::EvBuildUbDebug0 + i);
 	// uBDebug = mismatch & uB(link 0) & uB(link 1) & uB(link 2)
-	uint32_t ubLink[3] = {(static_cast<uint32_t>(ub[5]) << 16) | ub[4],
-	                      (static_cast<uint32_t>(ub[3]) << 16) | ub[2],
-	                      (static_cast<uint32_t>(ub[1]) << 16) | ub[0]};
+	uint32_t ubLink[3]  = {(static_cast<uint32_t>(ub[5]) << 16) | ub[4],
+	                       (static_cast<uint32_t>(ub[3]) << 16) | ub[2],
+	                       (static_cast<uint32_t>(ub[1]) << 16) | ub[0]};
 	bool     ubMismatch = ub[6] & 0x1;
 	bool     formHold   = (cr >> 2) & 0x1;
 	bool     drHold     = (cr >> 11) & 0x1;
@@ -2490,7 +2496,10 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 	out << "FPGA1: active " << hex(activeReg, 6) << ", CR " << hex(cr) << " (FormHold "
 	    << formHold << ", DRHold " << drHold << "), sendGR " << sendGR << ", DR timeout "
 	    << hex(drTimeout) << ", last EW " << hex(lastUb) << std::endl;
-	out << "FPGA1: event buffer " << (evFull ? "FULL" : evNotEmpty ? "not empty" : "empty")
+	out << "FPGA1: event buffer "
+	    << (evFull       ? "FULL"
+	        : evNotEmpty ? "not empty"
+	                     : "empty")
 	    << ", fiber CRC errors " << (linkErr >> 8) << ", fiber loss of sync "
 	    << (linkErr & 0xf) << ", last event uB " << (ubMismatch ? "MISMATCH" : "matched")
 	    << ", firmware " << hex(rd(ROC::Version)) << std::endl;
@@ -2503,7 +2512,8 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 	{
 		std::stringstream ss;
 		ss << "the ROC timeout (register 0x5D) reads " << hex(drTimeout)
-		   << ", the run start writes 0xffff (off): FPGA1 answers a request without data after "
+		   << ", the run start writes 0xffff (off): FPGA1 answers a request without data "
+		      "after "
 		   << std::fixed << std::setprecision(1) << drTimeout * 0.0064
 		   << " us. Something wrote this register; if the value is real, no events come "
 		      "from this ROC until the next run start";
@@ -2526,18 +2536,20 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 		uint16_t evBuilt    = rd(ROC::EvBuiltCnt);
 		// In the firmware 0x82 is the LOW and 0x83 the HIGH word of the header
 		// counter; the enum names DRCntHigh (0x82) / DRCnLow (0x83) are swapped.
-		uint32_t hdrSent = (static_cast<uint32_t>(rd(ROC::DRCnLow)) << 16) | rd(ROC::DRCntHigh);
+		uint32_t hdrSent =
+		    (static_cast<uint32_t>(rd(ROC::DRCnLow)) << 16) | rd(ROC::DRCntHigh);
 		out << "FPGA1: requests received " << reqRx << ", events built " << evBuilt
 		    << " (16 bit counters), headers sent " << hdrSent << std::endl;
-		out << "FPGA1: requests dropped " << reqDropped << ", events dropped " << evDropped
-		    << ", last drop: event " << hex(dropEvTag) << " request " << hex(dropReq)
-		    << ", matching " << ((ctrl & 0x2) ? "BYPASSED" : "on") << ", drop late "
-		    << ((ctrl & 0x1) ? "on" : "off") << std::endl;
+		out << "FPGA1: requests dropped " << reqDropped << ", events dropped "
+		    << evDropped << ", last drop: event " << hex(dropEvTag) << " request "
+		    << hex(dropReq) << ", matching " << ((ctrl & 0x2) ? "BYPASSED" : "on")
+		    << ", drop late " << ((ctrl & 0x1) ? "on" : "off") << std::endl;
 		out << "FPGA1: built events waiting " << (pending >> 8) << ", pending requests "
 		    << ((pending & 0xff) / 3) << " (" << (pending & 0xff)
-		    << " EWT words), states: builder " << ((state >> 8) & 0xf) << ", packet former "
-		    << (((state >> 7) & 1) ? "idle" : "busy") << " (" << ((state >> 4) & 0x7)
-		    << "), request handler " << (state & 0xf) << std::endl;
+		    << " EWT words), states: builder " << ((state >> 8) & 0xf)
+		    << ", packet former " << (((state >> 7) & 1) ? "idle" : "busy") << " ("
+		    << ((state >> 4) & 0x7) << "), request handler " << (state & 0xf)
+		    << std::endl;
 		if(reqDropped)
 			warnings.push_back(std::to_string(reqDropped) +
 			                   " data requests got no event (dropped by the EWT match)");
@@ -2549,8 +2561,9 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 		if(ctrl & 0x2)
 			warnings.push_back("EWT matching is bypassed (register 0x93 bit 1)");
 		if((pending & 0xff) >= 0xf0)
-			warnings.push_back("the request EWT FIFO is full: requests are being lost and "
-			                   "the FIFO may be out of step, reset before the next run");
+			warnings.push_back(
+			    "the request EWT FIFO is full: requests are being lost and "
+			    "the FIFO may be out of step, reset before the next run");
 		if(fwVersion >= 0xa8 && !(ctrl & 0x1))
 			warnings.push_back("drop late is off (register 0x93 bit 0)");
 	}
@@ -2559,16 +2572,28 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 	// produced (bad tag, stale data) and after a truncated event.
 	if(fwVersion >= 0xa8)
 	{
-		static const char* builderNames[16] = {"idle", "waiting for parts", "building", "building",
-		                                       "building", "building", "building", "building",
-		                                       "building", "building", "building", "building",
-		                                       "building", "building", "fake event", "flushing"};
-		uint16_t ctrl   = rd(ROC::EwtCtrl);
-		uint16_t resets = rd(ROC::LinkFifoRstCnt);
-		uint16_t badTag = rd(ROC::BadTagCnt);
-		uint16_t stale  = rd(ROC::StaleDataCnt);
-		uint16_t trunc  = rd(ROC::TruncEvCnt);
-		uint16_t snap   = rd(ROC::FlushSnapStat);
+		static const char* builderNames[16] = {"idle",
+		                                       "waiting for parts",
+		                                       "building",
+		                                       "building",
+		                                       "building",
+		                                       "building",
+		                                       "building",
+		                                       "building",
+		                                       "building",
+		                                       "building",
+		                                       "building",
+		                                       "building",
+		                                       "building",
+		                                       "building",
+		                                       "fake event",
+		                                       "flushing"};
+		uint16_t           ctrl             = rd(ROC::EwtCtrl);
+		uint16_t           resets           = rd(ROC::LinkFifoRstCnt);
+		uint16_t           badTag           = rd(ROC::BadTagCnt);
+		uint16_t           stale            = rd(ROC::StaleDataCnt);
+		uint16_t           trunc            = rd(ROC::TruncEvCnt);
+		uint16_t           snap             = rd(ROC::FlushSnapStat);
 		out << "FPGA1: input FIFO resets " << resets << ", bad tags " << badTag
 		    << ", stale data " << stale << ", truncated events " << trunc
 		    << " (a8 counters stop at 65535), flush " << ((ctrl & 0x4) ? "on" : "OFF")
@@ -2576,8 +2601,8 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 		std::string emptyLinks;
 		if(snap & 0x3)
 		{
-			out << "FPGA1: last flush trigger: "
-			    << ((snap & 0x1) ? "bad tag" : "") << ((snap & 0x3) == 0x3 ? " and " : "")
+			out << "FPGA1: last flush trigger: " << ((snap & 0x1) ? "bad tag" : "")
+			    << ((snap & 0x3) == 0x3 ? " and " : "")
 			    << ((snap & 0x2) ? "stale data" : "") << ", flush was "
 			    << ((snap & 0x4) ? "on" : "off") << ", builder "
 			    << builderNames[(snap >> 4) & 0xf] << " (" << ((snap >> 4) & 0xf)
@@ -2585,35 +2610,40 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 			for(int i = 0; i < 3; ++i)
 			{
 				bool empty = (snap >> (8 + i)) & 1;
-				out << " " << i << ": " << rd(ROC::FlushSnapWords0 + i) << " words, first word "
-				    << hex(rd(ROC::FlushSnapHead0 + i)) << (empty ? " (empty)" : "")
-				    << (i < 2 ? "," : "");
+				out << " " << i << ": " << rd(ROC::FlushSnapWords0 + i)
+				    << " words, first word " << hex(rd(ROC::FlushSnapHead0 + i))
+				    << (empty ? " (empty)" : "") << (i < 2 ? "," : "");
 				if(empty)
 					emptyLinks += (emptyLinks.empty() ? "" : ", ") + std::to_string(i);
 			}
 			out << std::endl;
 		}
 		if(badTag)
-			warnings.push_back(std::to_string(badTag) +
-			                   " events had a tag newer than the only pending request (bad "
-			                   "tag): the FPGA1 input FIFOs were out of step and were flushed");
+			warnings.push_back(
+			    std::to_string(badTag) +
+			    " events had a tag newer than the only pending request (bad "
+			    "tag): the FPGA1 input FIFOs were out of step and were flushed");
 		if(stale)
-			warnings.push_back(std::to_string(stale) +
-			                   " requests found leftover data in the FPGA1 input FIFOs (stale "
-			                   "data) and flushed them" +
-			                   (emptyLinks.empty() ? std::string()
-			                                       : "; at the last one input FIFO " + emptyLinks +
-			                                             " was empty (that data FPGA sent nothing)"));
+			warnings.push_back(
+			    std::to_string(stale) +
+			    " requests found leftover data in the FPGA1 input FIFOs (stale "
+			    "data) and flushed them" +
+			    (emptyLinks.empty() ? std::string()
+			                        : "; at the last one input FIFO " + emptyLinks +
+			                              " was empty (that data FPGA sent nothing)"));
 		if(trunc)
-			warnings.push_back(std::to_string(trunc) + " events were truncated at the size limit");
+			warnings.push_back(std::to_string(trunc) +
+			                   " events were truncated at the size limit");
 		if(resets != 0xffff && badTag != 0xffff && stale != 0xffff && trunc != 0xffff &&
 		   static_cast<unsigned>(resets) > static_cast<unsigned>(trunc) + badTag + stale)
-			warnings.push_back("more input FIFO resets (" + std::to_string(resets) +
-			                   ") than truncated events, bad tags and stale data together: "
-			                   "this should not happen, report it");
+			warnings.push_back(
+			    "more input FIFO resets (" + std::to_string(resets) +
+			    ") than truncated events, bad tags and stale data together: "
+			    "this should not happen, report it");
 		if(!(ctrl & 0x4))
-			warnings.push_back("the input FIFO flush is off (register 0x93 bit 2): bad tags "
-			                   "and stale data are only counted");
+			warnings.push_back(
+			    "the input FIFO flush is off (register 0x93 bit 2): bad tags "
+			    "and stale data are only counted");
 		if(!(ctrl & 0x8))
 			warnings.push_back("the bad-tag guard is off (register 0x93 bit 3)");
 	}
@@ -2641,10 +2671,11 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 		    << " heartbeats sent to the FEBs (16 bit counter), last event window sent "
 		    << hex(lastUb) << std::endl;
 		if(hbWords % 9 != 0)
-			warnings.push_back(std::to_string(hbWords) +
-			                   " words in the FPGA1 heartbeat buffer (not a multiple of 9): "
-			                   "heartbeats are read out of step, the FEBs get wrong event "
-			                   "window numbers. Stop and start the run again");
+			warnings.push_back(
+			    std::to_string(hbWords) +
+			    " words in the FPGA1 heartbeat buffer (not a multiple of 9): "
+			    "heartbeats are read out of step, the FEBs get wrong event "
+			    "window numbers. Stop and start the run again");
 		// The number last sent to the FEBs must follow the last event built: the
 		// heartbeat of a window comes before its request, and after a stop only a
 		// few more heartbeats arrive. ubLink holds the EWT with its halves swapped,
@@ -2655,18 +2686,19 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 			uint16_t evLow = lastEvent >> 16;
 			uint16_t ahead = lastUb - evLow;  // 16 bit difference
 			if(ahead > 0x4000)
-				warnings.push_back("the event window number last sent to the FEBs (low word " +
-				                   hex(lastUb) + ") does not follow the last event built (low word " +
-				                   hex(evLow) +
-				                   "): FPGA1 sends wrong event window numbers, the FEBs flag "
-				                   "every event and send no hits. Stop and start the run again");
+				warnings.push_back(
+				    "the event window number last sent to the FEBs (low word " +
+				    hex(lastUb) + ") does not follow the last event built (low word " +
+				    hex(evLow) +
+				    "): FPGA1 sends wrong event window numbers, the FEBs flag "
+				    "every event and send no hits. Stop and start the run again");
 		}
 	}
 	out << std::endl;
 
-	bool linkActive[3];
-	bool anyLinkHolds = false, allActiveLinksHold = true;
-	int  activeLinks = 0;
+	bool                     linkActive[3];
+	bool                     anyLinkHolds = false, allActiveLinksHold = true;
+	int                      activeLinks = 0;
 	std::vector<std::string> cPorts, cWords, cState, cUb;
 	for(int i = 0; i < 3; ++i)
 	{
@@ -2674,11 +2706,14 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 		bool full     = (linkStat >> (4 + i)) & 1;
 		cPorts.push_back(std::to_string(8 * i + 1) + "-" + std::to_string(8 * i + 8));
 		cWords.push_back(std::to_string(linkWords[i]));
-		cState.push_back(full ? "FULL" : !linkActive[i] ? "unused" : linkWords[i] ? "data" : "empty");
+		cState.push_back(full             ? "FULL"
+		                 : !linkActive[i] ? "unused"
+		                 : linkWords[i]   ? "data"
+		                                  : "empty");
 		cUb.push_back(hex(ubLink[i], 8));
 		if(full)
-			problems.push_back("FPGA1 input FIFO " + std::to_string(i) + " (from data FPGA " +
-			                   std::to_string(i) + ") is full");
+			problems.push_back("FPGA1 input FIFO " + std::to_string(i) +
+			                   " (from data FPGA " + std::to_string(i) + ") is full");
 		if(linkActive[i])
 		{
 			++activeLinks;
@@ -2691,16 +2726,18 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 			warnings.push_back("FPGA1 input FIFO " + std::to_string(i) +
 			                   " holds data but its data FPGA has no active port");
 	}
-	out << row("FPGA1 input FIFO", {"0", "1", "2"}) << row("ports", cPorts) << row("words", cWords)
-	    << row("state", cState) << row("last event uB", cUb) << std::endl;
+	out << row("FPGA1 input FIFO", {"0", "1", "2"}) << row("ports", cPorts)
+	    << row("words", cWords) << row("state", cState) << row("last event uB", cUb)
+	    << std::endl;
 
 	for(int i = 0; i < 3; ++i)
 		if(linkActive[i] && linkWords[i] == 0 && anyLinkHolds)
-			problems.push_back("FPGA1 input FIFO " + std::to_string(i) +
-			                   " is empty while the other two hold data: FPGA1 cannot build "
-			                   "the event, it waits for data FPGA " +
-			                   std::to_string(i) + " (ports " + std::to_string(8 * i + 1) +
-			                   "-" + std::to_string(8 * i + 8) + ")");
+			problems.push_back(
+			    "FPGA1 input FIFO " + std::to_string(i) +
+			    " is empty while the other two hold data: FPGA1 cannot build "
+			    "the event, it waits for data FPGA " +
+			    std::to_string(i) + " (ports " + std::to_string(8 * i + 1) + "-" +
+			    std::to_string(8 * i + 8) + ")");
 	if(activeLinks > 0 && allActiveLinksHold && sendGR == 0)
 		problems.push_back(
 		    "FPGA1 has data from every data FPGA in its input FIFOs but does not build "
@@ -2711,19 +2748,22 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 		problems.push_back("FPGA1 event buffer is full");
 	else if(evNotEmpty)
 		warnings.push_back(
-		    "FPGA1 event buffer holds a built event that was not sent (no data request?)");
+		    "FPGA1 event buffer holds a built event that was not sent (no data "
+		    "request?)");
 	if(formHold)
 		warnings.push_back("FormHold is set: the event builder is held");
 	if(drHold)
 		warnings.push_back("DRHold is set: data requests are not handled");
 	if(ubMismatch)
-		warnings.push_back("last built event had different uB numbers on the links "
-		                   "(data FPGAs out of sync)");
+		warnings.push_back(
+		    "last built event had different uB numbers on the links "
+		    "(data FPGAs out of sync)");
 
 	// ---- data FPGAs -------------------------------------------------------
-	std::vector<std::string> dPorts, dActive, dMask, dCrc, dRxErr, dWr, dRd, dWrPtr, dRdPtr,
-	    dBacklog, dDdr, dTx, dTxFull, dTrunc, dVersion, dMatch, dTimeout, dPmTime, dPmCounts,
-	    dPmOpen, dPmOldest, dPmTx, dPmDrained, dPmMissing, dPmTimedOut, dPmListDrops;
+	std::vector<std::string> dPorts, dActive, dMask, dCrc, dRxErr, dWr, dRd, dWrPtr,
+	    dRdPtr, dBacklog, dDdr, dTx, dTxFull, dTrunc, dVersion, dMatch, dTimeout, dPmTime,
+	    dPmCounts, dPmOpen, dPmOldest, dPmTx, dPmDrained, dPmMissing, dPmTimedOut,
+	    dPmListDrops;
 	std::stringstream portTables;
 	for(int n = 0; n < 3; ++n)
 	{
@@ -2735,11 +2775,14 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 		uint16_t ddrStat  = rd(base | ROC::Data_DDRStat);
 		uint16_t truncCnt = rd(base | ROC::Data_TxOverflowCnt);
 		uint16_t fsm      = rd(base | ROC::Data_DDRFsmStat);
-		uint16_t linkTx   = rd(base | ROC::Data_LinkCtrl);  // 15:8 writes while full, 5 full, 4 empty
-		uint32_t wrPtr = (static_cast<uint32_t>(rd(base | ROC::Data_DDR_WriteHigh)) << 16) |
-		                 rd(base | ROC::Data_DDR_WriteLow);
-		uint32_t rdPtr = (static_cast<uint32_t>(rd(base | ROC::Data_DDRRdPtrHigh)) << 16) |
-		                 rd(base | ROC::Data_DDRRdPtrLow);
+		uint16_t linkTx =
+		    rd(base | ROC::Data_LinkCtrl);  // 15:8 writes while full, 5 full, 4 empty
+		uint32_t wrPtr =
+		    (static_cast<uint32_t>(rd(base | ROC::Data_DDR_WriteHigh)) << 16) |
+		    rd(base | ROC::Data_DDR_WriteLow);
+		uint32_t rdPtr =
+		    (static_cast<uint32_t>(rd(base | ROC::Data_DDRRdPtrHigh)) << 16) |
+		    rd(base | ROC::Data_DDRRdPtrLow);
 		// The write pointer stops at the end of the last event written (padded to
 		// 32 bytes) and is zeroed when the DDR write is enabled at configure; the
 		// read pointer stops at the end of the last event sent to FPGA1 and keeps
@@ -2747,15 +2790,16 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 		// of 32 bytes or more is data that was written but never sent.
 		bool        ddrWritten = wrPtr != 0;
 		uint32_t    ddrBacklog = (wrPtr - rdPtr) & 0x3fffffff;  // bytes, 30 bit pointers
-		std::string backlog    = !ddrWritten ? "no data"
+		std::string backlog    = !ddrWritten       ? "no data"
 		                         : ddrBacklog < 32 ? "none"
-		                         : ddrBacklog >= 0x20000000 ? "rd > wr"
-		                         : "WAIT " + std::to_string(ddrBacklog / 2);
-		int  wrState = fsm >> 12;  // 0 = idle
-		int  rdState = fsm & 0x7;  // 0 = idle
-		bool txFull  = (linkTx >> 5) & 1;
-		bool txEmpty = (linkTx >> 4) & 1;
-		std::string name = "data FPGA " + std::to_string(n);
+		                         : ddrBacklog >= 0x20000000
+		                             ? "rd > wr"
+		                             : "WAIT " + std::to_string(ddrBacklog / 2);
+		int         wrState    = fsm >> 12;  // 0 = idle
+		int         rdState    = fsm & 0x7;  // 0 = idle
+		bool        txFull     = (linkTx >> 5) & 1;
+		bool        txEmpty    = (linkTx >> 4) & 1;
+		std::string name       = "data FPGA " + std::to_string(n);
 
 		dPorts.push_back(std::to_string(8 * n + 1) + "-" + std::to_string(8 * n + 8));
 		dActive.push_back(hex(rxActive, 2));
@@ -2766,7 +2810,9 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 		// state 2 (it finds "all active ports ready" with nothing to copy).
 		if(rxActive == 0)
 			wrState = 0;
-		dWr.push_back(rxActive == 0 ? "unused" : wrState ? "BUSY " + std::to_string(wrState) : "idle");
+		dWr.push_back(rxActive == 0 ? "unused"
+		              : wrState     ? "BUSY " + std::to_string(wrState)
+		                            : "idle");
 		dRd.push_back(rdState ? "BUSY " + std::to_string(rdState) : "idle");
 		dWrPtr.push_back(hex(wrPtr, 8));
 		dRdPtr.push_back(hex(rdPtr, 8));
@@ -2776,7 +2822,8 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 		dTxFull.push_back(std::to_string(linkTx >> 8));
 		dTrunc.push_back(std::to_string(truncCnt));
 
-		// Port match ("one event part per request, in order"), FPGA2 version 0x0012 and later
+		// Port match ("one event part per request, in order"), FPGA2 version 0x0012 and
+		// later
 		uint16_t dataVersion = rd(base | ROC::Data_Version);
 		dVersion.push_back(hex(dataVersion));
 		if(dataVersion >= 0x12)
@@ -2792,18 +2839,22 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 			uint16_t timedOut  = rd(base | ROC::Data_PMTimeoutCnt);
 			uint16_t listDrops = rd(base | ROC::Data_PMListDropCnt);
 			uint16_t pmPorts   = rd(base | ROC::Data_PMPorts);
-			uint32_t badEwt = (static_cast<uint32_t>(rd(base | ROC::Data_PMBadEwtHigh)) << 16) |
-			                  rd(base | ROC::Data_PMBadEwtLow);
+			uint32_t badEwt =
+			    (static_cast<uint32_t>(rd(base | ROC::Data_PMBadEwtHigh)) << 16) |
+			    rd(base | ROC::Data_PMBadEwtLow);
 			uint16_t badPort = rd(base | ROC::Data_PMBadPort);
-			uint32_t oldest = (static_cast<uint32_t>(rd(base | ROC::Data_PMOldestHigh)) << 16) |
-			                  rd(base | ROC::Data_PMOldestLow);
+			uint32_t oldest =
+			    (static_cast<uint32_t>(rd(base | ROC::Data_PMOldestHigh)) << 16) |
+			    rd(base | ROC::Data_PMOldestLow);
 			uint16_t txWord0 = rd(base | ROC::Data_PMTxWord0);
 			bool     matchOn = pmCsr & 0x1;
 
 			dMatch.push_back(matchOn ? "on" : "off");
 			dTimeout.push_back(timeout ? std::to_string(timeout * 10) + " us" : "none");
-			dPmTime.push_back(std::to_string(lastTime * 10) + " / " + std::to_string(maxTime * 10));
-			dPmCounts.push_back(std::to_string(pmReqs) + " / " + std::to_string(pmEvents));
+			dPmTime.push_back(std::to_string(lastTime * 10) + " / " +
+			                  std::to_string(maxTime * 10));
+			dPmCounts.push_back(std::to_string(pmReqs) + " / " +
+			                    std::to_string(pmEvents));
 			dPmOpen.push_back(std::to_string((pmCsr >> 4) & 0x7));
 			dPmOldest.push_back(hex(oldest, 8));
 			dPmTx.push_back(hex(txWord0));
@@ -2813,31 +2864,47 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 			dPmListDrops.push_back(std::to_string(listDrops));
 
 			if(matchOn && timeout == 0 && rxActive != 0)
-				warnings.push_back(name + ": port match is on without a timeout (register 0x82): "
-				                   "a FEB that stops answering blocks this data FPGA");
+				warnings.push_back(
+				    name +
+				    ": port match is on without a timeout (register 0x82): "
+				    "a FEB that stops answering blocks this data FPGA");
 			if(missing)
-				warnings.push_back(name + ": " + std::to_string(missing) +
-				                   " events were sent with missing FEBs (" + std::to_string(timedOut) +
-				                   " of them by the timeout); ports missing in the last one: mask " +
-				                   hex(pmPorts & 0xff, 2));
+				warnings.push_back(
+				    name + ": " + std::to_string(missing) +
+				    " events were sent with missing FEBs (" + std::to_string(timedOut) +
+				    " of them by the timeout); ports missing in the last one: mask " +
+				    hex(pmPorts & 0xff, 2));
 			if(drained)
-				warnings.push_back(name + ": " + std::to_string(drained) +
-				                   " times a port buffer was emptied because its EWT was not an open "
-				                   "request (ports mask " + hex(pmPorts >> 8, 2) + "; last: port " +
-				                   std::to_string(8 * n + ((badPort >> 8) & 0x7) + 1) + ", EWT " +
-				                   hex(badEwt, 8) + ")");
+				warnings.push_back(
+				    name + ": " + std::to_string(drained) +
+				    " times a port buffer was emptied because its EWT was not an open "
+				    "request (ports mask " +
+				    hex(pmPorts >> 8, 2) + "; last: port " +
+				    std::to_string(8 * n + ((badPort >> 8) & 0x7) + 1) + ", EWT " +
+				    hex(badEwt, 8) + ")");
 			if(listDrops)
-				warnings.push_back(name + ": " + std::to_string(listDrops) +
-				                   " requests were dropped from the full list of open requests "
-				                   "(more than four requests without an event)");
+				warnings.push_back(
+				    name + ": " + std::to_string(listDrops) +
+				    " requests were dropped from the full list of open requests "
+				    "(more than four requests without an event)");
 			if(badPort & 0xff)
-				warnings.push_back(name + ": port buffers are being emptied now (ports mask " +
+				warnings.push_back(name +
+				                   ": port buffers are being emptied now (ports mask " +
 				                   hex(badPort & 0xff, 2) + ")");
 		}
 		else
 		{
-			for(auto* v : {&dMatch, &dTimeout, &dPmTime, &dPmCounts, &dPmOpen, &dPmOldest, &dPmTx,
-			               &dPmDrained, &dPmMissing, &dPmTimedOut, &dPmListDrops})
+			for(auto* v : {&dMatch,
+			               &dTimeout,
+			               &dPmTime,
+			               &dPmCounts,
+			               &dPmOpen,
+			               &dPmOldest,
+			               &dPmTx,
+			               &dPmDrained,
+			               &dPmMissing,
+			               &dPmTimedOut,
+			               &dPmListDrops})
 				v->push_back("-");
 		}
 
@@ -2852,9 +2919,10 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 		else if(!txEmpty)
 			warnings.push_back(name + ": output FIFO to FPGA1 is not empty");
 		if(linkTx >> 8)
-			warnings.push_back(name + ": " + std::to_string(linkTx >> 8) +
-			                   " writes to a full output FIFO to FPGA1 since the last ROC reset "
-			                   "(data lost)");
+			warnings.push_back(
+			    name + ": " + std::to_string(linkTx >> 8) +
+			    " writes to a full output FIFO to FPGA1 since the last ROC reset "
+			    "(data lost)");
 		if(truncCnt)
 			warnings.push_back(name + ": " + std::to_string(truncCnt) +
 			                   " events truncated to the maximum size since the last ROC "
@@ -2893,44 +2961,51 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 			pPort.push_back(std::to_string(port));
 			pWords.push_back(std::to_string(words[p]));
 			pRecv.push_back(std::to_string(received[p]));
-			pFlags.push_back(std::string(!active ? "off" : crc ? "CRC" : "-") +
+			pFlags.push_back(std::string(!active ? "off"
+			                             : crc   ? "CRC"
+			                                     : "-") +
 			                 (((mask >> p) & 1) ? "" : " masked"));
 			if(!active)
 			{
 				if(words[p] > 0)
-					warnings.push_back(pn + " is inactive but its input buffer holds data");
+					warnings.push_back(pn +
+					                   " is inactive but its input buffer holds data");
 				continue;
 			}
 			if(words[p] == 0 && anyHolds)
-				problems.push_back(pn + " input buffer is empty while other ports of " + name +
-				                   " hold data: no answer from this FEB to the last request, the data "
-				                   "FPGA waits for it");
+				problems.push_back(
+				    pn + " input buffer is empty while other ports of " + name +
+				    " hold data: no answer from this FEB to the last request, the data "
+				    "FPGA waits for it");
 			if(words[p] >= 0x1000)
 				problems.push_back(pn + " input buffer is full");
 			if(crc)
-				warnings.push_back(pn + " CRC error flag set (sticky, cleared at run start)");
+				warnings.push_back(pn +
+				                   " CRC error flag set (sticky, cleared at run start)");
 		}
 		portTables << row("port", pPort) << row("buffer words", pWords)
 		           << row("words received", pRecv) << row("flags", pFlags) << std::endl;
 		if(allActiveHold && wrState == 0)
-			problems.push_back(name +
-			                   ": all active ports hold data but no event is ready: a head "
-			                   "word count is larger than the data in its buffer (corrupt "
-			                   "word count or truncated event, check with peek)");
+			problems.push_back(
+			    name +
+			    ": all active ports hold data but no event is ready: a head "
+			    "word count is larger than the data in its buffer (corrupt "
+			    "word count or truncated event, check with peek)");
 	}
 	out << row("data FPGA", {"0", "1", "2"}) << row("ports", dPorts)
 	    << row("Rx_active", dActive) << row("input mask", dMask) << row("CRC error", dCrc)
-	    << row("PHY RxErr", dRxErr) << row("DDR write FSM", dWr) << row("DDR read FSM", dRd)
-	    << row("DDR write ptr", dWrPtr) << row("DDR read ptr", dRdPtr) << row("DDR unsent wds", dBacklog)
-	    << row("DDR", dDdr)
-	    << row("output FIFO to FPGA1", dTx) << row("Tx full writes", dTxFull)
-	    << row("truncated evts", dTrunc) << row("firmware", dVersion)
-	    << row("port match", dMatch) << row("FEB timeout", dTimeout)
-	    << row("answer us last/max", dPmTime) << row("requests / events", dPmCounts)
-	    << row("open requests", dPmOpen) << row("oldest open EWT", dPmOldest)
-	    << row("last FEB packet", dPmTx) << row("buffers emptied", dPmDrained)
-	    << row("evts missing FEBs", dPmMissing) << row("evts by timeout", dPmTimedOut)
-	    << row("list overflows", dPmListDrops) << std::endl;
+	    << row("PHY RxErr", dRxErr) << row("DDR write FSM", dWr)
+	    << row("DDR read FSM", dRd) << row("DDR write ptr", dWrPtr)
+	    << row("DDR read ptr", dRdPtr) << row("DDR unsent wds", dBacklog)
+	    << row("DDR", dDdr) << row("output FIFO to FPGA1", dTx)
+	    << row("Tx full writes", dTxFull) << row("truncated evts", dTrunc)
+	    << row("firmware", dVersion) << row("port match", dMatch)
+	    << row("FEB timeout", dTimeout) << row("answer us last/max", dPmTime)
+	    << row("requests / events", dPmCounts) << row("open requests", dPmOpen)
+	    << row("oldest open EWT", dPmOldest) << row("last FEB packet", dPmTx)
+	    << row("buffers emptied", dPmDrained) << row("evts missing FEBs", dPmMissing)
+	    << row("evts by timeout", dPmTimedOut) << row("list overflows", dPmListDrops)
+	    << std::endl;
 	out << "Input buffers per port (words received is a 16 bit counter, it wraps)"
 	    << std::endl
 	    << portTables.str();
@@ -2948,14 +3023,16 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 					continue;
 				uint16_t head = rd(ROC::Data[n] | (ROC::Data_PhyRxRead + p));
 				int      port = 8 * n + p + 1;
-				out << "  port " << std::setw(2) << port << " head word count " << hex(head)
-				    << ", words in buffer " << hex(words) << std::endl;
+				out << "  port " << std::setw(2) << port << " head word count "
+				    << hex(head) << ", words in buffer " << hex(words) << std::endl;
 				if(head > 0x1001)
-					problems.push_back("port " + std::to_string(port) + " head word count " +
-					                   hex(head) + " can never fit the input buffer (corrupt)");
+					problems.push_back("port " + std::to_string(port) +
+					                   " head word count " + hex(head) +
+					                   " can never fit the input buffer (corrupt)");
 				else if(head > words)
-					problems.push_back("port " + std::to_string(port) + " head word count " +
-					                   hex(head) + " but only " + hex(words) +
+					problems.push_back("port " + std::to_string(port) +
+					                   " head word count " + hex(head) + " but only " +
+					                   hex(words) +
 					                   " words in the buffer (incomplete event)");
 			}
 		for(int i = 0; i < 3; ++i)
@@ -2964,11 +3041,13 @@ void ROCCosmicRayVetoInterface::BufferStatus(__ARGS__)
 			if(words == 0)
 				continue;
 			uint16_t head = rd(ROC::LinkFifoRead + i);
-			out << "  FPGA1 input FIFO " << i << " head word " << hex(head) << " (word count "
-			    << hex(head & 0x1fff) << "), words in FIFO " << hex(words) << std::endl;
+			out << "  FPGA1 input FIFO " << i << " head word " << hex(head)
+			    << " (word count " << hex(head & 0x1fff) << "), words in FIFO "
+			    << hex(words) << std::endl;
 			if((head & 0x1fff) > words)
-				problems.push_back("FPGA1 input FIFO " + std::to_string(i) + " head word count " +
-				                   hex(head & 0x1fff) + " but only " + hex(words) +
+				problems.push_back("FPGA1 input FIFO " + std::to_string(i) +
+				                   " head word count " + hex(head & 0x1fff) +
+				                   " but only " + hex(words) +
 				                   " words in the FIFO (incomplete event)");
 		}
 	}
@@ -3032,9 +3111,10 @@ void ROCCosmicRayVetoInterface::BufferDump(__ARGS__)
 			{
 				int count = v & countMask;
 				out << "  head word count " << std::dec << count
-				    << (count == words   ? " = buffer content: one complete event"
-				        : count < words  ? " < buffer content: more than one event, or a fragment"
-				                         : " > buffer content: incomplete event or fragment")
+				    << (count == words ? " = buffer content: one complete event"
+				        : count < words
+				            ? " < buffer content: more than one event, or a fragment"
+				            : " > buffer content: incomplete event or fragment")
 				    << std::endl;
 				nextEvent = count;
 			}
@@ -3043,7 +3123,8 @@ void ROCCosmicRayVetoInterface::BufferDump(__ARGS__)
 			bool start = i > 0 && i == nextEvent;
 			if(start)
 				nextEvent += (v & countMask) ? (v & countMask) : 0x10000;  // 0 would loop
-			out << (start ? " >" : "  ") << std::hex << std::setfill('0') << std::setw(4) << v;
+			out << (start ? " >" : "  ") << std::hex << std::setfill('0') << std::setw(4)
+			    << v;
 			if(i % 8 == 7 || i == n - 1)
 				out << std::endl;
 		}
@@ -3051,7 +3132,8 @@ void ROCCosmicRayVetoInterface::BufferDump(__ARGS__)
 	};
 
 	for(int i = 0; i < 3; ++i)
-		dump("FPGA1 input FIFO " + std::to_string(i) + " (from data FPGA " + std::to_string(i) + ")",
+		dump("FPGA1 input FIFO " + std::to_string(i) + " (from data FPGA " +
+		         std::to_string(i) + ")",
 		     ROC::LinkWdCnt0 + i,
 		     0x3fff,
 		     ROC::LinkFifoRead + i,
@@ -3066,7 +3148,8 @@ void ROCCosmicRayVetoInterface::BufferDump(__ARGS__)
 
 	std::stringstream response;
 	if(dumped == 0)
-		response << "All FPGA1 input FIFOs and port input buffers are empty." << std::endl;
+		response << "All FPGA1 input FIFOs and port input buffers are empty."
+		         << std::endl;
 	else
 		response << "The words below were REMOVED from the buffers: reset the ROC before "
 		            "the next run. \">\" marks where the next event would start."
@@ -3117,15 +3200,15 @@ void ROCCosmicRayVetoInterface::RequestTrace(__ARGS__)
 	}
 
 	std::stringstream out, problems;
-	int               rows = (n - bestOffset) / 9;
+	int               rows      = (n - bestOffset) / 9;
 	int               nProblems = 0;
 	bool              havePrev  = false;
-	uint64_t          prevEwt   = 0, firstEwt = 0, lastEwt = 0;
+	uint64_t          prevEwt = 0, firstEwt = 0, lastEwt = 0;
 	for(int r = 0; r < rows; ++r)
 	{
 		const uint16_t* p   = &w[bestOffset + 9 * r];
 		uint64_t        ewt = p[2] | (static_cast<uint64_t>(p[3]) << 16) |
-		                      (static_cast<uint64_t>(p[4]) << 32);
+		               (static_cast<uint64_t>(p[4]) << 32);
 		bool typeOk = (p[1] & 0xff) == 0x20;
 		bool seqOk  = !havePrev || ewt == prevEwt + 1;
 		if(!typeOk || !seqOk)
@@ -3134,8 +3217,8 @@ void ROCCosmicRayVetoInterface::RequestTrace(__ARGS__)
 			problems << "PROBLEM: request " << r << " of " << rows << ": "
 			         << (!typeOk ? "packet type word is not xx20 (word missing or added)"
 			                     : "EWT does not follow the previous one")
-			         << ", EWT 0x" << std::hex << ewt << ", previous 0x" << prevEwt << std::dec
-			         << std::endl;
+			         << ", EWT 0x" << std::hex << ewt << ", previous 0x" << prevEwt
+			         << std::dec << std::endl;
 		}
 		if(!havePrev)
 			firstEwt = ewt;
@@ -3144,8 +3227,8 @@ void ROCCosmicRayVetoInterface::RequestTrace(__ARGS__)
 		havePrev = true;
 		if(r >= rows - nPrint || !typeOk || !seqOk)
 		{
-			out << std::setfill(' ') << std::setw(4) << std::dec << r << ": EWT 0x" << std::hex
-			    << std::setfill('0') << std::setw(8) << ewt << " |";
+			out << std::setfill(' ') << std::setw(4) << std::dec << r << ": EWT 0x"
+			    << std::hex << std::setfill('0') << std::setw(8) << ewt << " |";
 			for(int k = 0; k < 9; ++k)
 				out << " " << std::setw(4) << p[k];
 			out << (typeOk && seqOk ? "" : "  <--") << std::dec << std::endl;
@@ -3159,11 +3242,12 @@ void ROCCosmicRayVetoInterface::RequestTrace(__ARGS__)
 	else
 	{
 		if(nProblems == 0)
-			response << "OK: " << rows << " requests, all 9 words and consecutive" << std::endl;
+			response << "OK: " << rows << " requests, all 9 words and consecutive"
+			         << std::endl;
 		response << problems.str() << std::endl;
 		response << rows << " requests in the trace, EWT 0x" << std::hex << firstEwt
-		         << " to 0x" << lastEwt << std::dec << " (" << n << " words, " << bestOffset
-		         << " skipped to align, " << (n - bestOffset - 9 * rows)
+		         << " to 0x" << lastEwt << std::dec << " (" << n << " words, "
+		         << bestOffset << " skipped to align, " << (n - bestOffset - 9 * rows)
 		         << " left over at the end)" << std::endl;
 		response << "Requests as written to the uC FIFO (byte count, type, EWT low, mid, "
 		            "high, 3 reserved, CRC):"
@@ -3395,8 +3479,8 @@ bool ROCCosmicRayVetoInterface::testRocLinks(std::string* response, bool logFail
 				if(logFailures)
 				{
 					__FE_COUT_WARN__ << "testRocLinks: port " << port
-					                 << " did not respond on attempt " << attempt << " of "
-					                 << maxAttempts << __E__;
+					                 << " did not respond on attempt " << attempt
+					                 << " of " << maxAttempts << __E__;
 				}
 			}
 		}
@@ -4501,7 +4585,8 @@ void ROCCosmicRayVetoInterface::FebIIUptimeAndEWT(__ARGS__)
 		}
 		catch(...)
 		{
-			ostr << "Port " << std::dec << p << ": FAIL (could not select port)" << std::endl;
+			ostr << "Port " << std::dec << p << ": FAIL (could not select port)"
+			     << std::endl;
 			continue;
 		}
 
@@ -4509,18 +4594,20 @@ void ROCCosmicRayVetoInterface::FebIIUptimeAndEWT(__ARGS__)
 		{
 			try
 			{
-				uint16_t align  = this->readRegister(FEBII::FPGA[n] | FEBII::AlignScore);
-				uint32_t uptime = (this->readRegister(FEBII::FPGA[n] | FEBII::UptimeHI) << 16) |
-				                  this->readRegister(FEBII::FPGA[n] | FEBII::UptimeLo);
+				uint16_t align = this->readRegister(FEBII::FPGA[n] | FEBII::AlignScore);
+				uint32_t uptime =
+				    (this->readRegister(FEBII::FPGA[n] | FEBII::UptimeHI) << 16) |
+				    this->readRegister(FEBII::FPGA[n] | FEBII::UptimeLo);
 				uint32_t ub = (this->readRegister(FEBII::FPGA[n] | FEBII::EWTHI) << 16) |
 				              this->readRegister(FEBII::FPGA[n] | FEBII::EWT);
 				uint16_t ubCnt  = this->readRegister(FEBII::FPGA[n] | FEBII::EWTCount);
 				uint16_t status = this->readRegister(FEBII::FPGA[n] | FEBII::Status);
-				ostr << "Port " << std::dec << p << " FPGA " << n << ": align=0x" << std::hex
-				     << align << " uptime=" << std::dec << uptime << " uB=0x" << std::hex
-				     << std::setfill('0') << std::setw(8) << ub << " uBcount=0x"
-				     << std::setw(4) << ubCnt << " status=0x" << std::setw(4) << status
-				     << std::setfill(' ') << std::dec << std::endl;
+				ostr << "Port " << std::dec << p << " FPGA " << n << ": align=0x"
+				     << std::hex << align << " uptime=" << std::dec << uptime << " uB=0x"
+				     << std::hex << std::setfill('0') << std::setw(8) << ub
+				     << " uBcount=0x" << std::setw(4) << ubCnt << " status=0x"
+				     << std::setw(4) << status << std::setfill(' ') << std::dec
+				     << std::endl;
 			}
 			catch(...)
 			{
