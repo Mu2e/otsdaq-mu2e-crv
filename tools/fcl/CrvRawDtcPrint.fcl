@@ -1,0 +1,21 @@
+# Print the DTC events of a raw art file as text (used by tools/crvRawScan.py).
+# diagLevel 3 prints the subevent header, every block header and the data packets.
+
+process_name : CrvRawDtcPrint
+
+source: {
+  module_type: RootInput
+  maxEvents: -1
+}
+
+physics : {
+  analyzers : {
+    print: {
+      module_type: DTCEVTPrint
+      diagLevel : 3
+    }
+  }
+
+  a1 : [print]
+  end_paths : [a1]
+}

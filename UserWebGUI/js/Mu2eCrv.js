@@ -34,7 +34,11 @@ var Mu2eCrv = Mu2eCrv || {};
 		gateOn:     "FEB II Set Gate OnSpill",
 		gateOff:    "FEB II Set Gate OffSpill",
 		errorStatus:  "FEB II Error Status",
+		bufferStatus: "ROC Buffer Status",
+		bufferDump:   "ROC Buffer Dump",
+		requestTrace: "ROC Request Trace",
 		resetErrors:  "FEB II Reset Error Counters",
+		uptime:       "FEB II Uptime and EWT",
 	};
 
 	// PoE injector control: a hardware-free FE (CRVPoEControlInterface) that
@@ -42,6 +46,9 @@ var Mu2eCrv = Mu2eCrv || {};
 	// FE class, so it does not depend on the DTC model.
 	Mu2eCrv.POE_MACROS = { cycle: "PoE Cycle", off: "PoE Off", on: "PoE On", status: "PoE Status" };
 	Mu2eCrv.POE_INPUTS = { port: "Port (1-24 or all)", injector: "Injector (1, 2 or all)" };
+
+	Mu2eCrv.CMD_MACROS = { cmd: "CRV Cmd", reset: "CRV Cmd Reset" };
+	Mu2eCrv.CMD_INPUTS = { command: "Command", roc: "ROC (1, 2 or all)" };
 
 	// ROC -> PoE injector. ASSUMPTION, not read from any table: injector 1
 	// feeds the FEBs of the ROC on link 0, injector 2 those on link 1, and
@@ -70,6 +77,23 @@ var Mu2eCrv = Mu2eCrv || {};
 			return;
 		}
 		Mu2eHardware.runMacro(uid, Mu2eCrv.POE_MACROS[shortName], inputs, callback);
+	};
+
+	Mu2eCrv.findCmdInterface = function () {
+		var map = Mu2eHardware.getFeToMacrosMap() || {};
+		var uids = Object.keys(map);
+		for (var i = 0; i < uids.length; ++i)
+			if (map[uids[i]][Mu2eCrv.CMD_MACROS.reset]) return uids[i];
+		return null;
+	};
+
+	Mu2eCrv.runCmd = function (shortName, inputs, callback) {
+		var uid = Mu2eCrv.findCmdInterface();
+		if (!uid) {
+			if (callback) callback({ error: "CRV Cmd interface not found in the macro list" });
+			return;
+		}
+		Mu2eHardware.runMacro(uid, Mu2eCrv.CMD_MACROS[shortName], inputs, callback);
 	};
 
 	var _model = null;

@@ -11,12 +11,15 @@ using namespace ots;
 
 namespace
 {
-const std::string DEFAULT_POE_CONTROL_HOST   = "mu2e-dcs-01.fnal.gov";
-const std::string DEFAULT_POE_CONTROL_USER   = "mu2eshift";
+const std::string DEFAULT_REMOTE_HOST       = "mu2e-dcs-01.fnal.gov";
+const std::string DEFAULT_REMOTE_USER       = "mu2eshift";
 const std::string DEFAULT_POE_CONTROL_SCRIPT = "python3 ~/CRVFirmware/scripts/poe_ctl.py";
+const std::string DEFAULT_ROC_CMD_SCRIPT     = "python3 ~/CRVFirmware/scripts/rocCmd.py";
 
 const std::string ARG_PORT     = "Port (1-24 or all)";
 const std::string ARG_INJECTOR = "Injector (1, 2 or all)";
+const std::string ARG_ROC      = "ROC (1, 2 or all)";
+const std::string ARG_COMMAND  = "Command";
 
 const unsigned int MAX_POE_PORT     = 24;
 const unsigned int MAX_POE_INJECTOR = 9;
@@ -28,33 +31,38 @@ CRVPoEControlInterface::CRVPoEControlInterface(
     const ConfigurationTree& theXDAQContextConfigTree,
     const std::string&       interfaceConfigurationPath)
     : FEVInterface(interfaceUID, theXDAQContextConfigTree, interfaceConfigurationPath)
-    , poeControlHost_(readOptionalField(theXDAQContextConfigTree,
-                                        interfaceConfigurationPath,
-                                        "PoEControlHost",
-                                        DEFAULT_POE_CONTROL_HOST))
-    , poeControlUser_(readOptionalField(theXDAQContextConfigTree,
-                                        interfaceConfigurationPath,
-                                        "PoEControlUser",
-                                        DEFAULT_POE_CONTROL_USER))
+    , remoteHost_(readOptionalField(theXDAQContextConfigTree,
+                                    interfaceConfigurationPath,
+                                    "PoEControlHost",
+                                    DEFAULT_REMOTE_HOST))
+    , remoteUser_(readOptionalField(theXDAQContextConfigTree,
+                                    interfaceConfigurationPath,
+                                    "PoEControlUser",
+                                    DEFAULT_REMOTE_USER))
     , poeControlScript_(readOptionalField(theXDAQContextConfigTree,
                                           interfaceConfigurationPath,
                                           "PoEControlScript",
                                           DEFAULT_POE_CONTROL_SCRIPT))
+    , rocCmdScript_(readOptionalField(theXDAQContextConfigTree,
+                                      interfaceConfigurationPath,
+                                      "RocCmdScript",
+                                      DEFAULT_ROC_CMD_SCRIPT))
 {
 	// The three settings end up inside a shell command line; refuse anything
 	// that could break out of the quoting.
 	for(const std::string* setting :
-	    {&poeControlHost_, &poeControlUser_, &poeControlScript_})
+	    {&remoteHost_, &remoteUser_, &poeControlScript_, &rocCmdScript_})
 		if(setting->find_first_of("'\"`$;&|<>\n") != std::string::npos)
 		{
-			__FE_SS__ << "PoE control setting '" << *setting
+			__FE_SS__ << "Remote control setting '" << *setting
 			          << "' contains a shell special character; refusing to use it."
 			          << __E__;
 			__FE_SS_THROW__;
 		}
 
-	__FE_COUT__ << "PoE control: " << poeControlUser_ << "@" << poeControlHost_ << " "
-	            << poeControlScript_ << __E__;
+	__FE_COUT__ << "Remote control: " << remoteUser_ << "@" << remoteHost_ << "\n"
+	            << "  PoE script: " << poeControlScript_ << "\n"
+	            << "  ROC cmd:    " << rocCmdScript_ << __E__;
 
 	registerFEMacroFunction(
 	    "PoE Cycle",
@@ -99,6 +107,28 @@ CRVPoEControlInterface::CRVPoEControlInterface(
 	    1,    // requiredUserPermissions
 	    "*",  // allowedCallingFEs
 	    "Read the PoE injector status by running poe_ctl.py status on the DCS host.");
+
+	registerFEMacroFunction(
+	    "CRV Cmd",
+	    static_cast<FEVInterface::frontEndMacroFunction_t>(
+	        &CRVPoEControlInterface::CrvCmd),
+	    std::vector<std::string>{ARG_COMMAND, ARG_ROC},
+	    std::vector<std::string>{"result", "exit status", "output", "command"},
+	    1,    // requiredUserPermissions
+	    "*",  // allowedCallingFEs
+	    "Send a command to the ROC uC console by running rocCmd.py on the DCS host. "
+	    "The command string is forwarded verbatim (e.g. 'ub', 'rd 2').");
+
+	registerFEMacroFunction(
+	    "CRV Cmd Reset",
+	    static_cast<FEVInterface::frontEndMacroFunction_t>(
+	        &CRVPoEControlInterface::CrvCmdReset),
+	    std::vector<std::string>{ARG_ROC},
+	    std::vector<std::string>{"result", "exit status", "output", "command"},
+	    1,    // requiredUserPermissions
+	    "*",  // allowedCallingFEs
+	    "Send the reset command ('wr 2 1') to the ROC uC by running rocCmd.py --reset "
+	    "on the DCS host.");
 }  // end constructor()
 
 //==============================================================================
@@ -132,8 +162,8 @@ std::string CRVPoEControlInterface::readOptionalField(
 //==============================================================================
 void CRVPoEControlInterface::configure(void)
 {
-	__FE_COUT__ << "Configure (no hardware); PoE control via " << poeControlUser_ << "@"
-	            << poeControlHost_ << __E__;
+	__FE_COUT__ << "Configure (no hardware); remote control via " << remoteUser_ << "@"
+	            << remoteHost_ << __E__;
 }
 
 //==============================================================================
@@ -188,22 +218,19 @@ void CRVPoEControlInterface::validateSelector(const std::string& argumentName,
 
 //==============================================================================
 std::string CRVPoEControlInterface::buildRemoteCommand(
+    const std::string& script,
     const std::string& scriptArguments) const
 {
-	// Single quotes keep the local shell out of it; the remote login shell then
-	// expands the ~ in the script path.
-	return "ssh -K -o BatchMode=yes -o ConnectTimeout=10 " + poeControlUser_ + "@" +
-	       poeControlHost_ + " '" + poeControlScript_ + " " + scriptArguments + "'";
+	return "ssh -K -o BatchMode=yes -o ConnectTimeout=10 " + remoteUser_ + "@" +
+	       remoteHost_ + " '" + script + " " + scriptArguments + "'";
 }  // end buildRemoteCommand()
 
 //==============================================================================
-// runRemoteCommand
-//	Runs the ssh command, captures stdout and stderr, and reports the exit
-//	status so the page can tell a failed ssh from a failed script.
-void CRVPoEControlInterface::runRemoteCommand(const std::string& scriptArguments,
+void CRVPoEControlInterface::runRemoteCommand(const std::string& script,
+                                              const std::string& scriptArguments,
                                               FEVInterface::frontEndMacroArgs_t argsOut)
 {
-	std::string command = buildRemoteCommand(scriptArguments);
+	std::string command = buildRemoteCommand(script, scriptArguments);
 	__FE_COUT__ << "Running: " << command << __E__;
 
 	std::string           output;
@@ -239,7 +266,7 @@ void CRVPoEControlInterface::PoECycle(__ARGS__)
 	validateSelector(ARG_PORT, port, MAX_POE_PORT);
 	validateSelector(ARG_INJECTOR, injector, MAX_POE_INJECTOR);
 
-	runRemoteCommand("cycle " + port + " --id " + injector, argsOut);
+	runRemoteCommand(poeControlScript_, "cycle " + port + " --id " + injector, argsOut);
 }  // end PoECycle()
 
 //==============================================================================
@@ -250,7 +277,7 @@ void CRVPoEControlInterface::PoEOff(__ARGS__)
 	validateSelector(ARG_PORT, port, MAX_POE_PORT);
 	validateSelector(ARG_INJECTOR, injector, MAX_POE_INJECTOR);
 
-	runRemoteCommand("off " + port + " --id " + injector, argsOut);
+	runRemoteCommand(poeControlScript_, "off " + port + " --id " + injector, argsOut);
 }  // end PoEOff()
 
 //==============================================================================
@@ -261,7 +288,7 @@ void CRVPoEControlInterface::PoEOn(__ARGS__)
 	validateSelector(ARG_PORT, port, MAX_POE_PORT);
 	validateSelector(ARG_INJECTOR, injector, MAX_POE_INJECTOR);
 
-	runRemoteCommand("on " + port + " --id " + injector, argsOut);
+	runRemoteCommand(poeControlScript_, "on " + port + " --id " + injector, argsOut);
 }  // end PoEOn()
 
 //==============================================================================
@@ -270,7 +297,52 @@ void CRVPoEControlInterface::PoEStatus(__ARGS__)
 	std::string injector = __GET_ARG_IN__(ARG_INJECTOR, std::string, std::string("all"));
 	validateSelector(ARG_INJECTOR, injector, MAX_POE_INJECTOR);
 
-	runRemoteCommand("status --id " + injector, argsOut);
+	runRemoteCommand(poeControlScript_, "status --id " + injector, argsOut);
 }  // end PoEStatus()
+
+//==============================================================================
+void CRVPoEControlInterface::validateRocSelector(const std::string& value)
+{
+	if(value == "all" || value == "1" || value == "2")
+		return;
+	__SS__ << "Input '" << ARG_ROC << "' must be '1', '2' or 'all', not '" << value
+	       << "'." << __E__;
+	__SS_THROW__;
+}  // end validateRocSelector()
+
+//==============================================================================
+void CRVPoEControlInterface::CrvCmd(__ARGS__)
+{
+	std::string command = __GET_ARG_IN__(ARG_COMMAND, std::string, std::string(""));
+	std::string roc     = __GET_ARG_IN__(ARG_ROC, std::string, std::string("all"));
+	validateRocSelector(roc);
+
+	if(command.empty())
+	{
+		__FE_SS__ << "Command must not be empty." << __E__;
+		__FE_SS_THROW__;
+	}
+
+	// Only allow alphanumerics, spaces and a few safe punctuation marks.
+	if(command.find_first_not_of(
+	       "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ._-") !=
+	   std::string::npos)
+	{
+		__FE_SS__ << "Command contains disallowed characters: '" << command << "'."
+		          << __E__;
+		__FE_SS_THROW__;
+	}
+
+	runRemoteCommand(rocCmdScript_, "-r " + roc + " " + command, argsOut);
+}  // end CrvCmd()
+
+//==============================================================================
+void CRVPoEControlInterface::CrvCmdReset(__ARGS__)
+{
+	std::string roc = __GET_ARG_IN__(ARG_ROC, std::string, std::string("all"));
+	validateRocSelector(roc);
+
+	runRemoteCommand(rocCmdScript_, "--reset -r " + roc, argsOut);
+}  // end CrvCmdReset()
 
 DEFINE_OTS_INTERFACE(CRVPoEControlInterface)

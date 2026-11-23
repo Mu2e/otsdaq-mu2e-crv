@@ -122,10 +122,17 @@ public:
     void                                    SetInputMask            (__ARGS__);
     void                                    PLLReset                (__ARGS__);
     void                                    GetAlignScore           (__ARGS__);
+    void                                    FebIIUptimeAndEWT       (__ARGS__);
     void                                    BurstWriteTest          (__ARGS__);
     void                                    FebIIErrorStatus        (__ARGS__);
+    void                                    BufferStatus            (__ARGS__);
+    void                                    SetPortMatch            (__ARGS__);
+    void                                    BufferDump              (__ARGS__);
+    void                                    RequestTrace            (__ARGS__);
     void                                    FebIIResetErrorCounters (__ARGS__);
     bool                                    resetFebErrorCounters   (int          requestedPort = -1,  // -1 = broadcast
+                                                                     std::string* report        = nullptr);
+    bool                                    clearFebParityError     (int          requestedPort = -1,  // -1 = broadcast
                                                                      std::string* report        = nullptr);
 	// clang-format on
   private:

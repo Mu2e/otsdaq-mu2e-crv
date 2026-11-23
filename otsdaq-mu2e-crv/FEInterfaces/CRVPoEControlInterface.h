@@ -38,11 +38,15 @@ class CRVPoEControlInterface : public FEVInterface
 	void universalRead(char* address, char* returnValue) override;
 	void universalWrite(char* address, char* writeValue) override;
 
-	// FE macros
+	// FE macros — PoE injector control
 	void PoECycle(__ARGS__);
 	void PoEOff(__ARGS__);
 	void PoEOn(__ARGS__);
 	void PoEStatus(__ARGS__);
+
+	// FE macros — ROC uC commands
+	void CrvCmd(__ARGS__);
+	void CrvCmdReset(__ARGS__);
 
   private:
 	static std::string readOptionalField(
@@ -54,13 +58,18 @@ class CRVPoEControlInterface : public FEVInterface
 	                             const std::string& value,
 	                             unsigned int       maxNumber);
 
-	std::string buildRemoteCommand(const std::string& scriptArguments) const;
-	void        runRemoteCommand(const std::string&                scriptArguments,
+	std::string buildRemoteCommand(const std::string& script,
+	                               const std::string& scriptArguments) const;
+	void        runRemoteCommand(const std::string&                script,
+	                             const std::string&                scriptArguments,
 	                             FEVInterface::frontEndMacroArgs_t argsOut);
 
-	std::string poeControlHost_;
-	std::string poeControlUser_;
+	static void validateRocSelector(const std::string& value);
+
+	std::string remoteHost_;
+	std::string remoteUser_;
 	std::string poeControlScript_;
+	std::string rocCmdScript_;
 };
 
 }  // namespace ots

@@ -30,6 +30,7 @@ enum Register : uint16_t
 	Port            = 0x1029,
 	UptimeHI        = 0x106C,
 	UptimeLo        = 0x106D,
+	EWTHI           = 0x106B,  // upper 16 bits of current microbunch number
 	EWT             = 0x106E,
 	EWTCount        = 0x106F,
 	ThresholdBase   = 0x1070,  // to 0x107F
