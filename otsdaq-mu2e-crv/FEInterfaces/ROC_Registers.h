@@ -51,10 +51,10 @@ enum Register : uint16_t
 	GTPTxRead         = 0x85,
 	DReqBuffTrace     = 0x86,  // trace of the data request words given to the uC
 	EvBuildUbDebug0   = 0x88,  // 0x88-0x8E: uB of link 2/1/0 in the last built event,
-	                         // mismatch flag EWT match, FPGA1 version 0xa7 and later
-	EwtReqDropped = 0x8F,  // requests dropped (no event built)
-	EwtEvDropped  = 0x90,  // events dropped (request gone)
-	EwtPending    = 0x91,  // 15:8 built events waiting, 7:0 pending EWT words
+	                           // mismatch flag EWT match, FPGA1 version 0xa7 and later
+	EwtReqDropped = 0x8F,      // requests dropped (no event built)
+	EwtEvDropped  = 0x90,      // events dropped (request gone)
+	EwtPending    = 0x91,      // 15:8 built events waiting, 7:0 pending EWT words
 	EwtState      = 0x92,  // 11:8 builder, 7 former idle, 6:4 former status, 3:0 handler
 	EwtCtrl = 0x93,  // bit 0 drop late, 1 bypass matching, 2 input FIFO flush (a8), 3
 	                 // bad-tag guard (a8); a8 default 0x000D
@@ -103,12 +103,12 @@ enum Register : uint16_t
 	Data_UpTimeLow      = 0x6D,
 	Data_PhyActivityCnt = 0x70,  // 0x70-0x77, words received per port
 	Data_TxOverflowCnt  = 0x80,  // events truncated to the maximum size
-	                            // Port match ("one event part per request, in order"),
-	                            // FPGA2 0x0012 and later. The enable bit and the timeout
-	                            // are cleared by the uC reset and must be written again.
-	Data_PortMatchCtrl = 0x81,  // W [0] on, [15] clear 0x83-0x8B. R [0] on, [3:2] state,
-	                            // [6:4] open requests, [15:8] ports with a header
-	Data_PortTimeout = 0x82,    // wait for a FEB answer, units of 10 us, 0 = no timeout
+	                             // Port match ("one event part per request, in order"),
+	                             // FPGA2 0x0012 and later. The enable bit and the timeout
+	                             // are cleared by the uC reset and must be written again.
+	Data_PortMatchCtrl = 0x81,   // W [0] on, [15] clear 0x83-0x8B. R [0] on, [3:2] state,
+	                             // [6:4] open requests, [15:8] ports with a header
+	Data_PortTimeout = 0x82,     // wait for a FEB answer, units of 10 us, 0 = no timeout
 	Data_PMLastTime =
 	    0x83,  // request to event, last, units of 10 us (also counted with the match off)
 	Data_PMMaxTime     = 0x84,  // request to event, maximum
