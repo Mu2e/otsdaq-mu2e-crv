@@ -1,0 +1,1621 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>CRV Controls</title>
+
+	<link href="/WebPath/css/fonts.css?family=Inconsolata:400" rel="stylesheet" type="text/css">
+	<link rel="stylesheet" type="text/css" href="/WebPath/UserWebPath/css/Mu2e.css">
+	<link rel="stylesheet" type="text/css" href="../css/Mu2eCrv.css">
+
+	<script type="text/JavaScript" src="/WebPath/js/Globals.js"></script>
+	<script type="text/JavaScript" src="/WebPath/js/Debug.js"></script>
+	<script type="text/JavaScript" src="/WebPath/js/DesktopContent.js"></script>
+	<script type="text/JavaScript" src="/WebPath/js/js_lib/ConfigurationAPI.js"></script>
+	<script type="text/JavaScript" src="/WebPath/UserWebPath/js/Mu2e.js"></script>
+	<script type="text/JavaScript" src="/WebPath/UserWebPath/js/Mu2eHardware.js"></script>
+	<script type="text/JavaScript" src="../js/Mu2eCrv.js"></script>
+
+	<script>
+		// Rule: hardware (FE macros) is touched only from button handlers.
+		// init() and refreshConfig() read the configuration database only.
+
+		var _structureReady = false;
+		var _macrosReady = false;
+		var _scopeROC = "all";      // "all" or roc uid
+		var _scopePort = -1;        // -1 = all active ports
+		var _cmdState = {};         // roc uid -> {pending, failed, outcome}
+		var _portMarks = {};        // roc uid -> {port: "ok"|"fail"|"mismatch"|"stuck"}
+		var _portSub = {};          // roc uid -> {port: text}
+		var _outputSeq = 0;
+		var _rawMacroName = null;
+
+		// Mu2e.esc returns "" for 0 and other falsy values; wrap so numbers survive.
+		function esc(value) {
+			return value === undefined || value === null ? "" : Mu2e.esc(String(value));
+		}
+
+		function escJS(value) {
+			return String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+		}
+
+		// =============================================================
+		// init / refresh (config only)
+		// =============================================================
+
+		function init() {
+			Debug.log("CRV controls init()");
+			DesktopContent.tooltip("CRV Controls",
+				"CRV ROC and FEB controls. The page reads the configuration only; " +
+				"every hardware access is a button.");
+			DesktopContent.setWindowTooltip("CRV DTC/ROC/FEB controls for the active configuration.");
+
+			document.getElementById("rocCards").innerHTML =
+				"<div class='placeholder-text'>Loading CRV configuration...</div>";
+
+			Mu2eHardware.fetchActiveConfig(function (cfg) {
+				var el = document.getElementById("activeConfigInfo");
+				if (!el || !cfg || !cfg.config) return;
+				var text = cfg.config.groupName + " (" + cfg.config.groupKey + ")";
+				if (cfg.configAlias) text = cfg.configAlias + " - " + text;
+				el.textContent = text;
+			});
+
+			Mu2eHardware.fetchStructure(function () {
+				_structureReady = true;
+				if (_macrosReady) refreshConfig();
+			});
+			Mu2eHardware.fetchMacroList(function () {
+				_macrosReady = true;
+				renderPoEControls();
+				if (_structureReady) refreshConfig();
+			});
+		}
+
+		function refreshConfig() {
+			var dtcs = Mu2eCrv.findDTCs();
+			if (!dtcs.length) {
+				document.getElementById("rocCards").innerHTML =
+					"<div class='badValue'>No CRV DTC found in the active configuration " +
+					"or macro list. Open this page on the CRV gateway.</div>";
+				return;
+			}
+			if (dtcs.length > 1)
+				Debug.log("Mu2eCrv: several CRV DTCs found, using " + dtcs[0], Debug.MED_PRIORITY_LVL);
+
+			var rocs = Mu2eHardware.getROCsForDTC(dtcs[0]);
+			Mu2eCrv.loadConfig(dtcs[0], rocs, function (model) {
+				_portMarks = {};
+				_portSub = {};
+				renderScope();
+				renderROCs();
+				renderGlobalActions();
+				renderControls();
+				loadConfigSettings(model);
+			});
+		}
+
+		// =============================================================
+		// Configuration settings (DTC + each ROC), read from the config tree
+		// via the shared Mu2eHardware.fetchDeviceSettings. No hardware.
+		// =============================================================
+
+		var SETTINGS_SKIP = /^(Status|ROCGroupID|ROCInterfacePluginName|FEInterfacePluginName|LinkToFETypeTable|ROCTypeLinkTable|ROCTypeLinkUID|SettingsLink|SettingsID|FEBsLink|FEBsGroupID|LinkToROCGroupTable|LinkToSlowControls.*|ROC|Port|Bias|Trim|Threshold|OnSpillStart|OnSpillEnd|OffSpillStart|OffSpillEnd)$/;
+
+		function settingsTable(title, fields) {
+			var h = "<div class='crv-config-block'><div class='crv-config-title'>" + esc(title) + "</div>";
+			if (!fields || !fields.length) return h + "<span class='placeholder-text'>no settings</span></div>";
+			var seen = {};
+			h += "<table class='settings-table'>";
+			for (var i = 0; i < fields.length; ++i) {
+				var f = fields[i];
+				if (SETTINGS_SKIP.test(f.name) || seen[f.name]) continue;
+				seen[f.name] = true;
+				h += "<tr><td class='settings-name'>" + esc(f.name) + "</td><td class='settings-value'>" +
+					Mu2eHardware.colorizeValue(esc(f.value)) + "</td></tr>";
+			}
+			return h + "</table></div>";
+		}
+
+		function loadConfigSettings(model) {
+			var box = document.getElementById("configSettings");
+			var blocks = {};
+			var order = [model.dtc].concat(model.rocs.map(function (r) { return r.uid; }));
+			var remaining = order.length;
+			function render() {
+				box.innerHTML = order.map(function (uid) {
+					return blocks[uid] || "<div class='crv-config-block'><div class='crv-config-title'>" +
+						esc(uid) + "</div><span class='placeholder-text'>loading...</span></div>";
+				}).join("");
+			}
+			render();
+			order.forEach(function (uid) {
+				Mu2eHardware.fetchDeviceSettings(uid, function (fields) {
+					var title = uid === model.dtc ? uid + " (DTC)" : uid + " (ROC)";
+					// FEB-table rows come back too for ROCs; keep only ROC-level tables
+					var rocLevel = (fields || []).filter(function (f) {
+						return !/SubsystemCRVFeb/.test(f.table || "");
+					});
+					blocks[uid] = settingsTable(title, rocLevel);
+					render();
+					--remaining;
+				});
+			});
+		}
+
+		// =============================================================
+		// Output log
+		// =============================================================
+
+		function createOutputEntry(title) {
+			var output = document.getElementById("crvOutput");
+			var empty = output.querySelector(".crv-empty");
+			if (empty) output.innerHTML = "";
+			var entry = document.createElement("section");
+			entry.id = "crvOut-" + (++_outputSeq);
+			entry.className = "crv-output-entry";
+			entry.innerHTML = "<div class='crv-output-title'>" + esc(title) +
+				" <span class='crv-output-time'>" + new Date().toLocaleTimeString() +
+				"</span></div><div class='crv-output-body crv-running'>Running...</div>";
+			output.insertBefore(entry, output.firstChild);
+			output.scrollTop = 0;
+			return entry.id;
+		}
+
+		function updateOutputEntry(entryId, html) {
+			var entry = document.getElementById(entryId);
+			if (!entry) return;
+			entry.querySelector(".crv-output-body").className = "crv-output-body";
+			entry.querySelector(".crv-output-body").innerHTML = html;
+		}
+
+		function clearOutput() {
+			document.getElementById("crvOutput").innerHTML =
+				"<div class='crv-empty'>Click a button to run a macro; output appears here.</div>";
+		}
+
+		function rocReport(roc, result, success, html) {
+			return "<details class='crv-roc-report " +
+				(success ? "crv-roc-report-pass" : "crv-roc-report-fail") + "' open>" +
+				"<summary><span>" + esc(roc.uid) + " (link " + roc.link + ")</span><span>" +
+				(success ? "DONE" : "FAIL") + "</span></summary>" +
+				"<div class='crv-roc-report-body'>" + (html || "") + "</div></details>";
+		}
+
+		// =============================================================
+		// Command state per ROC (dot colour)
+		// =============================================================
+
+		function beginCommand(roc) {
+			var s = _cmdState[roc.uid] || { pending: 0, failed: false };
+			if (!s.pending) s.failed = false;
+			s.pending++;
+			s.outcome = "running";
+			_cmdState[roc.uid] = s;
+			renderROCs();
+		}
+
+		function finishCommand(roc, success) {
+			var s = _cmdState[roc.uid] || { pending: 1, failed: false };
+			s.pending = Math.max(0, s.pending - 1);
+			if (!success) s.failed = true;
+			s.outcome = s.pending ? "running" : (s.failed ? "failed" : "success");
+			_cmdState[roc.uid] = s;
+			renderROCs();
+		}
+
+		// =============================================================
+		// Scope (ROC + port) used by controls and raw runner
+		// =============================================================
+
+		function scopedROCs() {
+			var model = Mu2eCrv.getModel();
+			if (!model) return [];
+			if (_scopeROC === "all") return model.rocs.filter(function (r) { return r.link >= 0; });
+			return model.rocs.filter(function (r) { return r.uid === _scopeROC; });
+		}
+
+		function renderScope() {
+			var model = Mu2eCrv.getModel();
+			var rocSel = document.getElementById("scopeROC");
+			var html = "<option value='all'" + (_scopeROC === "all" ? " selected" : "") + ">All ROCs</option>";
+			for (var i = 0; model && i < model.rocs.length; ++i) {
+				var r = model.rocs[i];
+				html += "<option value='" + esc(r.uid) + "'" +
+					(_scopeROC === r.uid ? " selected" : "") + ">" +
+					esc(r.uid) + " (link " + r.link + ")</option>";
+			}
+			rocSel.innerHTML = html;
+
+			var portSel = document.getElementById("scopePort");
+			html = "<option value='-1'" + (_scopePort === -1 ? " selected" : "") + ">all active</option>";
+			for (var p = 1; p <= Mu2eCrv.NUM_PORTS; ++p)
+				html += "<option value='" + p + "'" + (_scopePort === p ? " selected" : "") + ">" + p + "</option>";
+			portSel.innerHTML = html;
+
+			document.getElementById("scopeHint").textContent =
+				_scopeROC === "all" && _scopePort !== -1 ?
+					"Port " + _scopePort + " on every ROC." : "";
+			renderPoEScopeNote();
+		}
+
+		function onScopeChange() {
+			_scopeROC = document.getElementById("scopeROC").value;
+			_scopePort = parseInt(document.getElementById("scopePort").value, 10);
+			renderScope();
+			renderROCs();
+			if (_rawMacroName) renderRawInputs(_rawMacroName);
+		}
+
+		function selectROC(uid) {
+			_scopeROC = uid;
+			_scopePort = -1;
+			onScopeChangeFromCards();
+		}
+
+		function selectPort(uid, port) {
+			if (_scopeROC === uid && _scopePort === port) {
+				_scopePort = -1;                 // second click clears the port
+			} else {
+				_scopeROC = uid;
+				_scopePort = port;
+			}
+			onScopeChangeFromCards();
+		}
+
+		function onScopeChangeFromCards() {
+			renderScope();
+			renderROCs();
+			if (_rawMacroName) renderRawInputs(_rawMacroName);
+		}
+
+		// =============================================================
+		// FEB details panel: everything the page knows about one port.
+		// Configuration values come from the FEB table (loaded at start);
+		// live values appear only after the matching button was clicked.
+		// =============================================================
+
+		function grid16(label, arr, fmt) {
+			// 4 FPGA rows x 16 channel columns
+			var h = "<table class='crv-feb-grid'><tr><th>" + esc(label) + "</th>";
+			for (var c = 0; c < 16; ++c) h += "<th>ch" + c + "</th>";
+			h += "</tr>";
+			for (var f = 0; f < 4; ++f) {
+				h += "<tr><th>fpga " + f + "</th>";
+				for (var c = 0; c < 16; ++c) {
+					var v = arr[f * 16 + c];
+					h += "<td>" + (v === undefined ? "" : esc(fmt ? fmt(v) : v)) + "</td>";
+				}
+				h += "</tr>";
+			}
+			return h + "</table>";
+		}
+
+		function renderFebDetails() {
+			var box = document.getElementById("febDetails");
+			var model = Mu2eCrv.getModel();
+			if (!model || _scopeROC === "all" || _scopePort === -1) {
+				box.innerHTML = "";
+				box.style.display = "none";
+				return;
+			}
+			var roc = null;
+			for (var i = 0; i < model.rocs.length; ++i)
+				if (model.rocs[i].uid === _scopeROC) roc = model.rocs[i];
+			if (!roc) { box.style.display = "none"; return; }
+			var port = _scopePort;
+			var p = roc.ports[port];
+
+			var h = "<div class='crv-feb-head'><span class='crv-section-title'>FEB details</span>" +
+				"<b>" + esc(roc.uid) + "</b> link " + roc.link + " &middot; port " + port +
+				(p ? " &middot; " + esc(p.febUID) + " &middot; " +
+					(p.on ? "<span class='goodValue'>configured on</span>" : "<span class='badValue'>configured off</span>") : "") +
+				"<button type='button' class='crv-clear-output' onclick='selectPort(\"" + escJS(roc.uid) + "\"," + port + ")'>Close</button></div>";
+
+			if (!p) {
+				h += "<div class='placeholder-text'>Port " + port + " has no record in the FEB table.</div>";
+			} else {
+				// live one-liners
+				var live = [];
+				var mark = (_portMarks[roc.uid] || {})[port];
+				if (mark === "ok") live.push("<span class='goodValue'>link test OK</span>");
+				if (mark === "fail") live.push("<span class='badValue'>link test FAILED</span>");
+				if (mark === "mismatch") live.push("<span class='badValue'>live active bit differs from config</span>");
+				if (mark === "stuck") live.push("<span class='badValue'>buffer status: readout stuck on this port</span>");
+				if (roc.alignScores && roc.alignScores[port] !== undefined)
+					live.push("align score 0x" + roc.alignScores[port].toString(16));
+				h += "<div class='crv-feb-live'>" + (live.length ? live.join(" &middot; ") :
+					"<span class='crv-control-note'>no live readings yet (Load Status, Test ROC Links, Align Score, Get Baselines)</span>") + "</div>";
+
+				// gates
+				if (p.gates.onEnd !== undefined)
+					h += "<div class='crv-feb-row'><b>gates</b> on-spill " + esc(p.gates.onStart) + " to " + esc(p.gates.onEnd) +
+						" &middot; off-spill " + esc(p.gates.offStart) + " to " + esc(p.gates.offEnd) + " (x6.25 ns)</div>";
+
+				// bias: 8 values, fpga*2 + idx
+				if (p.bias.length) {
+					h += "<table class='crv-feb-grid crv-feb-bias'><tr><th>bias</th>";
+					for (var f = 0; f < 4; ++f) h += "<th>fpga " + f + " [0]</th><th>fpga " + f + " [1]</th>";
+					h += "</tr><tr><th></th>";
+					for (var b = 0; b < 8; ++b) h += "<td>" + esc(p.bias[b]) + " (0x" + p.bias[b].toString(16) + ")</td>";
+					h += "</tr></table>";
+				}
+				if (p.trim.length) h += grid16("trim", p.trim);
+				if (p.threshold.length) h += grid16("threshold", p.threshold);
+				if (roc.baselines && roc.baselines[port]) {
+					var s = Mu2eCrv.stats(roc.baselines[port]);
+					h += grid16("baseline (mean " + Math.round(s.mean) + ")", roc.baselines[port]);
+				}
+			}
+			box.innerHTML = h;
+			box.style.display = "";
+		}
+
+		// =============================================================
+		// ROC cards + port grid (config-driven; live marks only after clicks)
+		// =============================================================
+
+		function portTitle(roc, port) {
+			var p = roc.ports[port];
+			if (!p) return "Port " + port + ": not in configuration";
+			var t = "Port " + port + " - " + p.febUID + (p.on ? " (on)" : " (off)");
+			if (p.bias.length) t += "\nbias: " + Mu2eCrv.range(p.bias);
+			if (p.threshold.length) t += "\nthreshold: " + Mu2eCrv.range(p.threshold);
+			if (p.trim.length) t += "\ntrim: " + Mu2eCrv.range(p.trim);
+			if (p.gates.onEnd !== undefined)
+				t += "\ngate on-spill: " + p.gates.onStart + " to " + p.gates.onEnd +
+					"  off-spill: " + p.gates.offStart + " to " + p.gates.offEnd + " (x6.25 ns)";
+			if (roc.alignScores && roc.alignScores[port] !== undefined)
+				t += "\nalign score: 0x" + roc.alignScores[port].toString(16);
+			if (roc.baselines && roc.baselines[port]) {
+				var s = Mu2eCrv.stats(roc.baselines[port]);
+				t += "\nbaselines: mean " + Math.round(s.mean) + " (" + s.min + " .. " + s.max + ")\n" +
+					Mu2eCrv.gridText(roc.baselines[port]);
+			}
+			return t;
+		}
+
+		function renderROCs() {
+			var model = Mu2eCrv.getModel();
+			var container = document.getElementById("rocCards");
+			if (!model || !model.rocs.length) {
+				container.innerHTML = "<div class='placeholder-text'>No CRV ROCs in the active configuration.</div>";
+				return;
+			}
+			var html = "";
+			for (var r = 0; r < model.rocs.length; ++r) {
+				var roc = model.rocs[r];
+				var cmd = _cmdState[roc.uid];
+				var dot = roc.enabled ? "status-on" : "status-off";
+				var dotTitle = roc.enabled ? "Enabled" : "Disabled";
+				if (cmd) {
+					dot = "crv-cmd-" + cmd.outcome;
+					dotTitle = cmd.outcome === "running" ? "Command in progress" :
+						(cmd.outcome === "success" ? "Last command succeeded" : "Last command failed");
+				}
+				html += "<div class='crv-roc-card" +
+					(roc.enabled ? "" : " crv-roc-disabled") +
+					(_scopeROC === roc.uid ? " crv-roc-selected" : "") + "'>";
+				html += "<button type='button' class='crv-roc-header' onclick=\"selectROC('" + escJS(roc.uid) + "')\">";
+				html += "<span class='status-dot " + dot + "' title='" + esc(dotTitle) + "'></span>";
+				html += "<span>" + esc(roc.uid) + "</span>";
+				html += "<span class='crv-roc-link'>link " + (roc.link >= 0 ? roc.link : "?") + "</span>";
+				html += "<span class='crv-roc-count'>" + Mu2eCrv.countOn(roc) + " / " +
+					Object.keys(roc.ports).length + " ports on</span>";
+				html += "</button>";
+				if (roc.configError)
+					html += "<div class='crv-roc-error'>" + esc(roc.configError) + "</div>";
+				html += "<div class='crv-roc-status' id='rocStatus-" + esc(roc.uid) + "'></div>";
+
+				html += "<div class='crv-ports'>";
+				var marks = _portMarks[roc.uid] || {};
+				var subs = _portSub[roc.uid] || {};
+				for (var port = 1; port <= Mu2eCrv.NUM_PORTS; ++port) {
+					var p = roc.ports[port];
+					var cls = "crv-port " + (!p ? "crv-port-unconfigured" : (p.on ? "crv-port-on" : "crv-port-off"));
+					if (marks[port]) cls += " crv-port-" + marks[port];
+					if (_scopeROC === roc.uid && _scopePort === port) cls += " crv-port-selected";
+					html += "<button type='button' class='" + cls + "' title='" + Mu2e.escAttr(portTitle(roc, port)) + "' " +
+						"onclick=\"selectPort('" + escJS(roc.uid) + "'," + port + ")\">" +
+						"<span>" + port + "</span><span class='crv-port-sub'>" + esc(subs[port] || "") + "</span></button>";
+				}
+				html += "</div></div>";
+			}
+			container.innerHTML = html;
+
+			// re-apply status lines that survive re-render
+			for (var s = 0; s < model.rocs.length; ++s) {
+				var roc = model.rocs[s];
+				if (!roc.statusText) continue;
+				var el = document.getElementById("rocStatus-" + roc.uid);
+				var h = esc(roc.statusText);
+				if (roc.bufferText)
+					h += "<details class='crv-buffers'" + (roc.bufferAlarm ? " open" : "") + ">" +
+						"<summary>buffers" + (roc.bufferAlarm ? " <span class='badValue'>!</span>" : "") +
+						"</summary>" + esc(roc.bufferText) + "</details>";
+				el.innerHTML = h;
+			}
+			renderFebDetails();
+		}
+
+		function markPorts(roc, marks, subs) {
+			_portMarks[roc.uid] = marks || {};
+			if (subs) {
+				_portSub[roc.uid] = _portSub[roc.uid] || {};
+				Object.keys(subs).forEach(function (p) { _portSub[roc.uid][p] = subs[p]; });
+			}
+		}
+
+		// =============================================================
+		// Global actions - one request per ROC, result per ROC
+		// =============================================================
+
+		var GLOBAL_ACTIONS = {
+			configure: {
+				label: "Configure from Tables", macro: "configure", port: -1,
+				confirm: "Run 'FEB II Configure from Tables' on {rocs}?\n\nThis programs bias, trim, thresholds and gates on every active FEB."
+			},
+			pllReset: {
+				label: "PLL Reset & Align", macro: "pllReset", port: -1,
+				extra: { "sleep": 1000, "run ROC clock align": "true", "use broadcast": "true", "check status": "false" },
+				confirm: "Run 'FEB II PLL Reset and Align' on {rocs}?"
+			},
+			testLinks: { label: "Test ROC Links", macro: "testLinks", handler: handleLinkTest },
+			status:    { label: "Load Status",    macro: "status",    handler: handleStatus },
+			align:     { label: "Align Score",    macro: "alignScore", port: -1, handler: handleAlignScore },
+			baselines:   { label: "Get Baselines",  macro: "baselines",  run: runBaselines },
+			errorStatus: { label: "Error Status",  macro: "errorStatus", handler: handleErrorStatus },
+			diagnose:     { label: "Diagnose", macro: "bufferStatus", run: runDiagnose },
+			bufferStatus: { label: "Buffer Status", macro: "bufferStatus", handler: handleBufferStatus },
+			bufferDump: {
+				label: "Buffer Dump", macro: "bufferDump", handler: handleBufferDump,
+				confirm: "Dump the FPGA1 input FIFOs and the port input buffers of {rocs}?\n\nThis REMOVES the data from the buffers. Only do it on a ROC that is already stuck, and reset it afterwards."
+			},
+			uptime:      { label: "Uptime / EW",   macro: "uptime", port: -1, handler: handleUptime },
+			resetErrors: {
+				label: "Reset Error Counters", macro: "resetErrors",
+				confirm: "Reset error counters on all active FEBs of {rocs}?"
+			},
+		};
+
+		// Baselines are read one port at a time (the macro reports whichever port
+		// is active), so walk the configured-on ports of each scoped ROC, or the
+		// single scoped port. ROCs run in parallel, ports of one ROC in sequence.
+		function runBaselines() {
+			var rocs = scopedROCs();
+			if (!rocs.length) return;
+			var where = rocListText(rocs) +
+				(_scopePort === -1 ? ", all configured-on ports" : ", port " + _scopePort);
+			var entryId = createOutputEntry("Get Baselines -> " + where);
+			var perROC = {};
+			var remainingROCs = rocs.length;
+			setGlobalDisabled(true);
+
+			function render() {
+				updateOutputEntry(entryId, rocs.map(function (r) {
+					return perROC[r.uid] || "<div class='crv-running'>" + esc(r.uid) + " running...</div>";
+				}).join(""));
+			}
+
+			rocs.forEach(function (roc) {
+				beginCommand(roc);
+				var ports = _scopePort === -1 ? Mu2eCrv.onPorts(roc) : [_scopePort];
+				var rows = [];
+				var failed = 0;
+				roc.baselines = roc.baselines || {};
+				Mu2eCrv.runOnROCPorts(roc, "baselines", ports, { "re-measure": "false" },
+					function (port, result) {
+						var bl = Mu2eCrv.parseBaselines(result);
+						if (!bl) {
+							++failed;
+							rows.push("<tr><td>" + port + "</td><td colspan='3' class='badValue'>" +
+								esc(result.error || "no 64-value response") + "</td></tr>");
+						} else {
+							roc.baselines[port] = bl;
+							var s = Mu2eCrv.stats(bl);
+							var sub = {};
+							sub[port] = String(Math.round(s.mean));
+							markPorts(roc, _portMarks[roc.uid], sub);
+							rows.push("<tr><td>" + port + "</td><td>" + Math.round(s.mean) +
+								"</td><td>" + s.min + "</td><td>" + s.max + "</td></tr>");
+						}
+						perROC[roc.uid] = "<div class='crv-running'>" + esc(roc.uid) + ": port " +
+							rows.length + " / " + ports.length + "</div>";
+						renderROCs();
+						render();
+					},
+					function () {
+						finishCommand(roc, failed === 0);
+						perROC[roc.uid] = rocReport(roc, {}, failed === 0,
+							"<table class='crv-bl-table'><tr><th>port</th><th>mean</th><th>min</th><th>max</th></tr>" +
+							rows.join("") + "</table>" +
+							"<div class='crv-control-note'>hover a port cell for the 4 x 16 channel values</div>");
+						render();
+						if (--remainingROCs === 0) setGlobalDisabled(false);
+					});
+			});
+		}
+
+		// =============================================================
+		// FEB power (PoE injectors): a hardware-free FE on the CRV FE
+		// supervisor runs poe_ctl.py on the DCS host over ssh. Buttons only.
+		// The Actions panel buttons act on all ports of all injectors; the
+		// per-port buttons follow the scope (ROC -> injector, port -> port).
+		// =============================================================
+
+		var POE_BUTTON_IDS = ["poeCycleAllButton", "poeOffAllButton",
+			"poePortOnButton", "poePortOffButton", "poePortCycleButton"];
+
+		function renderPoEControls() {
+			var uid = Mu2eCrv.findPoEInterface();
+			setPoEDisabled(!uid);
+			var note = document.getElementById("poeNote");
+			if (uid) {
+				note.innerHTML = "";
+				note.title = "via " + uid;
+			} else {
+				note.innerHTML = "<span class='badValue'>not registered</span>";
+				note.title = "The CRV FE supervisor creates the PoE control interface when Configured. " +
+					"Configure, then click Refresh config.";
+			}
+			renderPoEScopeNote();
+			renderCmdControls();
+		}
+
+		function setPoEDisabled(disabled) {
+			for (var i = 0; i < POE_BUTTON_IDS.length; ++i)
+				document.getElementById(POE_BUTTON_IDS[i]).disabled = disabled;
+		}
+
+		// A PoE target is { port, injector, text }; port and injector are the
+		// macro inputs ("all" or a number), text is for titles and dialogs.
+		function poeAll() {
+			return { port: "all", injector: "all", text: "all ports on all injectors" };
+		}
+
+		// Scope -> target. One ROC selected: its injector; all ROCs: all injectors.
+		function poeScopeTarget() {
+			var rocs = scopedROCs();
+			var injector = (_scopeROC !== "all" && rocs.length === 1) ?
+				Mu2eCrv.poeInjectorForROC(rocs[0]) : "all";
+			var port = _scopePort === -1 ? "all" : String(_scopePort);
+			var text = (port === "all" ? "all ports" : "port " + port) +
+				(injector === "all" ? " on all injectors" :
+					" on injector " + injector + " (" + rocs[0].uid + ")");
+			return { port: port, injector: injector, text: text };
+		}
+
+		function renderPoEScopeNote() {
+			var el = document.getElementById("poeScopeNote");
+			if (!el || !Mu2eCrv.getModel()) return;
+			el.textContent = "target: " + poeScopeTarget().text;
+		}
+
+		function poeInputs(target) {
+			var inputs = {};
+			inputs[Mu2eCrv.POE_INPUTS.port] = target.port;
+			inputs[Mu2eCrv.POE_INPUTS.injector] = target.injector;
+			return inputs;
+		}
+
+		function poeReport(entryId, result) {
+			if (result.error) {
+				updateOutputEntry(entryId, "<span class='badValue'>Error: " + esc(result.error) + "</span>");
+				return;
+			}
+			var status = String(Mu2eHardware.findOutput(result, "result") || "FAILED");
+			var exitStatus = Mu2eHardware.findOutput(result, "exit status");
+			var output = String(Mu2eHardware.findOutput(result, "output") || "");
+			var command = String(Mu2eHardware.findOutput(result, "command") || "");
+			updateOutputEntry(entryId,
+				"<b>" + Mu2eHardware.colorizeValue(esc(status)) + "</b> (exit status " + esc(exitStatus) + ")" +
+				"<pre class='crv-poe-output'>" + esc(output) + "</pre>" +
+				"<div class='crv-control-note'>" + esc(command) + "</div>");
+		}
+
+		function poeRun(shortName, title, target) {
+			var entryId = createOutputEntry(title);
+			setPoEDisabled(true);
+			Mu2eCrv.runPoE(shortName, poeInputs(target), function (result) {
+				setPoEDisabled(false);
+				poeReport(entryId, result);
+			});
+		}
+
+		function poeOn(target) {
+			poeRun("on", "PoE on (" + target.text + ")", target);
+		}
+
+		function poeOff(target) {
+			if (!confirm("Switch PoE " + target.text + " OFF?\n\n" +
+					"FEB power stays off until On or Power-cycle is used."))
+				return;
+			poeRun("off", "PoE off (" + target.text + ")", target);
+		}
+
+		function poeCycle(target) {
+			if (!confirm("Power-cycle PoE " + target.text + "?\n\n" +
+					"FEB power is cut for the cycle delay (5 s by default). " +
+					"The affected FEBs need a new Configure afterwards."))
+				return;
+			poeRun("cycle", "PoE power-cycle (" + target.text + ")", target);
+		}
+
+		// =============================================================
+		// ROC uC commands (rocCmd.py on the DCS host, via CRVPoEControlInterface)
+		// =============================================================
+
+		function renderCmdControls() {
+			var uid = Mu2eCrv.findCmdInterface();
+			var btn = document.getElementById("crvCmdResetButton");
+			var runBtn = document.getElementById("crvCmdRunButton");
+			if (btn) btn.disabled = !uid;
+			if (runBtn) runBtn.disabled = !uid;
+			var note = document.getElementById("crvCmdNote");
+			if (note) {
+				if (uid) {
+					note.innerHTML = "";
+					note.title = "via " + uid;
+				} else {
+					note.innerHTML = "<span class='badValue'>not registered</span>";
+					note.title = "The CRV FE supervisor creates the CRV Cmd interface when Configured. " +
+						"Configure, then click Refresh config.";
+				}
+			}
+		}
+
+		function cmdReport(entryId, result) {
+			if (result.error) {
+				updateOutputEntry(entryId, "<span class='badValue'>Error: " + esc(result.error) + "</span>");
+				return;
+			}
+			var status = String(Mu2eHardware.findOutput(result, "result") || "FAILED");
+			var exitStatus = Mu2eHardware.findOutput(result, "exit status");
+			var output = String(Mu2eHardware.findOutput(result, "output") || "");
+			var command = String(Mu2eHardware.findOutput(result, "command") || "");
+			updateOutputEntry(entryId,
+				"<b>" + Mu2eHardware.colorizeValue(esc(status)) + "</b> (exit status " + esc(exitStatus) + ")" +
+				"<pre class='crv-poe-output'>" + esc(output) + "</pre>" +
+				"<div class='crv-control-note'>" + esc(command) + "</div>");
+		}
+
+		function crvCmdReset() {
+			if (!confirm("Send ROC reset command ('wr 2 1') to both ROCs?"))
+				return;
+			var entryId = createOutputEntry("CRV Cmd Reset (all ROCs)");
+			var inputs = {};
+			inputs[Mu2eCrv.CMD_INPUTS.roc] = "all";
+			Mu2eCrv.runCmd("reset", inputs, function (result) {
+				cmdReport(entryId, result);
+			});
+		}
+
+		function crvCmdRun() {
+			var command = val("crvCmdInput");
+			if (!command) return;
+			var roc = document.getElementById("crvCmdRoc").value;
+			var label = "CRV Cmd: " + command + " (ROC " + roc + ")";
+			var entryId = createOutputEntry(label);
+			var inputs = {};
+			inputs[Mu2eCrv.CMD_INPUTS.command] = command;
+			inputs[Mu2eCrv.CMD_INPUTS.roc] = roc;
+			var btn = document.getElementById("crvCmdRunButton");
+			if (btn) btn.disabled = true;
+			Mu2eCrv.runCmd("cmd", inputs, function (result) {
+				if (btn) btn.disabled = false;
+				cmdReport(entryId, result);
+			});
+		}
+
+		function renderGlobalActions() {
+			var html = "";
+			var available = Mu2eCrv.macrosAvailable();
+			Object.keys(GLOBAL_ACTIONS).forEach(function (key) {
+				var a = GLOBAL_ACTIONS[key];
+				var has = !!Mu2eCrv.getMacro(Mu2eCrv.MACROS[a.macro]);
+				html += "<button type='button' class='macro-btn-primary' " + (has ? "" : "disabled ") +
+					"title='" + esc(Mu2eCrv.MACROS[a.macro]) + (has ? "" : " (not available)") + "' " +
+					"onclick=\"runGlobal('" + key + "')\">" + esc(a.label) + "</button>";
+			});
+			if (!available)
+				html += "<span class='crv-control-note badValue'>ROC macros are not registered: " +
+					"the DTC registers them when the CRV system is Configured. " +
+					"Configure, then click Refresh config.</span>";
+			document.getElementById("globalActions").innerHTML = html;
+			var controls = document.querySelectorAll(".crv-controls button, .crv-global-btn");
+			for (var i = 0; i < controls.length; ++i) controls[i].disabled = !available;
+			renderPoEControls(); // the PoE buttons sit in the same panels, keep their own state
+		}
+
+		function setGlobalDisabled(disabled) {
+			var buttons = document.querySelectorAll("#globalActions button");
+			for (var i = 0; i < buttons.length; ++i) buttons[i].disabled = disabled;
+		}
+
+		function rocListText(rocs) {
+			return rocs.map(function (r) { return r.uid; }).join(", ");
+		}
+
+		function runGlobal(key) {
+			var action = GLOBAL_ACTIONS[key];
+			if (action.run) { action.run(); return; }
+			var rocs = scopedROCs();
+			if (!rocs.length) return;
+
+			if (action.confirm) {
+				var msg = action.confirm.replace("{rocs}", rocListText(rocs));
+				if (!confirm(msg)) return;
+			}
+
+			var entryId = createOutputEntry(action.label + " -> " + rocListText(rocs));
+			var perROC = {};
+			setGlobalDisabled(true);
+			rocs.forEach(beginCommand);
+
+			Mu2eCrv.runOnROCs(rocs, action.macro, action.port, action.extra,
+				function (roc, result) {
+					var success = !result.error;
+					var extraHtml = "", hideRaw = false;
+					if (action.handler) {
+						var h = action.handler(roc, result);
+						if (h && h.success === false) success = false;
+						if (h && h.html) extraHtml = h.html;
+						if (h && h.hideRaw && !result.error) hideRaw = true;
+					}
+					finishCommand(roc, success);
+					var raw = Mu2eHardware.formatMacroResult(
+						Mu2eCrv.fullName(Mu2eCrv.MACROS[action.macro]), result, roc.uid);
+					// the handler already shows everything: keep the raw text folded
+					if (hideRaw)
+						raw = "<details class='crv-raw'><summary>raw output</summary>" + raw + "</details>";
+					perROC[roc.uid] = rocReport(roc, result, success, extraHtml + raw);
+					updateOutputEntry(entryId, rocs.map(function (r) {
+						return perROC[r.uid] || "<div class='crv-running'>" + esc(r.uid) + " running...</div>";
+					}).join(""));
+				},
+				function () { setGlobalDisabled(false); });
+		}
+
+		// ---- result handlers: return {success, html} and mark the port grid ----
+
+		function handleStatus(roc, result) {
+			var st = Mu2eCrv.parseStatus(result);
+			if (!st) return { success: false };
+			var marks = {};
+			var mismatches = 0;
+			for (var port = 1; port <= Mu2eCrv.NUM_PORTS; ++port) {
+				var live = Mu2eCrv.isPortActive(st.activeMask, port);
+				var cfg = roc.ports[port] ? roc.ports[port].on : false;
+				if (live !== null && live !== cfg) { marks[port] = "mismatch"; ++mismatches; }
+			}
+			markPorts(roc, marks);
+			function hex(v) { return v === null || v === undefined ? "?" : "0x" + v.toString(16); }
+			function dec(v) { return v === null || v === undefined ? "?" : String(v); }
+			roc.statusText =
+				"fw " + hex(st.version) +
+				"  PLL " + (st.pllLock === 1 ? "locked" : "UNLOCKED") +
+				"  uptime " + dec(st.uptime) +
+				"  active " + hex(st.activeMask) +
+				"  link errors loss/crc " + dec(st.lossErrors) + "/" + dec(st.crcErrors) +
+				"\nlast EWT " + hex(st.lastEWT) +
+				"  markers decoded/delayed " + dec(st.markerDecoded) + "/" + dec(st.markerDelayed) +
+				"  heartbeats rx/tx " + dec(st.heartbeatRx) + "/" + dec(st.heartbeatTx) +
+				"  DR " + dec(st.drCnt) +
+				"  test cnt " + dec(st.testCnt) +
+				(mismatches ? "\n! " + mismatches + " port(s) differ from config" : "");
+			// Buffers: collapsed by default, only present with the extended Get Status.
+			roc.bufferText = st.hbEmpty === null ? "" :
+				"HB buffer " + (st.hbEmpty ? "empty" : "NOT empty") + " (" + dec(st.hbWords) + " words)" +
+				"  DR buffer " + (st.drEmpty ? "empty" : "NOT empty") + " (" + dec(st.drWords) + " words)" +
+				"\nevent buffer " + (st.evFull ? "FULL" : (st.evEmpty ? "empty" : "filling")) +
+				"  link words 0/1/2 " + dec(st.linkWords[0]) + "/" + dec(st.linkWords[1]) + "/" + dec(st.linkWords[2]);
+			roc.bufferAlarm = !!(st.evFull || (st.hbEmpty === 0 && st.hbWords > 0) || (st.drEmpty === 0 && st.drWords > 0));
+			renderROCs();
+			return { success: st.pllLock === 1 && !mismatches && !st.evFull };
+		}
+
+		function handleLinkTest(roc, result) {
+			var lt = Mu2eCrv.parseLinkTest(result);
+			if (!lt) return { success: false };
+			markPorts(roc, lt.ports);
+			renderROCs();
+			return { success: lt.pass === true };
+		}
+
+		function handleAlignScore(roc, result) {
+			var scores = Mu2eCrv.parseAlignScores(result);
+			if (!scores) return { success: false };
+			roc.alignScores = scores;
+			var subs = {};
+			Object.keys(scores).forEach(function (p) {
+				subs[p] = "0x" + scores[p].toString(16);
+			});
+			markPorts(roc, {}, subs);
+			renderROCs();
+			return { success: true };
+		}
+
+		// FPGA die temperature from the DDR status register (FEB II 0x025).
+		// FEB2 firmware before 2026-09-18 puts the raw 12-bit XADC value in bits
+		// 11..0 (degC = raw * 0.123 - 273); newer firmware puts integer degC in
+		// bits 7..0 with bits 12..8 zero. In the old layout bits 11..8 are
+		// non-zero for any temperature above 0 degC, so they select the decode.
+		function ddrStatusTemperatureC(v) {
+			var raw12 = v & 0xFFF;
+			if (raw12 & 0xF00) return (raw12 * 0.123 - 273).toFixed(1);
+			return String(v & 0xFF);
+		}
+
+		function handleErrorStatus(roc, result) {
+			var resp = String(Mu2eHardware.findOutput(result, "response") || "");
+			if (!resp) return { success: false };
+			var lines = resp.split(/\r?\n/);
+			var rows = [];
+			var anyError = false;
+			for (var i = 0; i < lines.length; ++i) {
+				var m = lines[i].match(/^Port\s+(\d+):\s+errCnt=(0x[0-9a-fA-F]+|FAIL)\s*(.*)/);
+				if (!m) continue;
+				var port = parseInt(m[1], 10);
+				var errCnt = m[2];
+				var errFail = errCnt === "FAIL";
+				var errVal = errFail ? -1 : parseInt(errCnt, 16);
+				var fpgas = [];
+				var fpgaRe = /fpga(\d)=(0x[0-9a-fA-F]+)/g;
+				var fm;
+				while ((fm = fpgaRe.exec(m[3])) !== null)
+					fpgas[parseInt(fm[1], 10)] = parseInt(fm[2], 16);
+
+				var cells = "<td>" + port + "</td>";
+				if (errFail) {
+					cells += "<td class='badValue'>FAIL</td>";
+					anyError = true;
+				} else {
+					cells += "<td" + (errVal > 0 ? " class='badValue'" : "") + ">" + errVal + "</td>";
+					if (errVal > 0) anyError = true;
+				}
+				for (var f = 0; f < 4; ++f) {
+					var v = fpgas[f];
+					if (v === undefined) { cells += "<td>?</td>"; continue; }
+					var initOK = (v >> 15) & 1;
+					var almFull = (v >> 14) & 1;
+					var full = (v >> 13) & 1;
+					var temp = ddrStatusTemperatureC(v);
+					// "OK" only when nothing is wrong; otherwise list the problems.
+					var problems = [];
+					if (!initOK) problems.push("NO INIT");
+					if (full) problems.push("FULL");
+					else if (almFull) problems.push("ALMOST FULL");
+					var cls = problems.length ? "badValue" : "";
+					if (problems.length) anyError = true;
+					var label = (problems.length ? problems.join(" ") : "OK") + " " + temp + "C";
+					cells += "<td" + (cls ? " class='" + cls + "'" : "") + ">" + esc(label) + "</td>";
+				}
+				rows.push("<tr>" + cells + "</tr>");
+			}
+			var html = "<table class='crv-bl-table'><tr><th>port</th><th>err</th>" +
+				"<th>FPGA 0</th><th>FPGA 1</th><th>FPGA 2</th><th>FPGA 3</th></tr>" +
+				rows.join("") + "</table>";
+			return { success: !anyError, html: html };
+		}
+
+		// "ROC Buffer Status": where the readout chain is stuck. The macro puts
+		// its findings first, one per line, as "PROBLEM: ..." / "WARN: ...";
+		// only problems fail the ROC. Ports named in a problem are marked.
+		// The rest of the response is plain lines and "label | cell | ..." rows;
+		// each block of such rows becomes a table (first row is the header).
+		function handleBufferStatus(roc, result) {
+			var resp = String(Mu2eHardware.findOutput(result, "response") || "");
+			if (!resp) return { success: false };
+			var problems = [], warnings = [], marks = {};
+			var html = "", table = null, portTable = false;
+			var BAD = /^(FULL|NO CAL|MISMATCH|CRC|BUSY|WAIT)/;
+
+			function closeTable() {
+				if (table) html += "<table class='crv-bl-table crv-buf-table'>" + table + "</table>";
+				table = null;
+			}
+
+			resp.split(/\r?\n/).forEach(function (line) {
+				var m = line.match(/^(PROBLEM|WARN|OK):\s*(.*)/);
+				if (m) {
+					if (m[1] === "OK") return;
+					(m[1] === "PROBLEM" ? problems : warnings).push(m[2]);
+					var pm = m[1] === "PROBLEM" && m[2].match(/^port\s+(\d+)\b/);
+					if (pm) marks[parseInt(pm[1], 10)] = "stuck";
+					return;
+				}
+				if (line.indexOf(" | ") === -1) {
+					closeTable();
+					if (line.trim()) html += "<div>" + esc(line.trim()) + "</div>";
+					return;
+				}
+				var cells = line.split("|").map(function (c) { return c.trim(); });
+				var header = table === null;
+				if (header) { table = ""; portTable = cells[0] === "port"; }
+				var tr = "";
+				cells.forEach(function (c, i) {
+					var bad = !header && i > 0 && BAD.test(c);
+					if (header && portTable && i > 0 && marks[parseInt(c, 10)]) bad = true;
+					tr += (header || i === 0 ? "<th" : "<td") + (bad ? " class='badValue'" : "") +
+						">" + esc(c) + (header || i === 0 ? "</th>" : "</td>");
+				});
+				table += "<tr>" + tr + "</tr>";
+			});
+			closeTable();
+			markPorts(roc, marks);
+			renderROCs();
+
+			var top = "";
+			if (!problems.length && !warnings.length)
+				top = "<div class='goodValue'>Buffers OK: nothing stuck</div>";
+			problems.forEach(function (p) { top += "<div class='badValue'>" + esc(p) + "</div>"; });
+			warnings.forEach(function (w) { top += "<div>warning: " + esc(w) + "</div>"; });
+			return { success: !problems.length, html: top + html, hideRaw: true };
+		}
+
+		// "ROC Buffer Dump": hex dump, keep the columns aligned.
+		function handleBufferDump(roc, result) {
+			var resp = String(Mu2eHardware.findOutput(result, "response") || "");
+			if (!resp) return { success: false };
+			return { success: true, html: "<pre class='crv-dump'>" + esc(resp) + "</pre>", hideRaw: true };
+		}
+
+		// =============================================================
+		// Diagnose: collect, per ROC, what is needed to tell what went wrong
+		// after a run stopped or a ROC went silent, and state a verdict.
+		//
+		// FE macros only, one after the other per ROC (ROCs run in parallel):
+		//   1. ROC Buffer Status   (changes nothing; includes the FPGA1 0xa7
+		//                           request / event / drop counters)
+		//   2. FEB II Error Status
+		//   3. FEB II Uptime / EW
+		//   4. ROC Request Trace   (empties only the trace buffer)
+		// Nothing here empties a data buffer. If data is left in a buffer the
+		// report offers "Dump buffers" as a separate, confirmed step.
+		//
+		// Not included, because they are only reachable from the ROC uC console:
+		// the FEB request counters ("lp N", "lc ub"), the uC resync counter
+		// ("UB") and the transmit trace ("RDM 85 500 10").
+		// =============================================================
+
+		function runDiagnose() {
+			var rocs = scopedROCs();
+			if (!rocs.length) return;
+			if (!confirm("Diagnose " + rocListText(rocs) + "?\n\n" +
+				"Reads the ROC buffers and counters and the status of every FEB. " +
+				"It talks to the FEBs, so use it when the run is stopped or a ROC is stuck, " +
+				"not while good data is being taken."))
+				return;
+			var entryId = createOutputEntry("Diagnose -> " + rocListText(rocs));
+			var state = {};
+			var remaining = rocs.length;
+			setGlobalDisabled(true);
+
+			function render() {
+				updateOutputEntry(entryId, rocs.map(function (r) {
+					var s = state[r.uid] || {};   // not yet started: the ROCs are set up one by one
+					if (s.html) return s.html;
+					return "<div class='crv-running'>" + esc(r.uid) + ": " + esc(s.progress || "starting...") + "</div>";
+				}).join(""));
+			}
+
+			rocs.forEach(function (roc, rocIdx) {
+				var d = state[roc.uid] = { progress: "" };
+				beginCommand(roc);
+
+				function macroStep(key, label, port, next) {
+					d.progress = label;
+					render();
+					if (!Mu2eCrv.getMacro(Mu2eCrv.MACROS[key])) { d[key] = { error: "macro not available (rebuild?)" }; next(); return; }
+					Mu2eCrv.runOnROC(roc, key, port, undefined, function (result) { d[key] = result; next(); });
+				}
+				macroStep("bufferStatus", "buffer status", undefined, function () {
+				macroStep("errorStatus", "FEB error status", undefined, function () {
+				macroStep("uptime", "FEB uptime / EW", -1, function () {
+				macroStep("requestTrace", "request trace", undefined, function () {
+					var ok = diagnoseReport(roc, d, entryId, rocIdx);
+					finishCommand(roc, ok);
+					renderROCs();
+					render();
+					if (--remaining === 0) setGlobalDisabled(false);
+				}); }); }); });
+			});
+			render();
+		}
+
+		// Build verdict + report for one ROC. Returns true when nothing is wrong.
+		function diagnoseReport(roc, d, entryId, rocIdx) {
+			var findings = [];   // {bad: bool, text}
+			function bad(t) { findings.push({ bad: true, text: t }); }
+			function note(t) { findings.push({ bad: false, text: t }); }
+			function resp(result) {
+				return result && !result.error ? String(Mu2eHardware.findOutput(result, "response") || "") : "";
+			}
+			function section(title, html) {
+				return "<details class='crv-raw'><summary>" + esc(title) + "</summary>" + html + "</details>";
+			}
+			function pre(text) { return "<pre class='crv-dump'>" + esc(text) + "</pre>"; }
+			var details = "";
+
+			// ---- 1. buffer status ----
+			var bs = resp(d.bufferStatus);
+			var stuck = false, dataLeft = false;
+			if (!bs) bad("Buffer Status failed: " + ((d.bufferStatus && d.bufferStatus.error) || "no response"));
+			else {
+				bs.split(/\r?\n/).forEach(function (line) {
+					var m = line.match(/^(PROBLEM|WARN):\s*(.*)/);
+					if (m) {
+						if (m[1] === "PROBLEM") {
+							bad(m[2]);
+							if (/is empty while|hold data but|is full|no event is ready/.test(m[2])) stuck = true;
+						} else note(m[2]);
+						return;
+					}
+					var cells = line.split("|").map(function (c) { return c.trim(); });
+					if ((cells[0] === "words" || cells[0] === "buffer words") &&
+						cells.slice(1).some(function (c) { return parseInt(c, 10) > 0; }))
+						dataLeft = true;
+				});
+				var a7 = bs.match(/requests dropped (\d+), events dropped (\d+), last drop: event (0x[0-9a-f]+) request (0x[0-9a-f]+)/);
+				var cn = bs.match(/requests received (\d+), events built (\d+) \(16 bit counters\), headers sent (\d+)/);
+				if (a7) {
+					d.reqDropped = parseInt(a7[1], 10);
+					d.evDropped = parseInt(a7[2], 10);
+				} else note("FPGA1 drop counters not in the Buffer Status output (firmware before 0xa7, or software not rebuilt)");
+				var a8 = bs.match(/input FIFO resets (\d+), bad tags (\d+), stale data (\d+), truncated events (\d+)/);
+				if (a8) d.flushes = parseInt(a8[2], 10) + parseInt(a8[3], 10);
+				if (cn) {
+					var rq = parseInt(cn[1], 10), bl = parseInt(cn[2], 10), hd = parseInt(cn[3], 10) & 0xffff;
+					var missing = (rq - bl) & 0xffff;
+					if (missing > 1 && missing < 0x8000)
+						note("FPGA1 received " + missing + " more requests than it built events (16 bit counters)");
+					if (((bl - hd) & 0xffff) > 1 && ((bl - hd) & 0xffff) < 0x8000)
+						note("FPGA1 built " + ((bl - hd) & 0xffff) + " more events than it sent headers");
+				}
+				var hb = handleBufferStatus(roc, d.bufferStatus);
+				details += section("Buffer Status", (hb && hb.html) || pre(bs));
+			}
+
+			// ---- 2. FEB error status ----
+			var es = resp(d.errorStatus);
+			if (es) {
+				var errPorts = [];
+				es.split(/\r?\n/).forEach(function (line) {
+					var m = line.match(/^Port\s+(\d+):\s+errCnt=(0x[0-9a-fA-F]+|FAIL)/);
+					if (m && (m[2] === "FAIL" || parseInt(m[2], 16) > 0))
+						errPorts.push(m[1] + (m[2] === "FAIL" ? " (read failed)" : " (" + parseInt(m[2], 16) + ")"));
+				});
+				if (errPorts.length) note("FEB error counter non-zero on port " + errPorts.join(", "));
+				var he = handleErrorStatus(roc, d.errorStatus);
+				if (he && he.success === false && !errPorts.length) note("FEB DDR status reports a problem (see FEB Error Status)");
+				details += section("FEB Error Status", (he && he.html) || pre(es));
+			} else note("FEB Error Status failed: " + ((d.errorStatus && d.errorStatus.error) || "no response"));
+
+			// ---- 3. FEB uptime / EW ----
+			var up = resp(d.uptime);
+			if (up) {
+				var hu = handleUptime(roc, d.uptime);
+				var ui = (hu && hu.issues) || [];
+				ui.slice(0, 8).forEach(function (t) { note("FEB " + t); });
+				if (ui.length > 8) note("... and " + (ui.length - 8) + " more FEB status lines (see FEB Uptime / EW)");
+				if (hu && hu.success === false && !ui.length) note("FEB Uptime / EW could not be read for any FEB");
+				details += section("FEB Uptime / EW", (hu && hu.html) || pre(up));
+			} else note("FEB Uptime / EW failed: " + ((d.uptime && d.uptime.error) || "no response"));
+
+			// ---- 4. request trace ----
+			var tr = resp(d.requestTrace);
+			if (tr) {
+				var trProblems = tr.split(/\r?\n/).filter(function (l) { return /^PROBLEM:/.test(l); });
+				if (trProblems.length)
+					bad("request trace: " + trProblems.length + " request(s) malformed or out of sequence as handed to the uC");
+				details += section("Request trace (FPGA1 -> uC)", pre(tr));
+			} else note("Request trace not read: " + ((d.requestTrace && d.requestTrace.error) || "no response"));
+
+			// ---- verdict ----
+			var verdict, verdictOk = false;
+			var hasBad = findings.some(function (f) { return f.bad; });
+			if (stuck) verdict = "STUCK: data is waiting in the ROC and will not move without a reset";
+			else if (d.evDropped > 0) verdict = d.evDropped + " built event(s) dropped by the EWT match" +
+				(d.reqDropped ? ", " + d.reqDropped + " request(s) without event" : "");
+			else if (d.reqDropped > 0) verdict = d.reqDropped + " request(s) got no event; the ROC recovered";
+			else if (hasBad) verdict = "PROBLEMS found";
+			else { verdict = "OK: nothing dropped, nothing stuck"; verdictOk = true; }
+			if (d.flushes > 0 && !stuck) {
+				verdict = (verdictOk ? "" : verdict + "; ") + "FPGA1 input FIFOs flushed " + d.flushes + " time(s) (bad tag or stale data)";
+				verdictOk = false;
+			}
+			// FPGA1 heartbeat buffer out of step: the FEBs get wrong event window
+			// numbers and send no hits (runs 125853, 125854, 125858). This is the
+			// most serious finding, so it goes first.
+			if (bs && /wrong event window numbers/.test(bs)) {
+				verdict = "NO HITS from this ROC: FPGA1 sends wrong event window numbers to the FEBs (heartbeat buffer out of step). Stop and start the run again" + (verdictOk ? "" : "; " + verdict);
+				verdictOk = false;
+			}
+
+			var html = "<div class='" + (verdictOk ? "goodValue" : "badValue") + "'><b>" + esc(verdict) + "</b></div>";
+			findings.forEach(function (f) {
+				html += "<div" + (f.bad ? " class='badValue'" : "") + ">" + (f.bad ? "" : "note: ") + esc(f.text) + "</div>";
+			});
+			if (dataLeft)
+				html += "<div id='" + entryId + "-dump-" + rocIdx + "'><button type='button' class='macro-btn-primary' " +
+					"onclick=\"diagnoseDump('" + entryId + "-dump-" + rocIdx + "','" + escJS(roc.uid) + "')\">" +
+					"Dump buffers of " + esc(roc.uid) + "</button> <span class='crv-control-note'>data is left in a " +
+					"buffer; the dump shows it but REMOVES it, the ROC must be reset afterwards</span></div>";
+
+			// plain text for the logbook
+			var text = ["CRV Diagnose " + roc.uid + " (link " + roc.link + ") " + new Date().toString(), verdict];
+			findings.forEach(function (f) { text.push((f.bad ? "PROBLEM: " : "note: ") + f.text); });
+			if (bs) text.push("", "--- Buffer Status", bs);
+			if (tr) text.push("", "--- Request trace", tr);
+			details += section("plain text (copy for the logbook)",
+				"<textarea readonly rows='12' style='width:100%;font-family:monospace;font-size:11px'>" +
+				esc(text.join("\n")) + "</textarea>");
+
+			d.html = rocReport(roc, {}, verdictOk, html + details);
+			return verdictOk;
+		}
+
+		// Destructive follow-up of Diagnose, only on the user's click.
+		function diagnoseDump(elementId, rocUid) {
+			var model = Mu2eCrv.getModel();
+			var roc = model && model.rocs.filter(function (r) { return r.uid === rocUid; })[0];
+			var el = document.getElementById(elementId);
+			if (!roc || !el) return;
+			if (!confirm("Dump the FPGA1 input FIFOs and the port input buffers of " + rocUid + "?\n\n" +
+				"This REMOVES the data from the buffers. Only do it on a ROC that is stuck, and reset it afterwards."))
+				return;
+			el.innerHTML = "<span class='crv-running'>dumping...</span>";
+			Mu2eCrv.runOnROC(roc, "bufferDump", undefined, undefined, function (result) {
+				var resp = result.error ? "Error: " + result.error : String(Mu2eHardware.findOutput(result, "response") || "");
+				el.innerHTML = "<details class='crv-raw' open><summary>Buffer dump</summary><pre class='crv-dump'>" +
+					esc(resp) + "</pre></details>";
+			});
+		}
+
+		// FEB II main status register 0x001: list what is wrong, or "OK".
+		// bit 9 clock align done, 7 FM parity error (latching), 5 MMCM lock,
+		// 4 PLL lock, 3/2 AFE1/0 align done, 1/0 AFE1/0 align warning.
+		function febStatusText(v) {
+			if (v === null || v === undefined) return { text: "?", bad: false };
+			var problems = [];
+			if (v & 0x80) problems.push("FM PARITY ERR");
+			if (!(v & 0x20)) problems.push("MMCM UNLOCKED");
+			if (!(v & 0x10)) problems.push("PLL UNLOCKED");
+			if (!(v & 0x200)) problems.push("CLK NOT ALIGNED");
+			if (!(v & 0x04)) problems.push("AFE0 NOT ALIGNED");
+			if (!(v & 0x08)) problems.push("AFE1 NOT ALIGNED");
+			if (v & 0x01) problems.push("AFE0 ALIGN WARN");
+			if (v & 0x02) problems.push("AFE1 ALIGN WARN");
+			var hex = "0x" + ("0000" + v.toString(16)).slice(-4);
+			return { text: hex + " " + (problems.length ? problems.join(", ") : "OK"), bad: problems.length > 0 };
+		}
+
+		// FEB II per-FPGA registers 0x6A-0x6F: one table row per port and FPGA
+		// with clock align score, uptime, microbunch number and microbunches
+		// since reset. A missing or failed row marks the result unsuccessful.
+		function handleUptime(roc, result) {
+			var resp = String(Mu2eHardware.findOutput(result, "response") || "");
+			if (!resp) return { success: false };
+			var lines = resp.split(/\r?\n/);
+			var rows = [];
+			var entries = [];
+			var anyFail = false;
+			var issues = [];   // one line per thing that is wrong, used by Diagnose
+			for (var i = 0; i < lines.length; ++i) {
+				var f = lines[i].match(/^Port\s+(\d+)(?:\s+FPGA\s+(\d))?:\s+FAIL/);
+				if (f) {
+					anyFail = true;
+					issues.push("port " + f[1] + (f[2] ? " FPGA " + f[2] : "") + ": " + lines[i].replace(/^.*FAIL/, "read FAILED"));
+					rows.push("<tr><td>" + f[1] + "</td><td>" + (f[2] || "-") +
+						"</td><td class='badValue' colspan='4'>" + esc(lines[i].replace(/^.*FAIL/, "FAIL")) + "</td></tr>");
+					continue;
+				}
+				var m = lines[i].match(/^Port\s+(\d+)\s+FPGA\s+(\d):\s+align=(0x[0-9a-fA-F]+)\s+uptime=(\d+)\s+uB=(0x[0-9a-fA-F]+)\s+uBcount=(0x[0-9a-fA-F]+)(?:\s+status=(0x[0-9a-fA-F]+))?/);
+				if (!m) continue;
+				var s = parseInt(m[4], 10);
+				var upText = s + " s (" + Math.floor(s / 86400) + "d " + Math.floor((s % 86400) / 3600) + "h " +
+					Math.floor((s % 3600) / 60) + "m " + (s % 60) + "s)";
+				entries.push({ port: m[1], fpga: m[2], align: parseInt(m[3], 16), upText: upText,
+					ub: m[5], ubCount: parseInt(m[6], 16), status: m[7] ? parseInt(m[7], 16) : null });
+			}
+			// Majority last EW across all ports and FPGAs; rows that differ
+			// are highlighted (FEBs out of step, or a port not seeing markers).
+			var counts = {};
+			entries.forEach(function (e) { counts[e.ub] = (counts[e.ub] || 0) + 1; });
+			var majority = null;
+			Object.keys(counts).forEach(function (k) {
+				if (majority === null || counts[k] > counts[majority]) majority = k;
+			});
+			var anyDiff = false;
+			entries.forEach(function (e) {
+				var diff = e.ub !== majority;
+				if (diff) anyDiff = true;
+				var st = febStatusText(e.status);
+				if (st.bad) anyDiff = true;
+				if (diff) issues.push("port " + e.port + " FPGA " + e.fpga + ": last EW " + e.ub +
+					" differs from the others (" + majority + ")");
+				if (st.bad) issues.push("port " + e.port + " FPGA " + e.fpga + ": " + st.text);
+				rows.push("<tr" + (diff ? " class='badValue'" : "") + "><td>" + e.port + "</td><td>" + e.fpga +
+					"</td><td>" + e.align + "</td><td>" + esc(e.upText) + "</td><td>" + e.ub + " (" +
+					parseInt(e.ub, 16) + ")</td><td>" + e.ubCount + "</td><td" +
+					(st.bad ? " class='badValue'" : "") + ">" + esc(st.text) + "</td></tr>");
+			});
+			if (!rows.length) return { success: false };
+			var html = "<table class='crv-bl-table'><tr><th>port</th><th>FPGA</th><th>align score</th>" +
+				"<th>uptime</th><th>last EW</th><th>EWs since reset</th><th>status (0x001)</th></tr>" +
+				rows.join("") + "</table>";
+			return { success: !anyFail && !anyDiff, html: html, issues: issues };
+		}
+
+		// =============================================================
+		// Controls (each button = one macro per scoped ROC)
+		// =============================================================
+
+		function val(id) { return document.getElementById(id).value.trim(); }
+		function checked(id) { return document.getElementById(id).checked ? "true" : "false"; }
+
+		function renderControls() {
+			var g = Mu2eCrv.firstGates();
+			if (g) {
+				document.getElementById("gateOnStart").value = g.onStart;
+				document.getElementById("gateOnEnd").value = g.onEnd;
+				document.getElementById("gateOffStart").value = g.offStart;
+				document.getElementById("gateOffEnd").value = g.offEnd;
+			}
+			var names = Mu2eCrv.listROCMacroNames();
+			var sel = document.getElementById("rawMacro");
+			sel.innerHTML = "<option value=''>" +
+				(names.length ? "choose a ROC macro" : "no ROC macros (system not Configured)") +
+				"</option>" +
+				names.map(function (n) { return "<option value='" + esc(n) + "'>" + esc(n) + "</option>"; }).join("");
+			document.getElementById("rawInputs").innerHTML = "";
+			_rawMacroName = null;
+		}
+
+		// Run `macro` on the scoped ROCs with scoped port. `extra` by prefix.
+		function runControl(label, macro, extra, confirmText, portOverride) {
+			var rocs = scopedROCs();
+			if (!rocs.length) return;
+			var port = portOverride !== undefined ? portOverride : _scopePort;
+			var where = rocListText(rocs) + (port === -1 ? ", all active ports" : ", port " + port);
+
+			var entryId = createOutputEntry(label + " -> " + where);
+			var perROC = {};
+			rocs.forEach(beginCommand);
+			Mu2eCrv.runOnROCs(rocs, macro, port, extra,
+				function (roc, result) {
+					var success = !result.error;
+					finishCommand(roc, success);
+					perROC[roc.uid] = rocReport(roc, result, success,
+						Mu2eHardware.formatMacroResult(Mu2eCrv.fullName(Mu2eCrv.MACROS[macro] || macro), result, roc.uid));
+					updateOutputEntry(entryId, rocs.map(function (r) {
+						return perROC[r.uid] || "<div class='crv-running'>" + esc(r.uid) + " running...</div>";
+					}).join(""));
+				});
+		}
+
+		function broadcastFlag() {
+			return _scopePort === -1 ? "true" : "false";
+		}
+
+		function ledSet(on) {
+			runControl("LED " + (on ? "on" : "off"), "led",
+				{ "offset": val("ledOffset") || "500", "LED bias": val("ledBias") || "3500", "on": on ? "true" : "false" });
+		}
+
+		function thresholdSetAll() {
+			var v = val("thrGlobal");
+			if (v === "") return;
+			runControl("Set threshold (all channels)", "threshold",
+				{ "fpga": "-1", "channel": "-1", "threshold": v, "use broadcast": broadcastFlag() },
+				"Set threshold " + v + " on all FPGAs and channels?");
+		}
+
+		function thresholdSetOne() {
+			var v = val("thrValue");
+			if (v === "") return;
+			runControl("Set threshold fpga " + val("thrFpga") + " ch " + val("thrChannel"), "threshold",
+				{ "fpga": val("thrFpga"), "channel": val("thrChannel"), "threshold": v, "use broadcast": broadcastFlag() },
+				"Set threshold " + v + " on fpga " + val("thrFpga") + ", channel " + val("thrChannel") + "?");
+		}
+
+		function trimSetAll() {
+			var v = val("trimGlobal");
+			if (v === "") return;
+			runControl("Set bias trim (all channels)", "trim",
+				{ "fpga": "-1", "channel": "-1", "bias trim": v, "use broadcast": broadcastFlag() },
+				"Set bias trim " + v + " on all FPGAs and channels?");
+		}
+
+		function trimSetOne() {
+			var v = val("trimValue");
+			if (v === "") return;
+			runControl("Set bias trim fpga " + val("trimFpga") + " ch " + val("trimChannel"), "trim",
+				{ "fpga": val("trimFpga"), "channel": val("trimChannel"), "bias trim": v, "use broadcast": broadcastFlag() },
+				"Set bias trim " + v + " on fpga " + val("trimFpga") + ", channel " + val("trimChannel") + "?");
+		}
+
+		function biasSet() {
+			var v = val("biasValue");
+			if (v === "") return;
+			runControl("Set bias (global)", "bias",
+				{ "fpga": "-1", "number": "-1", "bias": v, "sleep": val("biasSleep") || "1", "use broadcast": "true" },
+				"Set SiPM bias to " + v + " on ALL FPGAs of ALL active ports?\n\nThis ramps the bias voltage.",
+				-1 /* global only */);
+		}
+
+		function gateSet(which) {
+			var isOn = which === "on";
+			var start = val(isOn ? "gateOnStart" : "gateOffStart");
+			var end = val(isOn ? "gateOnEnd" : "gateOffEnd");
+			if (start === "" || end === "") return;
+			runControl("Set " + (isOn ? "on-spill" : "off-spill") + " gate", isOn ? "gateOn" : "gateOff",
+				{ "gate start": start, "gate end": end, "use broadcast": "true" },
+				"Set " + (isOn ? "on-spill" : "off-spill") + " gate to [" + start + ", " + end + "] x6.25 ns on ALL active ports?",
+				-1 /* global only */);
+		}
+
+		// ---- raw macro runner ----
+
+		function onRawMacroChange() {
+			var name = document.getElementById("rawMacro").value;
+			_rawMacroName = name || null;
+			renderRawInputs(_rawMacroName);
+		}
+
+		function renderRawInputs(name) {
+			var box = document.getElementById("rawInputs");
+			var macroObj = name ? Mu2eCrv.getMacro(name) : null;
+			if (!macroObj) { box.innerHTML = ""; return; }
+			var prefilled = Mu2eHardware.buildROCMacroInputs(macroObj, "(per ROC)", _scopePort, {});
+			var html = "";
+			for (var i = 0; i < macroObj.inputs.length; ++i) {
+				var arg = macroObj.inputs[i];
+				var isTarget = Mu2eHardware.TARGET_ROC_ARG_RE.test(arg);
+				html += "<label>" + esc(arg) + "</label>";
+				html += "<input type='text' class='rawArg' data-arg='" + Mu2e.escAttr(arg) + "' " +
+					(isTarget ? "disabled value='set by ROC scope'" : "value='" + Mu2e.escAttr(prefilled[arg] || "") + "'") + ">";
+			}
+			box.innerHTML = html;
+		}
+
+		function runRaw() {
+			if (!_rawMacroName) return;
+			var fields = document.querySelectorAll("#rawInputs .rawArg");
+			var extra = {};
+			for (var i = 0; i < fields.length; ++i) {
+				if (fields[i].disabled || fields[i].value === "") continue;
+				extra[fields[i].getAttribute("data-arg")] = fields[i].value;
+			}
+			var rocs = scopedROCs();
+			if (!rocs.length) return;
+
+			var entryId = createOutputEntry(_rawMacroName + " -> " + rocListText(rocs));
+			var perROC = {};
+			rocs.forEach(beginCommand);
+			var macroObj = Mu2eCrv.getMacro(_rawMacroName);
+			rocs.forEach(function (roc) {
+				// exact names from the form; only the target-ROC input is filled here
+				var inputs = {};
+				Object.keys(extra).forEach(function (k) { inputs[k] = extra[k]; });
+				for (var j = 0; j < macroObj.inputs.length; ++j)
+					if (Mu2eHardware.TARGET_ROC_ARG_RE.test(macroObj.inputs[j]))
+						inputs[macroObj.inputs[j]] = String(roc.link);
+				Mu2eHardware.runMacro(Mu2eCrv.getModel().dtc, Mu2eCrv.fullName(_rawMacroName), inputs,
+					function (result) {
+						var success = !result.error;
+						finishCommand(roc, success);
+						perROC[roc.uid] = rocReport(roc, result, success,
+							Mu2eHardware.formatMacroResult(Mu2eCrv.fullName(_rawMacroName), result, roc.uid));
+						updateOutputEntry(entryId, rocs.map(function (r) {
+							return perROC[r.uid] || "<div class='crv-running'>" + esc(r.uid) + " running...</div>";
+						}).join(""));
+					});
+			});
+		}
+	</script>
+</head>
+
+<body onload="// init() is called by DesktopContent.js">
+	<div id="crvContainer">
+		<header id="crvHeader">
+			<div>
+				<h2>CRV Controls</h2>
+				<div id="activeConfigInfo" class="config-info"></div>
+			</div>
+			<button class="crv-refresh" type="button" onclick="init()" title="Re-read the configuration (no hardware access)">Refresh config</button>
+		</header>
+
+		<section class="crv-section crv-actions-section">
+			<div class="crv-actions-left">
+				<div class="crv-section-title">Actions</div>
+				<div id="globalActions" class="crv-actions"></div>
+			</div>
+			<div class="crv-poe-group crv-remote-groups" title="DCS host remote commands (poe_ctl.py, rocCmd.py)">
+				<div class="crv-remote-row">
+					<span class="crv-poe-group-label">FEB power</span>
+					<span class="crv-remote-buttons">
+						<button type="button" class="macro-btn-primary" id="poeCycleAllButton" onclick="poeCycle(poeAll())" disabled
+							title="Power-cycle every PoE port on every injector: off, wait 5 s, on. All FEBs need a new Configure afterwards.">Power-cycle all</button>
+						<button type="button" class="macro-btn" id="poeOffAllButton" onclick="poeOff(poeAll())" disabled
+							title="Switch every PoE port on every injector off (all FEBs off)">All off</button>
+						<span id="poeNote" class="crv-control-note"></span>
+					</span>
+				</div>
+				<div class="crv-remote-row">
+					<span class="crv-poe-group-label">ROC uC</span>
+					<span class="crv-remote-buttons">
+						<button type="button" class="macro-btn-primary" id="crvCmdResetButton" onclick="crvCmdReset()" disabled
+							title="Send the reset command ('wr 2 1') to both ROC uC consoles via rocCmd.py on the DCS host">Reset ROCs</button>
+						<span id="crvCmdNote" class="crv-control-note"></span>
+					</span>
+				</div>
+			</div>
+		</section>
+
+
+		<section class="crv-section">
+			<div class="crv-section-title">Global settings (all ROCs, all active ports)</div>
+
+			<div class="accordion-section">
+				<div class="accordion-header" onclick="Mu2e.toggleAccordion(this)">Global Bias</div>
+				<div class="accordion-body">
+					<div class="crv-control-row">
+						<label>bias</label><input type="text" id="biasValue" placeholder="e.g. 0xaaf">
+						<label>sleep [s]</label><input type="text" id="biasSleep" value="1">
+						<button type="button" class="macro-btn-primary crv-global-btn" onclick="biasSet()">Set bias</button>
+						<span class="crv-control-note">all FPGAs, broadcast; ramps SiPM bias</span>
+					</div>
+				</div>
+			</div>
+
+			<div class="accordion-section">
+				<div class="accordion-header" onclick="Mu2e.toggleAccordion(this)">Gates</div>
+				<div class="accordion-body">
+					<div class="crv-control-row">
+						<label>on-spill</label>
+						<input type="text" id="gateOnStart" value="16"> to <input type="text" id="gateOnEnd" value="255">
+						<button type="button" class="macro-btn-primary crv-global-btn" onclick="gateSet('on')">Set on-spill</button>
+					</div>
+					<div class="crv-control-row">
+						<label>off-spill</label>
+						<input type="text" id="gateOffStart" value="16"> to <input type="text" id="gateOffEnd" value="64000">
+						<button type="button" class="macro-btn-primary crv-global-btn" onclick="gateSet('off')">Set off-spill</button>
+						<span class="crv-control-note">6.25 ns units; prefilled from the configuration</span>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<section class="crv-section">
+			<div class="crv-scope">
+				<label for="scopeROC">ROC</label>
+				<select id="scopeROC" onchange="onScopeChange()"><option value="all">All ROCs</option></select>
+				<label for="scopePort">Port</label>
+				<select id="scopePort" onchange="onScopeChange()"><option value="-1">all active</option></select>
+				<span id="scopeHint" class="crv-scope-hint"></span>
+				<span class="crv-scope-hint">Click a ROC header or port cell to set the scope. Actions and controls apply to it.</span>
+			</div>
+		</section>
+
+				<section class="crv-section">
+					<div class="crv-section-title">ROCs and FEB ports</div>
+					<div id="rocCards"></div>
+					<div id="febDetails" class="crv-feb-details" style="display:none"></div>
+					<div class="accordion-section crv-config-bar">
+						<div class="accordion-header" onclick="Mu2e.toggleAccordion(this)">Configuration (DTC and ROC settings from the active tables)</div>
+						<div class="accordion-body">
+							<div id="configSettings" class="crv-config-grid"><span class="placeholder-text">Loading...</span></div>
+						</div>
+					</div>
+				</section>
+
+				<section class="crv-section crv-controls">
+					<div class="crv-section-title">Per-port controls (use the scope above)</div>
+
+					<div class="accordion-section">
+						<div class="accordion-header" onclick="Mu2e.toggleAccordion(this)">FEB power (PoE)</div>
+						<div class="accordion-body">
+							<div class="crv-control-row">
+								<button type="button" class="macro-btn" id="poePortOnButton" onclick="poeOn(poeScopeTarget())"
+									title="Switch the PoE port(s) in scope on (FEB power on)">On</button>
+								<button type="button" class="macro-btn" id="poePortOffButton" onclick="poeOff(poeScopeTarget())"
+									title="Switch the PoE port(s) in scope off (FEB power off)">Off</button>
+								<button type="button" class="macro-btn-primary" id="poePortCycleButton" onclick="poeCycle(poeScopeTarget())"
+									title="Power-cycle the PoE port(s) in scope: off, wait 5 s, on. The FEB needs a new Configure afterwards.">Power-cycle</button>
+								<span id="poeScopeNote" class="crv-control-note"></span>
+							</div>
+							<div class="crv-control-row">
+								<span class="crv-control-note">ROC on link 0 is on injector 1, link 1 on injector 2; PoE port = FEB port. Edit Mu2eCrv.js if the cabling differs.</span>
+							</div>
+						</div>
+					</div>
+
+					<div class="accordion-section">
+						<div class="accordion-header" onclick="Mu2e.toggleAccordion(this)">Bias trim</div>
+						<div class="accordion-body">
+							<div class="crv-control-row">
+								<label>all channels</label><input type="text" id="trimGlobal">
+								<button type="button" class="macro-btn-primary" onclick="trimSetAll()">Set on all</button>
+							</div>
+							<div class="crv-control-row">
+								<label>fpga</label><input type="text" id="trimFpga" value="-1">
+								<label>channel</label><input type="text" id="trimChannel" value="5">
+								<label>value</label><input type="text" id="trimValue">
+								<button type="button" class="macro-btn" onclick="trimSetOne()">Set</button>
+							</div>
+						</div>
+					</div>
+
+					<div class="accordion-section">
+						<div class="accordion-header" onclick="Mu2e.toggleAccordion(this)">Threshold</div>
+						<div class="accordion-body">
+							<div class="crv-control-row">
+								<label>all channels</label><input type="text" id="thrGlobal" placeholder="e.g. 80">
+								<button type="button" class="macro-btn-primary" onclick="thresholdSetAll()">Set on all</button>
+							</div>
+							<div class="crv-control-row">
+								<label>fpga</label><input type="text" id="thrFpga" value="-1">
+								<label>channel</label><input type="text" id="thrChannel" value="5">
+								<label>value</label><input type="text" id="thrValue">
+								<button type="button" class="macro-btn" onclick="thresholdSetOne()">Set</button>
+								<span class="crv-control-note">fpga 0-3 or -1, channel 0-15 or -1</span>
+							</div>
+						</div>
+					</div>
+
+					<div class="accordion-section">
+						<div class="accordion-header" onclick="Mu2e.toggleAccordion(this)">LED</div>
+						<div class="accordion-body">
+							<div class="crv-control-row">
+								<label>LED bias</label><input type="text" id="ledBias" value="3500">
+								<label>offset</label><input type="text" id="ledOffset" value="500">
+								<button type="button" class="macro-btn-primary" onclick="ledSet(true)">LED on</button>
+								<button type="button" class="macro-btn" onclick="ledSet(false)">LED off</button>
+								<span class="crv-control-note">offset in 6.25 ns units; uses the port scope</span>
+							</div>
+						</div>
+					</div>
+
+					<div class="accordion-section">
+						<div class="accordion-header" onclick="Mu2e.toggleAccordion(this)">ROC uC command</div>
+						<div class="accordion-body">
+							<div class="crv-control-row">
+								<label>command</label><input type="text" id="crvCmdInput" placeholder="e.g. ub, rd 2">
+								<label>ROC</label>
+								<select id="crvCmdRoc">
+									<option value="all">all</option>
+									<option value="1">1</option>
+									<option value="2">2</option>
+								</select>
+								<button type="button" class="macro-btn-primary" id="crvCmdRunButton" onclick="crvCmdRun()" disabled>Send</button>
+								<span class="crv-control-note">forwarded verbatim to the ROC uC console via rocCmd.py on the DCS host</span>
+							</div>
+						</div>
+					</div>
+
+					<div class="accordion-section">
+						<div class="accordion-header" onclick="Mu2e.toggleAccordion(this)">Raw macro</div>
+						<div class="accordion-body">
+							<div class="crv-control-row">
+								<select id="rawMacro" onchange="onRawMacroChange()"></select>
+								<button type="button" class="macro-btn-primary" onclick="runRaw()">Run</button>
+								<span class="crv-control-note">empty fields use the macro defaults; ROC target comes from the scope</span>
+							</div>
+							<div id="rawInputs" class="crv-raw-inputs"></div>
+						</div>
+					</div>
+				</section>
+
+			<section id="crvOutputPanel" class="crv-section">
+				<div class="crv-output-header">
+					<div class="crv-section-title">Output</div>
+					<button type="button" class="crv-clear-output" onclick="clearOutput()">Clear</button>
+				</div>
+				<div id="crvOutput">
+					<div class="crv-empty">Click a button to run a macro; output appears here.</div>
+				</div>
+			</section>
+	</div>
+</body>
+</html>

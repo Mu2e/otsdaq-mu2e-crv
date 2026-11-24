@@ -1,0 +1,204 @@
+# Histogram segmentation for CrvDQM / CrvStatusMetrics -- worked examples.
+#
+# The `segmentation` block decides, per histogram, two things:
+#
+#   * which copies exist -- one integrated over the whole job, one per subrun,
+#     one over the last N events, and archived copies of previous spans;
+#   * whether HistoSender ships them, and under which folder.
+#
+# Both are read at configure time, so online can change what is segmented AND
+# what is published between runs with NO REBUILD. The module holds no list of
+# histograms: it ships whatever `publish` selected.
+#
+# Default (no block at all) is job-only: every histogram gets exactly one
+# copy, named and titled as it always was. That is what offline wants,
+# because it is the only form that hadds.
+#
+# Full grammar and the naming/labelling scheme: Offline/DQMHelpers/README.md.
+#
+# Use either by copying a block into an analyzer's parameters, or -- if this
+# directory is on FHICL_FILE_PATH -- with
+#
+#   #include "otsdaq-mu2e-crv/fcl/CrvDQM_segmentation_examples.fcl"
+#   physics.analyzers.crvdqm.segmentation : @local::crvSegmentation.lastNEvents
+
+BEGIN_PROLOG
+
+crvSegmentation : {
+
+  # -------------------------------------------------------------------------
+  # reference -- every field, with what it does. Not meant to be used as-is;
+  # it is the documentation of the grammar written in FHiCL.
+  # -------------------------------------------------------------------------
+  reference : {
+
+    # Append the range each copy covers to its title, inserted before the
+    # first ';' so the axis labels survive. Leave true: a copy that does not
+    # say what it covers is worse than no copy.
+    annotateTitles : true
+
+    # Also write the range into a TNamed("dqmSegment", ...) inside the
+    # histogram, so it travels through HistoSender without the directory:
+    #   mode=window;index=1;firstEvent=..;lastEvent=..;nEvents=..;
+    #   firstClock=..;lastClock=..;run=..;subrun=..;complete=1
+    stampMetadata : true
+
+    # Subdirectories the archived copies go into.
+    subrunDir  : "bySubrun"
+    segmentDir : "segments"
+
+    # First matching rule wins. `match` is a glob ('*' and '?') over the
+    # directory-qualified histogram path, so "timing_fpga/*" takes a whole
+    # subdirectory. A histogram matching no rule gets job-only.
+    #
+    # Unknown keys, unknown modes and unknown units THROW at configure time.
+    # A mistyped rule that quietly does nothing is worse online than a job
+    # that refuses to start.
+    rules : [
+      {
+        match : "h1_channels"
+
+        # false drops the histogram entirely -- an fcl-only way to turn off
+        # an expensive plot between runs.
+        enabled : true
+
+        # Any subset of job / subrun / window.
+        modes : [ "job", "subrun", "window" ]
+
+        job : {
+          persist : true       # write the job copy to the output file
+        }
+
+        subrun : {
+          keep        : -1     # archived subruns: -1 = all, N = last N
+          persist     : true   # write the archived per-subrun copies
+          persistLive : false  # write the in-progress copy (B_sub)
+        }
+
+        window : {
+          span         : 50000   # width of one span, in `unit`
+          unit         : "ewt"   # "event" | "ewt" | "subrun"
+          subdivisions : 10      # ring depth; the window is quantized to
+                                 # span/subdivisions. 1 = disjoint blocks,
+                                 # which costs no extra memory.
+          keep         : 4       # archived spans (B_prev1 .. B_prev4)
+          persist      : false   # write the archived spans
+          persistLive  : false   # write the live copy
+        }
+
+        # Name for the live window copy. Without it the copy is B_last.
+        liveName : "h1_channelsLastEwt"
+
+        # Hand every copy of this histogram to the consumer -- for CrvDQM that
+        # means HistoSender. Nothing is published unless it says so: shipping a
+        # large histogram costs bandwidth on every send interval, which is why
+        # crvDigiRates* and crvDigisPerChannel are left out by default.
+        publish : true
+
+        # The folder to collect them under. Omitted, each copy is published on
+        # its own, keyed by its own name -- which is what a GUI subscribing to
+        # h1_channelsLastEwt wants. Set it to gather a family together, as the
+        # per-FEB and per-FPGA timing histograms are.
+        group : ""
+      }
+    ]
+  }
+
+  # -------------------------------------------------------------------------
+  # integratedOnly -- what offline runs, and the safe online default.
+  # One copy per histogram, integrated over the job. Everything hadds.
+  # -------------------------------------------------------------------------
+  integratedOnly : {
+    rules : [
+      { match : "*"  modes : [ "job" ] }
+    ]
+  }
+
+  # -------------------------------------------------------------------------
+  # lastNEvents -- the online shift view. Occupancy and the FEB desync
+  # counter also carry a rolling last-N window plus four older spans, none of
+  # which are written to the file: they are job-local ranges and would not
+  # hadd. `liveName` keeps the names the GUI already subscribes to.
+  # -------------------------------------------------------------------------
+  lastNEvents : {
+    rules : [
+      { match    : "h1_channels"
+        modes    : [ "job", "window" ]
+        window   : { span : 50000  unit : "ewt"  subdivisions : 10
+                     keep : 4  persist : false  persistLive : false }
+        liveName : "h1_channelsLastEwt"
+        publish  : true
+      },
+
+      { match    : "dtOutOfRangePerFeb"
+        modes    : [ "job", "window" ]
+        window   : { span : 50000  unit : "ewt"  subdivisions : 10
+                     keep : 4  persist : false  persistLive : false }
+        liveName : "dtOutOfRangePerFebLastEwt"
+        publish  : true
+        group    : "timing_feb"
+      },
+
+      # dtVsFeb is not segmented, but it belongs in the same timing folder.
+      { match : "dtVsFeb"  modes : [ "job" ]  publish : true  group : "timing_feb" },
+
+      # Hits/event over the last 20k events, so a rate change shows up
+      # without being diluted by the whole run. Live copy only, no archive.
+      { match  : "h1_digisPerEvt"
+        modes  : [ "job", "window" ]
+        window : { span : 20000  unit : "event"  subdivisions : 10
+                   keep : 0  persistLive : false }
+        publish : true
+      },
+
+      { match : "h2_channels" modes : [ "job" ] publish : true },
+      { match : "h1_peakAdc"  modes : [ "job" ] publish : true },
+      { match : "h1_tdc"      modes : [ "job" ] publish : true },
+
+      # There are thousands of these; a window rule would clone every one ten
+      # times. Job only, one folder, explicitly.
+      { match : "timing_fpga/*"  modes : [ "job" ]  publish : true  group : "timing_fpga" }
+    ]
+  }
+
+  # -------------------------------------------------------------------------
+  # perSubrunWithHistory -- keep a per-subrun copy of the health plots for
+  # the whole run, so a subrun that went bad can be found after the fact.
+  # These are the one segmented form that is hadd-safe: the copies carry the
+  # real run and subrun in the name, so files coexist rather than collide.
+  # -------------------------------------------------------------------------
+  perSubrunWithHistory : {
+    rules : [
+      { match  : "nEvents"
+        modes  : [ "job", "subrun" ]
+        subrun : { keep : -1  persist : true  persistLive : false }
+      },
+
+      { match  : "errorBitsVsRoc"
+        modes  : [ "job", "subrun" ]
+        subrun : { keep : -1  persist : true  persistLive : false }
+      },
+
+      { match  : "linkLatency"
+        modes  : [ "job", "subrun" ]
+        subrun : { keep : -1  persist : true  persistLive : false }
+      },
+
+      { match  : "dtOutOfRangePerFeb"
+        modes  : [ "job", "subrun" ]
+        subrun : { keep : -1  persist : true  persistLive : false }
+      },
+
+      # Per-link latency: one copy per subrun per link is a lot of objects,
+      # so keep only the last eight and do not write them.
+      { match  : "linkLatency_dtc*_roc*"
+        modes  : [ "job", "subrun" ]
+        subrun : { keep : 8  persist : false  persistLive : false }
+      },
+
+      { match : "timing_fpga/*"  modes : [ "job" ] }
+    ]
+  }
+}
+
+END_PROLOG
